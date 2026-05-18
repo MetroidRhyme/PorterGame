@@ -13,87 +13,174 @@
       color: #e0d8c8;
       font-family: 'Courier New', monospace;
       height: 100dvh;
-      display: flex;
-      flex-direction: column;
       overflow: hidden;
     }
 
+    /* ── FULL-SCREEN MAP ── */
+    #map {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    /* Push leaflet zoom control below top HUD */
+    .leaflet-top { top: 68px !important; }
+
     /* ── TOP HUD ── */
     #hud-top {
-      background: rgba(10,10,15,0.95);
-      border-bottom: 1px solid #2a2a3a;
-      padding: 12px 16px;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 2000;
+      background: rgba(10,10,15,0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: max(12px, env(safe-area-inset-top)) 16px 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      z-index: 1000;
-      flex-shrink: 0;
+      gap: 12px;
     }
-    #game-title { font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; }
-    #score-display { text-align: right; }
+    #game-title { font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; flex-shrink: 0; }
+    #score-display { text-align: right; flex-shrink: 0; }
     #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
-    /* ── MAP ── */
-    #map { flex: 1; min-height: 0; }
-
-    /* ── MAP OVERLAY BADGES ── */
+    /* ── GPS STATUS BADGE ── */
     #gps-status {
-      position: absolute; top: 66px; right: 12px; z-index: 999;
+      position: fixed; top: 74px; right: 12px; z-index: 1999;
       font-size: 10px; letter-spacing: 2px; padding: 4px 10px; border-radius: 2px;
       pointer-events: none;
     }
     #gps-status.acquiring { background: rgba(80,40,0,0.9); color: #e8a030; }
     #gps-status.locked    { background: rgba(0,50,0,0.9);  color: #5ab05a; }
 
+    /* ── EDIT ZONES BUTTON ── */
     #edit-zones-btn {
-      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
-      padding: 4px 10px; border-radius: 2px; background: transparent;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+      padding: 10px 14px; border-radius: 4px; background: transparent;
       color: #555; border: 1px solid #2a2a3a; cursor: pointer;
+      touch-action: manipulation; min-height: 44px; white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
     }
-    #edit-zones-btn:hover  { color: #888; border-color: #4a4a5a; }
+    #edit-zones-btn:active { color: #888; border-color: #4a4a5a; }
     #edit-zones-btn.active { color: #5ab05a; border-color: #2a6030; background: rgba(5,20,10,0.95); }
 
     /* ── BOTTOM HUD ── */
     #hud-bottom {
-      background: rgba(10,10,15,0.97);
-      border-top: 1px solid #2a2a3a;
-      padding: 14px 16px 18px;
-      z-index: 1000; flex-shrink: 0;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 2000;
+      background: rgba(10,10,15,0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      border-radius: 18px 18px 0 0;
+      padding-bottom: max(18px, env(safe-area-inset-bottom));
     }
-    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #555; margin-bottom: 4px; }
-    #mission-detail   { font-size: 13px; color: #a09888; line-height: 1.5; }
-    #mission-distance { font-size: 11px; color: #4a7a4a; margin-top: 3px; min-height: 16px; }
+
+    /* ── DRAG HANDLE ── tap to collapse/expand */
+    #hud-collapse-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 12px 0 6px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #hud-collapse-btn::before {
+      content: '';
+      display: block;
+      width: 44px; height: 4px;
+      background: #2e2e3e;
+      border-radius: 2px;
+      transition: background 0.15s;
+    }
+    #hud-collapse-btn:active::before { background: #4a4a5a; }
+
+    /* ── COLLAPSIBLE SECTION ── */
+    #collapsible-hud {
+      overflow: hidden;
+      max-height: 800px;
+      opacity: 1;
+      padding: 0 16px;
+      transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity   0.20s ease;
+    }
+    #hud-bottom.collapsed #collapsible-hud {
+      max-height: 0;
+      opacity: 0;
+    }
+
+    /* ── HUD TEXT ── */
+    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #555; margin-bottom: 5px; }
+    #mission-detail   { font-size: 14px; color: #a09888; line-height: 1.5; }
+    #mission-distance { font-size: 11px; color: #4a7a4a; margin-top: 5px; min-height: 16px; }
 
     /* ── ZONE TYPE TOGGLE (edit mode) ── */
-    #zone-toggle { display: none; gap: 8px; margin-top: 10px; }
+    #zone-toggle { display: none; gap: 8px; margin-top: 12px; }
     #zone-toggle button {
-      flex: 1; padding: 10px; border-radius: 2px;
+      flex: 1; padding: 14px; border-radius: 4px;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
       cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
+      touch-action: manipulation; min-height: 48px;
+      -webkit-tap-highlight-color: transparent;
     }
     #zone-spawn-btn.active { border-color: #2a6030; background: #0a2010; color: #5ab05a; }
     #zone-drop-btn.active  { border-color: #5030a0; background: #150a25; color: #8060d0; }
 
-    /* ── AREA CHIPS (edit-mode area editor & idle area selector) ── */
-    .area-chips { display: none; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    /* ── AREA CHIPS ── */
+    .area-chips { display: none; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     .area-chips button {
-      padding: 8px 12px; border-radius: 2px;
-      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
+      padding: 10px 16px; border-radius: 4px;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
       cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
-      white-space: nowrap;
+      white-space: nowrap; touch-action: manipulation; min-height: 44px;
+      -webkit-tap-highlight-color: transparent;
     }
     .area-chips button.active  { border-color: #5030a0; background: #150a25; color: #8060d0; }
     .area-chips .new-area-btn  { color: #4a7a4a; border-color: #1e3020; }
-    .area-chips .new-area-btn:hover { color: #5ab05a; border-color: #2a6030; }
-    .area-chips .del-area-btn  { padding: 8px 8px; color: #3a3a3a; border-color: #2a2a3a; font-size: 11px; }
-    .area-chips .del-area-btn:hover { color: #c04040; border-color: #602020; }
+    .area-chips .new-area-btn:active { color: #5ab05a; border-color: #2a6030; }
+    .area-chips .del-area-btn  { padding: 10px 12px; color: #3a3a3a; border-color: #2a2a3a; font-size: 14px; }
+    .area-chips .del-area-btn:active { color: #c04040; border-color: #602020; }
 
-    /* ── PRIMARY ACTION ── */
+    /* ── SECONDARY ACTION ── */
+    #secondary-btn {
+      display: none; width: 100%; margin-top: 10px; padding: 14px;
+      background: transparent; color: #555; border: 1px solid #2a2a3a; border-radius: 4px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
+      cursor: pointer; touch-action: manipulation; min-height: 48px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #secondary-btn:active { color: #c04040; border-color: #602020; }
+
+    /* ── MID-RUN ACTIONS ── always visible when shown, outside collapsible */
+    #mid-run-actions { display: none; gap: 8px; margin-top: 10px; padding: 0 16px; }
+    #mid-run-actions button {
+      flex: 1; padding: 14px; border-radius: 4px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
+      cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
+      transition: color 0.15s, border-color 0.15s;
+      touch-action: manipulation; min-height: 48px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #skip-btn:active { color: #e8a030; border-color: #4a3010; }
+    #edit-btn:active { color: #8060d0; border-color: #402080; }
+    #skip-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    /* ── PRIMARY ACTION ── always visible, outside collapsible */
     #action-btn {
-      width: 100%; margin-top: 12px; padding: 15px; border: none; border-radius: 3px;
-      font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold;
-      letter-spacing: 4px; cursor: pointer;
+      display: block;
+      width: calc(100% - 32px); margin: 10px 16px 0;
+      padding: 18px; border: none; border-radius: 6px;
+      font-family: 'Courier New', monospace; font-size: 15px; font-weight: bold;
+      letter-spacing: 4px; cursor: pointer; min-height: 58px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
     #action-btn.generate { background: #111820; color: #4a7a4a; border: 1px solid #1e3020; }
@@ -102,27 +189,6 @@
     #action-btn.deliver  { background: #00101a; color: #2060a0; border: 1px solid #001e30; }
     #action-btn.deliver.ready { background: #3080c0; color: #0a0a0f; border-color: #3080c0; }
     #action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-    /* ── SECONDARY ACTION (clear / destructive) ── */
-    #secondary-btn {
-      display: none; width: 100%; margin-top: 6px; padding: 10px;
-      background: transparent; color: #555; border: 1px solid #2a2a3a; border-radius: 3px;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px; cursor: pointer;
-    }
-    #secondary-btn:hover { color: #c04040; border-color: #602020; }
-
-    /* ── MID-RUN ACTIONS (skip / edit) ── */
-    #mid-run-actions { display: none; gap: 8px; margin-top: 8px; }
-    #mid-run-actions button {
-      flex: 1; padding: 10px; border-radius: 2px;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
-      cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
-      transition: color 0.15s, border-color 0.15s;
-    }
-    #skip-btn:hover  { color: #e8a030; border-color: #4a3010; }
-    #edit-btn:hover  { color: #8060d0; border-color: #402080; }
-    #skip-btn:disabled { opacity: 0.25; cursor: not-allowed; }
-    #skip-btn:disabled:hover { color: #555; border-color: #2a2a3a; }
 
     /* ── DELIVERY COMPLETE FLASH ── */
     #completion-overlay {
@@ -148,34 +214,44 @@
   <div id="game-title">PORTER</div>
   <button id="edit-zones-btn" onclick="enterEditMode()">ZONES</button>
   <div id="score-display">
-    <div class="label">TOTAL SCORE</div>
+    <div class="label">SCORE</div>
     <div class="value" id="score-value">0</div>
   </div>
 </div>
 
-<!-- MAP -->
+<!-- MAP (full screen behind everything) -->
 <div id="map"></div>
 
-<!-- MAP OVERLAY BADGES -->
+<!-- GPS STATUS BADGE -->
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
 <!-- BOTTOM HUD -->
 <div id="hud-bottom">
-  <div id="mission-status">STANDBY</div>
-  <div id="mission-detail">Acquiring GPS lock…</div>
-  <div id="mission-distance"></div>
-  <div id="area-selector" class="area-chips"></div>
-  <div id="area-editor"   class="area-chips"></div>
-  <div id="zone-toggle">
-    <button id="zone-spawn-btn" onclick="setEditType('spawn')">SPAWN POINT</button>
-    <button id="zone-drop-btn"  onclick="setEditType('drop')">DROP ZONE</button>
+
+  <!-- Drag handle — tap to collapse/expand -->
+  <button id="hud-collapse-btn" onclick="toggleHUD()" aria-label="Toggle panel"></button>
+
+  <!-- Collapsible: status text, area chips, zone toggle, secondary actions -->
+  <div id="collapsible-hud">
+    <div id="mission-status">STANDBY</div>
+    <div id="mission-detail">Acquiring GPS lock…</div>
+    <div id="mission-distance"></div>
+    <div id="area-selector" class="area-chips"></div>
+    <div id="area-editor"   class="area-chips"></div>
+    <div id="zone-toggle">
+      <button id="zone-spawn-btn" onclick="setEditType('spawn')">SPAWN POINT</button>
+      <button id="zone-drop-btn"  onclick="setEditType('drop')">DROP ZONE</button>
+    </div>
+    <button id="secondary-btn"></button>
   </div>
-  <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
-  <button id="secondary-btn"></button>
+
+  <!-- Always visible: skip/edit during runs, then primary action -->
   <div id="mid-run-actions">
     <button id="skip-btn" onclick="skipNextPickup()">SKIP PICKUP</button>
     <button id="edit-btn" onclick="editMidRun()">EDIT ROUTE</button>
   </div>
+  <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
+
 </div>
 
 <!-- COMPLETION FLASH -->
@@ -232,6 +308,19 @@ const PROXIMITY_M = 20;
 const ONE_MILE_M  = 1609;
 
 // ═══════════════════════════════════════════════════════════
+//  HUD COLLAPSE
+// ═══════════════════════════════════════════════════════════
+
+var _hudPhase = null;  // tracks last phase to detect changes for auto-expand
+
+function expandHUD() {
+  document.getElementById('hud-bottom').classList.remove('collapsed');
+}
+function toggleHUD() {
+  document.getElementById('hud-bottom').classList.toggle('collapsed');
+}
+
+// ═══════════════════════════════════════════════════════════
 //  MAP
 // ═══════════════════════════════════════════════════════════
 
@@ -242,32 +331,32 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 map.setView([20, 0], 3);
 
 function makeIcon(bg, emoji, size) {
-  size = size || 38;
+  size = size || 48;
   const fs = Math.round(size * 0.5);
   return L.divIcon({
-    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:0 2px 10px rgba(0,0,0,0.6)">' + emoji + '</div>',
+    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + emoji + '</div>',
     iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
   });
 }
 
 function makeNumberedIcon(num) {
   return L.divIcon({
-    html: '<div style="position:relative;width:38px;height:38px"><div style="background:#9a5808;border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 2px 10px rgba(0,0,0,0.6)">📦</div><div style="position:absolute;top:-3px;right:-3px;background:#e8a030;color:#0a0a0f;border-radius:50%;width:17px;height:17px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:bold;font-family:\'Courier New\',monospace">' + num + '</div></div>',
-    iconSize: [38, 38], iconAnchor: [19, 19], className: ''
+    html: '<div style="position:relative;width:48px;height:48px"><div style="background:#9a5808;border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 2px 12px rgba(0,0,0,0.7)">📦</div><div style="position:absolute;top:-4px;right:-4px;background:#e8a030;color:#0a0a0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;font-family:\'Courier New\',monospace">' + num + '</div></div>',
+    iconSize: [48, 48], iconAnchor: [24, 24], className: ''
   });
 }
 
 const icons = {
-  user:        makeIcon('#1a3050', '🧍'),
-  pickup:      makeIcon('#2a1800', '📦'),        // available, unplanned
+  user:        makeIcon('#1a3050', '🧍', 44),
+  pickup:      makeIcon('#2a1800', '📦'),        // available, unplanned  (48px default)
   pickup_next: makeIcon('#e8a030', '📦'),        // next in pickup queue
   dest:        makeIcon('#0c1e30', '🏠'),        // drop zone, dim
   dest_next:   makeIcon('#3080c0', '🏠'),        // next delivery target, bright
   dest_queued: makeIcon('#164060', '🏠'),        // later in delivery queue, medium
-  spawn_dim:   makeIcon('#0a2010', '📍', 30),
-  spawn_edit:  makeIcon('#1a5020', '📍', 34),
-  drop_dim:    makeIcon('#1a0830', '🎯', 30),
-  drop_edit:   makeIcon('#40106a', '🎯', 34),
+  spawn_dim:   makeIcon('#0a2010', '📍', 38),
+  spawn_edit:  makeIcon('#1a5020', '📍', 48),
+  drop_dim:    makeIcon('#1a0830', '🎯', 38),
+  drop_edit:   makeIcon('#40106a', '🎯', 48),
 };
 
 let userMarker    = null;
@@ -313,6 +402,7 @@ function onGpsLocked() {
   setTimeout(function() { badge.style.display = 'none'; }, 3000);
   state.phase = 'idle';
   renderZoneMarkers();
+  expandHUD();
   updateHUD();
 }
 
@@ -420,6 +510,7 @@ function enterEditMode() {
   state.editMode = true;
   state.editType = 'spawn';
   state.editArea = null;
+  expandHUD();
   renderZoneMarkers(); updateHUD();
 }
 function exitEditMode() {
@@ -451,7 +542,7 @@ function renderZoneMarkers() {
     var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
     var isSelected = state.editMode && (p.area || null) === state.editArea;
     var icon = state.editMode
-      ? (isSelected ? icons.spawn_edit : makeIcon('#0d2810', '📍', 30))
+      ? (isSelected ? icons.spawn_edit : makeIcon('#0d2810', '📍', 38))
       : icons.spawn_dim;
     var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
     if (state.editMode) {
@@ -468,7 +559,7 @@ function renderZoneMarkers() {
     var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
     var isSelected = state.editMode && (p.area || null) === state.editArea;
     var icon = state.editMode
-      ? (isSelected ? icons.drop_edit : makeIcon('#1a0828', '🎯', 30))
+      ? (isSelected ? icons.drop_edit : makeIcon('#1a0828', '🎯', 38))
       : icons.drop_dim;
     var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
     if (state.editMode) {
@@ -527,6 +618,7 @@ function generateRun() {
     return { id: 'pkg_' + i, pickupLoc: { lat: spawn.lat, lng: spawn.lng }, destId: dest.id, dist: dist, picked: false };
   });
 
+  expandHUD();
   renderOrderMarkers();
   updateRouteLine();
   updateHUD();
@@ -570,6 +662,7 @@ function cancelOrders() {
   clearMarkers();
   renderZoneMarkers();
   updateRouteLine();
+  expandHUD();
   updateHUD();
 }
 
@@ -893,6 +986,7 @@ function editMidRun() {
     state.phase       = 'idle';
     renderZoneMarkers();
   } else { return; }
+  expandHUD();
   renderOrderMarkers();
   updateRouteLine();
   updateHUD();
@@ -909,6 +1003,7 @@ function cancelEdit() {
   state.plan        = [];
   state.resumingRun = false;
   state.phase       = 'idle';
+  expandHUD();
   renderOrderMarkers();
   renderZoneMarkers();
   updateRouteLine();
@@ -920,6 +1015,12 @@ function cancelEdit() {
 // ═══════════════════════════════════════════════════════════
 
 function updateHUD() {
+  // Auto-expand when the phase changes so users see updated status
+  if (state.phase !== _hudPhase) {
+    _hudPhase = state.phase;
+    expandHUD();
+  }
+
   var statusEl      = document.getElementById('mission-status');
   var detailEl      = document.getElementById('mission-detail');
   var distEl        = document.getElementById('mission-distance');
@@ -1013,7 +1114,7 @@ function updateHUD() {
       var noAreaChosen = needAreaSel && state.activeAreas.length === 0;
       var canGen     = nearSpawns.length > 0 && nearDrops.length > 0 && !noAreaChosen;
 
-      // ── Area selector chips (shown when 2+ areas exist and no active run) ──
+      // ── Area selector chips (shown when 2+ areas exist and not mid-run editing) ──
       if (needAreaSel && !state.resumingRun) {
         areaSel.style.display = 'flex';
         var selHtml = '';
