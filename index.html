@@ -375,7 +375,7 @@ function addArea() {
   var id = 'area_' + Date.now();
   state.areas.push({ id: id, name: name });
   state.editArea = id;
-  saveAreas(); updateHUD();
+  saveAreas(); renderZoneMarkers(); updateHUD();
 }
 
 function removeArea(id) {
@@ -424,6 +424,7 @@ function enterEditMode() {
 }
 function exitEditMode() {
   state.editMode = false;
+  state.editArea = null;
   renderZoneMarkers(); updateHUD();
 }
 function setEditType(type) {
@@ -494,10 +495,6 @@ function generateRun() {
   var nearDrops  = getFilteredDrops().filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; });
 
   if (nearSpawns.length === 0 || nearDrops.length === 0) { updateHUD(); return; }
-
-  var btn = document.getElementById('action-btn');
-  btn.disabled = true;
-  btn.textContent = 'BUILDING RUN…';
 
   orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = [];
   zoneMarkers.forEach(function(m)  { map.removeLayer(m); }); zoneMarkers  = [];
@@ -950,6 +947,7 @@ function updateHUD() {
   if (state.editMode) {
     editBtn.textContent = '✕ ZONES';
     editBtn.classList.add('active');
+    editBtn.onclick = exitEditMode;
     toggle.style.display = 'flex';
     document.getElementById('zone-spawn-btn').className = state.editType === 'spawn' ? 'active' : '';
     document.getElementById('zone-drop-btn').className  = state.editType === 'drop'  ? 'active' : '';
@@ -993,6 +991,7 @@ function updateHUD() {
 
   editBtn.textContent = 'ZONES';
   editBtn.classList.remove('active');
+  editBtn.onclick = enterEditMode;
   toggle.style.display = 'none';
 
   // ── GAME PHASES ────────────────────────────────────────
