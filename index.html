@@ -75,6 +75,20 @@
     #zone-spawn-btn.active { border-color: #2a6030; background: #0a2010; color: #5ab05a; }
     #zone-drop-btn.active  { border-color: #5030a0; background: #150a25; color: #8060d0; }
 
+    /* ── AREA CHIPS (edit-mode area editor & idle area selector) ── */
+    .area-chips { display: none; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .area-chips button {
+      padding: 8px 12px; border-radius: 2px;
+      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
+      cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
+      white-space: nowrap;
+    }
+    .area-chips button.active  { border-color: #5030a0; background: #150a25; color: #8060d0; }
+    .area-chips .new-area-btn  { color: #4a7a4a; border-color: #1e3020; }
+    .area-chips .new-area-btn:hover { color: #5ab05a; border-color: #2a6030; }
+    .area-chips .del-area-btn  { padding: 8px 8px; color: #3a3a3a; border-color: #2a2a3a; font-size: 11px; }
+    .area-chips .del-area-btn:hover { color: #c04040; border-color: #602020; }
+
     /* ── PRIMARY ACTION ── */
     #action-btn {
       width: 100%; margin-top: 12px; padding: 15px; border: none; border-radius: 3px;
@@ -150,6 +164,8 @@
   <div id="mission-status">STANDBY</div>
   <div id="mission-detail">Acquiring GPS lock…</div>
   <div id="mission-distance"></div>
+  <div id="area-selector" class="area-chips"></div>
+  <div id="area-editor"   class="area-chips"></div>
   <div id="zone-toggle">
     <button id="zone-spawn-btn" onclick="setEditType('spawn')">SPAWN POINT</button>
     <button id="zone-drop-btn"  onclick="setEditType('drop')">DROP ZONE</button>
@@ -192,8 +208,11 @@ const state = {
   editType:   'spawn',  // 'spawn' | 'drop'
 
   // User-defined zone points (persisted)
-  spawnPoints: JSON.parse(localStorage.getItem('porter_spawn_points') || '[]'),
-  dropPoints:  JSON.parse(localStorage.getItem('porter_drop_points')  || '[]'),
+  spawnPoints:  JSON.parse(localStorage.getItem('porter_spawn_points')  || '[]'),
+  dropPoints:   JSON.parse(localStorage.getItem('porter_drop_points')   || '[]'),
+  areas:        JSON.parse(localStorage.getItem('porter_areas')         || '[]'),
+  activeAreas:  JSON.parse(localStorage.getItem('porter_active_areas')  || '[]'),
+  editArea:     null,   // area currently selected in zone editor (null = untagged/global)
 
   // Generated run
   destinations: [],  // [{ id, loc, label }]
@@ -316,9 +335,15 @@ function saveZones() {
   localStorage.setItem('porter_spawn_points', JSON.stringify(state.spawnPoints));
   localStorage.setItem('porter_drop_points',  JSON.stringify(state.dropPoints));
 }
+function saveAreas() {
+  localStorage.setItem('porter_areas',        JSON.stringify(state.areas));
+  localStorage.setItem('porter_active_areas', JSON.stringify(state.activeAreas));
+}
 
 function addSpawnPoint(lat, lng) {
-  state.spawnPoints.push({ id: 'spawn_' + Date.now(), lat: lat, lng: lng });
+  var pt = { id: 'spawn_' + Date.now(), lat: lat, lng: lng };
+  if (state.editArea) pt.area = state.editArea;
+  state.spawnPoints.push(pt);
   saveZones(); renderZoneMarkers(); updateHUD();
 }
 function removeSpawnPoint(id) {
@@ -326,7 +351,9 @@ function removeSpawnPoint(id) {
   saveZones(); renderZoneMarkers(); updateHUD();
 }
 function addDropPoint(lat, lng) {
-  state.dropPoints.push({ id: 'drop_' + Date.now(), lat: lat, lng: lng });
+  var pt = { id: 'drop_' + Date.now(), lat: lat, lng: lng };
+  if (state.editArea) pt.area = state.editArea;
+  state.dropPoints.push(pt);
   saveZones(); renderZoneMarkers(); updateHUD();
 }
 function removeDropPoint(id) {
@@ -339,9 +366,60 @@ function clearAllZones() {
   saveZones(); renderZoneMarkers(); updateHUD();
 }
 
+// ── Area management ──
+
+function addArea() {
+  var name = prompt('Area name (leave blank to auto-name):');
+  if (name === null) return;
+  name = name.trim() || ('Area ' + (state.areas.length + 1));
+  var id = 'area_' + Date.now();
+  state.areas.push({ id: id, name: name });
+  state.editArea = id;
+  saveAreas(); updateHUD();
+}
+
+function removeArea(id) {
+  var area = state.areas.find(function(a) { return a.id === id; });
+  if (!area) return;
+  if (!confirm('Remove area "' + area.name + '"? Its points become untagged.')) return;
+  state.spawnPoints.forEach(function(p) { if (p.area === id) delete p.area; });
+  state.dropPoints.forEach(function(p)  { if (p.area === id) delete p.area; });
+  state.areas        = state.areas.filter(function(a)       { return a.id !== id; });
+  state.activeAreas  = state.activeAreas.filter(function(a) { return a !== id; });
+  if (state.editArea === id) state.editArea = null;
+  saveZones(); saveAreas(); renderZoneMarkers(); updateHUD();
+}
+
+function setEditArea(id) {
+  state.editArea = (state.editArea === id) ? null : id;
+  updateHUD();
+}
+
+function toggleActiveArea(id) {
+  var idx = state.activeAreas.indexOf(id);
+  if (idx === -1) state.activeAreas.push(id);
+  else            state.activeAreas.splice(idx, 1);
+  saveAreas(); updateHUD();
+}
+
+// Points eligible for the current run (respects active-area filter when 2+ areas exist)
+function getFilteredSpawns() {
+  if (state.areas.length < 2) return state.spawnPoints;
+  return state.spawnPoints.filter(function(p) {
+    return !p.area || state.activeAreas.includes(p.area);
+  });
+}
+function getFilteredDrops() {
+  if (state.areas.length < 2) return state.dropPoints;
+  return state.dropPoints.filter(function(p) {
+    return !p.area || state.activeAreas.includes(p.area);
+  });
+}
+
 function enterEditMode() {
   state.editMode = true;
   state.editType = 'spawn';
+  state.editArea = null;
   renderZoneMarkers(); updateHUD();
 }
 function exitEditMode() {
@@ -364,26 +442,40 @@ function renderZoneMarkers() {
   var showZones = state.editMode || (state.phase === 'idle' && state.packages.length === 0);
   if (!showZones) return;
 
-  state.spawnPoints.forEach(function(p) {
-    var icon = state.editMode ? icons.spawn_edit : icons.spawn_dim;
+  // In idle (non-edit) mode, only show points from active areas
+  var spawns = state.editMode ? state.spawnPoints : getFilteredSpawns();
+  var drops  = state.editMode ? state.dropPoints  : getFilteredDrops();
+
+  spawns.forEach(function(p) {
+    var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
+    var isSelected = state.editMode && state.editArea === p.area && p.area;
+    var icon = state.editMode
+      ? (isSelected ? icons.spawn_edit : makeIcon('#0d2810', '📍', 30))
+      : icons.spawn_dim;
     var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
     if (state.editMode) {
-      m.bindTooltip('SPAWN · TAP TO REMOVE', { permanent: false });
+      var tip = 'SPAWN' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE';
+      m.bindTooltip(tip, { permanent: false });
       m.on('click', function(e) { e.originalEvent.stopPropagation(); removeSpawnPoint(p.id); });
     } else {
-      m.bindTooltip('SPAWN ZONE', { permanent: false });
+      m.bindTooltip('SPAWN' + (areaName ? ' · ' + areaName.toUpperCase() : ''), { permanent: false });
     }
     zoneMarkers.push(m);
   });
 
-  state.dropPoints.forEach(function(p) {
-    var icon = state.editMode ? icons.drop_edit : icons.drop_dim;
+  drops.forEach(function(p) {
+    var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
+    var isSelected = state.editMode && state.editArea === p.area && p.area;
+    var icon = state.editMode
+      ? (isSelected ? icons.drop_edit : makeIcon('#1a0828', '🎯', 30))
+      : icons.drop_dim;
     var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
     if (state.editMode) {
-      m.bindTooltip('DROP ZONE · TAP TO REMOVE', { permanent: false });
+      var tip = 'DROP' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE';
+      m.bindTooltip(tip, { permanent: false });
       m.on('click', function(e) { e.originalEvent.stopPropagation(); removeDropPoint(p.id); });
     } else {
-      m.bindTooltip('DROP ZONE', { permanent: false });
+      m.bindTooltip('DROP' + (areaName ? ' · ' + areaName.toUpperCase() : ''), { permanent: false });
     }
     zoneMarkers.push(m);
   });
@@ -398,8 +490,8 @@ function shuffle(arr) { return arr.slice().sort(function() { return Math.random(
 function generateRun() {
   if (!state.userPos) return;
 
-  var nearSpawns = state.spawnPoints.filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; });
-  var nearDrops  = state.dropPoints.filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; });
+  var nearSpawns = getFilteredSpawns().filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; });
+  var nearDrops  = getFilteredDrops().filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; });
 
   if (nearSpawns.length === 0 || nearDrops.length === 0) { updateHUD(); return; }
 
@@ -831,6 +923,8 @@ function updateHUD() {
   var editBtn       = document.getElementById('edit-zones-btn');
   var midRunActions = document.getElementById('mid-run-actions');
   var skipBtn       = document.getElementById('skip-btn');
+  var areaSel       = document.getElementById('area-selector');
+  var areaEd        = document.getElementById('area-editor');
 
   scoreEl.textContent = state.score;
   btn.className  = '';
@@ -839,6 +933,8 @@ function updateHUD() {
   secBtn.style.display    = 'none';
   secBtn.onclick          = null;
   midRunActions.style.display = 'none';
+  areaSel.style.display   = 'none';
+  areaEd.style.display    = 'none';
 
   // ── EDIT MODE ──────────────────────────────────────────
   if (state.editMode) {
@@ -850,10 +946,25 @@ function updateHUD() {
 
     var nSpawns = state.userPos ? state.spawnPoints.filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
     var nDrops  = state.userPos ? state.dropPoints.filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
+    var areaLabel = state.editArea
+      ? (state.areas.find(function(a) { return a.id === state.editArea; }) || { name: '?' }).name
+      : 'untagged';
 
     statusEl.textContent = 'ZONE EDITOR';
-    detailEl.textContent = 'Tap map to place a ' + (state.editType === 'spawn' ? 'spawn point 📍' : 'drop zone 🎯') + '. Tap marker to remove.';
+    detailEl.textContent = 'Placing ' + (state.editType === 'spawn' ? 'spawn 📍' : 'drop 🎯')
+      + ' in ' + areaLabel + '. Tap map to place, tap marker to remove.';
     distEl.textContent   = state.spawnPoints.length + ' spawns · ' + state.dropPoints.length + ' drops  ·  ' + nSpawns + ' / ' + nDrops + ' within 1 mile';
+
+    // ── Area editor chips ──
+    areaEd.style.display = 'flex';
+    var edHtml = '<button onclick="setEditArea(null)" class="' + (!state.editArea ? 'active' : '') + '">UNTAGGED</button>';
+    state.areas.forEach(function(a) {
+      edHtml += '<button onclick="setEditArea(\'' + a.id + '\')" class="' + (state.editArea === a.id ? 'active' : '') + '">'
+             + a.name.toUpperCase() + '</button>'
+             + '<button class="del-area-btn" onclick="removeArea(\'' + a.id + '\')">✕</button>';
+    });
+    edHtml += '<button class="new-area-btn" onclick="addArea()">+ NEW</button>';
+    areaEd.innerHTML = edHtml;
 
     btn.className   = 'generate';
     btn.textContent = 'DONE EDITING';
@@ -861,9 +972,9 @@ function updateHUD() {
 
     var totalZones = state.spawnPoints.length + state.dropPoints.length;
     if (totalZones > 0) {
-      secBtn.style.display  = 'block';
-      secBtn.textContent    = 'CLEAR ALL ZONES';
-      secBtn.onclick        = function() {
+      secBtn.style.display = 'block';
+      secBtn.textContent   = 'CLEAR ALL ZONES';
+      secBtn.onclick       = function() {
         if (confirm('Remove all ' + totalZones + ' zone markers?')) clearAllZones();
       };
     }
@@ -887,9 +998,23 @@ function updateHUD() {
       break;
 
     case 'idle': {
-      var nearSpawns = state.userPos ? state.spawnPoints.filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
-      var nearDrops  = state.userPos ? state.dropPoints.filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
-      var canGen     = nearSpawns.length > 0 && nearDrops.length > 0;
+      var nearSpawns = state.userPos ? getFilteredSpawns().filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
+      var nearDrops  = state.userPos ? getFilteredDrops().filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
+      var needAreaSel = state.areas.length >= 2;
+      var noAreaChosen = needAreaSel && state.activeAreas.length === 0;
+      var canGen     = nearSpawns.length > 0 && nearDrops.length > 0 && !noAreaChosen;
+
+      // ── Area selector chips (shown when 2+ areas exist and no active run) ──
+      if (needAreaSel && state.packages.length === 0) {
+        areaSel.style.display = 'flex';
+        var selHtml = '';
+        state.areas.forEach(function(a) {
+          var on = state.activeAreas.includes(a.id);
+          selHtml += '<button onclick="toggleActiveArea(\'' + a.id + '\')" class="' + (on ? 'active' : '') + '">'
+                   + a.name.toUpperCase() + '</button>';
+        });
+        areaSel.innerHTML = selHtml;
+      }
 
       // ── MID-RUN EDIT MODE ──
       if (state.resumingRun) {
@@ -921,7 +1046,13 @@ function updateHUD() {
       if (state.packages.length === 0) {
         // ── No active orders ──
         statusEl.textContent = 'STANDBY';
-        if (!canGen) {
+        if (noAreaChosen) {
+          detailEl.textContent = 'Select one or more areas above to generate orders in that location.';
+          distEl.textContent   = state.areas.length + ' areas defined';
+          btn.className   = 'generate';
+          btn.textContent = 'SELECT AN AREA';
+          btn.disabled    = true;
+        } else if (!canGen) {
           detailEl.textContent = (state.spawnPoints.length === 0 || state.dropPoints.length === 0)
             ? 'No zones set. Tap ZONES to mark spawn points (📍) and drop zones (🎯).'
             : 'No zones within 1 mile. Move closer or add nearby zones.';
