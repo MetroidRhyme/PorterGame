@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>PORTER</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0f;
+      color: #e0d8c8;
+      font-family: 'Courier New', monospace;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOP HUD ── */
+    #hud-top {
+      background: rgba(10,10,15,0.95);
+      border-bottom: 1px solid #2a2a3a;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+    #game-title {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 6px;
+      color: #e8a030;
+    }
+    #score-display { text-align: right; }
+    #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
+    #score-display .value { font-size: 22px; color: #e8a030; }
+
+    /* ── MAP ── */
+    #map { flex: 1; min-height: 0; }
+
+    /* ── GPS STATUS BADGE ── */
+    #gps-status {
+      position: absolute;
+      top: 66px;
+      right: 12px;
+      z-index: 999;
+      font-size: 10px;
+      letter-spacing: 2px;
+      padding: 4px 10px;
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    #gps-status.acquiring { background: rgba(80,40,0,0.9); color: #e8a030; }
+    #gps-status.locked    { background: rgba(0,50,0,0.9);  color: #5ab05a; }
+
+    /* ── BOTTOM HUD ── */
+    #hud-bottom {
+      background: rgba(10,10,15,0.97);
+      border-top: 1px solid #2a2a3a;
+      padding: 14px 16px 18px;
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+    #mission-status  { font-size: 10px; letter-spacing: 3px; color: #555; margin-bottom: 4px; }
+    #mission-detail  { font-size: 13px; color: #a09888; line-height: 1.5; }
+    #mission-distance{ font-size: 11px; color: #4a7a4a; margin-top: 3px; min-height: 16px; }
+
+    #action-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 15px;
+      border: none;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #action-btn.generate {
+      background: #111820;
+      color: #4a7a4a;
+      border: 1px solid #1e3020;
+    }
+    #action-btn.pickup  {
+      background: #1a1000;
+      color: #a06018;
+      border: 1px solid #2e1e00;
+    }
+    #action-btn.pickup.ready {
+      background: #e8a030;
+      color: #0a0a0f;
+      border-color: #e8a030;
+    }
+    #action-btn.deliver {
+      background: #00101a;
+      color: #2060a0;
+      border: 1px solid #001e30;
+    }
+    #action-btn.deliver.ready {
+      background: #3080c0;
+      color: #0a0a0f;
+      border-color: #3080c0;
+    }
+    #action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── DELIVERY COMPLETE FLASH ── */
+    #completion-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(20,60,120,0.18);
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+    }
+    #completion-overlay.show {
+      display: flex;
+      animation: flash 0.6s ease-out;
+    }
+    @keyframes flash {
+      0%   { background: rgba(20,60,120,0.55); }
+      100% { background: rgba(20,60,120,0.18); }
+    }
+    .completion-label { font-size: 14px; letter-spacing: 8px; color: #3080c0; }
+    .completion-pts   { font-size: 56px; font-weight: bold; color: #e8a030; margin-top: 4px; }
+    .completion-sub   { font-size: 11px; letter-spacing: 3px; color: #555; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+<!-- TOP HUD -->
+<div id="hud-top">
+  <div id="game-title">PORTER</div>
+  <div id="score-display">
+    <div class="label">TOTAL SCORE</div>
+    <div class="value" id="score-value">0</div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- GPS BADGE -->
+<div id="gps-status" class="acquiring">ACQUIRING GPS</div>
+
+<!-- BOTTOM HUD -->
+<div id="hud-bottom">
+  <div id="mission-status">STANDBY</div>
+  <div id="mission-detail">Acquiring GPS lock…</div>
+  <div id="mission-distance"></div>
+  <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
+</div>
+
+<!-- COMPLETION FLASH -->
+<div id="completion-overlay">
+  <div class="completion-label">DELIVERY COMPLETE</div>
+  <div class="completion-pts" id="completion-pts">+0</div>
+  <div class="completion-sub" id="completion-total">SCORE: 0</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+
+const state = {
+  score:      parseInt(localStorage.getItem('porter_score')      || '0'),
+  deliveries: parseInt(localStorage.getItem('porter_deliveries') || '0'),
+  phase:      'no_gps',   // no_gps | idle | moving_to_pickup | carrying
+  userPos:    null,
+  activeOrder: null,
+  orders:     []
+};
+
+const PROXIMITY_M = 40;   // meters to trigger pickup/dropoff button
+
+// ═══════════════════════════════════════════════════════════
+//  MAP
+// ═══════════════════════════════════════════════════════════
+
+const map = L.map('map', { zoomControl: true });
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 19
+}).addTo(map);
+
+// Fallback center (world view) until GPS locks
+map.setView([20, 0], 3);
+
+function makeIcon(bg, emoji) {
+  return L.divIcon({
+    html: `<div style="background:${bg};border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 2px 10px rgba(0,0,0,0.6)">${emoji}</div>`,
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    className: ''
+  });
+}
+
+const icons = {
+  user:           makeIcon('#1a3050', '🧍'),
+  pickup:         makeIcon('#2a1800', '📦'),
+  pickup_active:  makeIcon('#e8a030', '📦'),
+  dropoff_active: makeIcon('#3080c0', '🏠'),
+};
+
+let userMarker  = null;
+let orderMarkers = [];
+let routeLine    = null;
+
+// ═══════════════════════════════════════════════════════════
+//  GPS TRACKING
+// ═══════════════════════════════════════════════════════════
+
+if (!navigator.geolocation) {
+  document.getElementById('mission-detail').textContent = 'Geolocation not supported by this browser.';
+} else {
+  navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, {
+    enableHighAccuracy: true,
+    maximumAge: 3000,
+    timeout: 15000
+  });
+}
+
+function onLocationUpdate(pos) {
+  const { latitude: lat, longitude: lng } = pos.coords;
+  state.userPos = { lat, lng };
+
+  if (!userMarker) {
+    userMarker = L.marker([lat, lng], { icon: icons.user, zIndexOffset: 1000 }).addTo(map);
+    map.setView([lat, lng], 17);
+    onGpsLocked();
+  } else {
+    userMarker.setLatLng([lat, lng]);
+  }
+
+  updateRouteLine();
+  checkProximity();
+  updateHUD();
+}
+
+function onLocationError(err) {
+  const msgs = {
+    1: 'Location permission denied. Please allow access and reload.',
+    2: 'Position unavailable. Try moving outside.',
+    3: 'GPS timed out. Retrying…'
+  };
+  document.getElementById('mission-detail').textContent = msgs[err.code] || err.message;
+}
+
+function onGpsLocked() {
+  const badge = document.getElementById('gps-status');
+  badge.textContent = 'GPS LOCKED';
+  badge.className = 'locked';
+  setTimeout(() => badge.style.display = 'none', 3000);
+  state.phase = 'idle';
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ROAD SNAPPING  (OSRM public API — foot profile)
+// ═══════════════════════════════════════════════════════════
+
+async function snapToRoad(lat, lng) {
+  const url = `https://router.project-osrm.org/nearest/v1/foot/${lng},${lat}?number=1`;
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.code === 'Ok' && data.waypoints?.length) {
+      const [sLng, sLat] = data.waypoints[0].location;
+      return { lat: sLat, lng: sLng };
+    }
+  } catch (e) {
+    console.warn('OSRM snap failed, using raw coords:', e);
+  }
+  return { lat, lng };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ORDER GENERATION
+// ═══════════════════════════════════════════════════════════
+
+function randomNearby(lat, lng, minM, maxM) {
+  const dist  = minM + Math.random() * (maxM - minM);
+  const angle = Math.random() * 2 * Math.PI;
+  const dlat  = (dist * Math.cos(angle)) / 111111;
+  const dlng  = (dist * Math.sin(angle)) / (111111 * Math.cos(lat * Math.PI / 180));
+  return { lat: lat + dlat, lng: lng + dlng };
+}
+
+async function generateOrders() {
+  if (!state.userPos) return;
+
+  const btn = document.getElementById('action-btn');
+  btn.disabled = true;
+  btn.textContent = 'SCANNING ROUTES…';
+
+  clearOrderMarkers();
+  state.orders      = [];
+  state.activeOrder = null;
+  state.phase       = 'idle';
+
+  const { lat, lng } = state.userPos;
+  const count = 3;
+
+  for (let i = 0; i < count; i++) {
+    // Pickup: 150–500m from user
+    const rawPickup = randomNearby(lat, lng, 150, 500);
+    const pickup    = await snapToRoad(rawPickup.lat, rawPickup.lng);
+
+    // Dropoff: 400–1200m from pickup
+    const rawDropoff = randomNearby(pickup.lat, pickup.lng, 400, 1200);
+    const dropoff    = await snapToRoad(rawDropoff.lat, rawDropoff.lng);
+
+    const dist = haversine(pickup, dropoff);
+
+    state.orders.push({
+      id: `order_${i}`,
+      pickup,
+      dropoff,
+      dist   // meters — also the point value
+    });
+  }
+
+  renderOrderMarkers();
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAP MARKERS
+// ═══════════════════════════════════════════════════════════
+
+function clearOrderMarkers() {
+  orderMarkers.forEach(m => map.removeLayer(m));
+  orderMarkers = [];
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+}
+
+function renderOrderMarkers() {
+  clearOrderMarkers();
+
+  if (state.phase === 'moving_to_pickup' && state.activeOrder) {
+    const o = state.activeOrder;
+    const m = L.marker([o.pickup.lat, o.pickup.lng], { icon: icons.pickup_active }).addTo(map);
+    orderMarkers.push(m);
+
+  } else if (state.phase === 'carrying' && state.activeOrder) {
+    const o = state.activeOrder;
+    const m = L.marker([o.dropoff.lat, o.dropoff.lng], { icon: icons.dropoff_active }).addTo(map);
+    orderMarkers.push(m);
+
+  } else {
+    // Idle: show all pickups; tap to accept
+    state.orders.forEach(o => {
+      const m = L.marker([o.pickup.lat, o.pickup.lng], { icon: icons.pickup }).addTo(map);
+      m.bindTooltip(`${Math.round(o.dist)}m · ${Math.round(o.dist)} pts`, { permanent: false });
+      m.on('click', () => acceptOrder(o.id));
+      orderMarkers.push(m);
+    });
+  }
+}
+
+function updateRouteLine() {
+  if (!state.userPos || !state.activeOrder) return;
+
+  const dest = state.phase === 'moving_to_pickup'
+    ? state.activeOrder.pickup
+    : state.activeOrder.dropoff;
+
+  const color = state.phase === 'moving_to_pickup' ? '#e8a030' : '#3080c0';
+  const latlngs = [[state.userPos.lat, state.userPos.lng], [dest.lat, dest.lng]];
+
+  if (routeLine) {
+    routeLine.setLatLngs(latlngs);
+  } else {
+    routeLine = L.polyline(latlngs, {
+      color, weight: 2, dashArray: '6 6', opacity: 0.7
+    }).addTo(map);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GAME ACTIONS
+// ═══════════════════════════════════════════════════════════
+
+function acceptOrder(orderId) {
+  const order = state.orders.find(o => o.id === orderId);
+  if (!order) return;
+  state.activeOrder = order;
+  state.phase = 'moving_to_pickup';
+  renderOrderMarkers();
+  updateRouteLine();
+  updateHUD();
+}
+
+function pickupPackage() {
+  if (state.phase !== 'moving_to_pickup') return;
+  state.phase = 'carrying';
+  renderOrderMarkers();
+  updateRouteLine();
+  updateHUD();
+}
+
+function deliverPackage() {
+  if (state.phase !== 'carrying' || !state.activeOrder) return;
+  const pts = Math.round(state.activeOrder.dist);
+
+  state.score += pts;
+  state.deliveries++;
+  localStorage.setItem('porter_score',      state.score);
+  localStorage.setItem('porter_deliveries', state.deliveries);
+
+  showCompletion(pts);
+
+  state.activeOrder = null;
+  state.orders      = [];
+  state.phase       = 'idle';
+  clearOrderMarkers();
+  updateHUD();
+}
+
+function showCompletion(pts) {
+  const el = document.getElementById('completion-overlay');
+  document.getElementById('completion-pts').textContent   = `+${pts}`;
+  document.getElementById('completion-total').textContent = `SCORE: ${state.score + pts}`;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PROXIMITY CHECK
+// ═══════════════════════════════════════════════════════════
+
+function checkProximity() {
+  if (!state.userPos || !state.activeOrder) return;
+
+  const btn  = document.getElementById('action-btn');
+  if (!btn) return;
+
+  if (state.phase === 'moving_to_pickup') {
+    const d = haversine(state.userPos, state.activeOrder.pickup);
+    if (d <= PROXIMITY_M) {
+      btn.classList.add('ready');
+      btn.disabled = false;
+    } else {
+      btn.classList.remove('ready');
+      btn.disabled = true;
+    }
+  }
+
+  if (state.phase === 'carrying') {
+    const d = haversine(state.userPos, state.activeOrder.dropoff);
+    if (d <= PROXIMITY_M) {
+      btn.classList.add('ready');
+      btn.disabled = false;
+    } else {
+      btn.classList.remove('ready');
+      btn.disabled = true;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HUD
+// ═══════════════════════════════════════════════════════════
+
+function updateHUD() {
+  const statusEl = document.getElementById('mission-status');
+  const detailEl = document.getElementById('mission-detail');
+  const distEl   = document.getElementById('mission-distance');
+  const scoreEl  = document.getElementById('score-value');
+  const btn      = document.getElementById('action-btn');
+
+  scoreEl.textContent = state.score;
+
+  // Reset btn state
+  btn.className = '';
+  btn.onclick   = null;
+  btn.disabled  = false;
+
+  const d = (state.userPos && state.activeOrder)
+    ? Math.round(haversine(state.userPos,
+        state.phase === 'moving_to_pickup'
+          ? state.activeOrder.pickup
+          : state.activeOrder.dropoff))
+    : null;
+
+  switch (state.phase) {
+
+    case 'no_gps':
+      statusEl.textContent = 'ACQUIRING GPS';
+      detailEl.textContent = 'Acquiring GPS lock…';
+      distEl.textContent   = '';
+      btn.className = 'generate';
+      btn.textContent = 'WAITING FOR GPS';
+      btn.disabled = true;
+      break;
+
+    case 'idle':
+      if (state.orders.length === 0) {
+        statusEl.textContent = 'STANDBY';
+        detailEl.textContent = `${state.deliveries} deliveries completed. Generate a new route to begin.`;
+        distEl.textContent   = '';
+        btn.className   = 'generate';
+        btn.textContent = 'GENERATE ORDERS';
+        btn.onclick     = generateOrders;
+      } else {
+        statusEl.textContent = 'ORDERS AVAILABLE';
+        detailEl.textContent = `${state.orders.length} pickups on map. Tap a package to accept.`;
+        distEl.textContent   = '';
+        btn.className   = 'generate';
+        btn.textContent = 'REGENERATE';
+        btn.onclick     = generateOrders;
+      }
+      break;
+
+    case 'moving_to_pickup':
+      statusEl.textContent = 'EN ROUTE TO PICKUP';
+      detailEl.textContent = 'Walk to the orange marker to collect your package.';
+      distEl.textContent   = `${d}m to pickup  ·  ${Math.round(state.activeOrder.dist)} pts on delivery`;
+      btn.className  = 'pickup' + (d <= PROXIMITY_M ? ' ready' : '');
+      btn.disabled   = d > PROXIMITY_M;
+      btn.textContent = d <= PROXIMITY_M ? 'PICK UP PACKAGE' : `PICK UP  (${d}m away)`;
+      btn.onclick    = pickupPackage;
+      break;
+
+    case 'carrying':
+      statusEl.textContent = 'CARRYING PACKAGE';
+      detailEl.textContent = 'Deliver to the blue marker. Don\'t drop it.';
+      distEl.textContent   = `${d}m to dropoff  ·  ${Math.round(state.activeOrder.dist)} pts`;
+      btn.className  = 'deliver' + (d <= PROXIMITY_M ? ' ready' : '');
+      btn.disabled   = d > PROXIMITY_M;
+      btn.textContent = d <= PROXIMITY_M ? 'DELIVER PACKAGE' : `DELIVER  (${d}m away)`;
+      btn.onclick    = deliverPackage;
+      break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════
+
+function haversine(a, b) {
+  const R    = 6371000; // Earth radius in meters
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const s    = Math.sin(dLat / 2) ** 2
+             + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180)
+             * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(s));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+
+updateHUD();
+</script>
+</body>
+</html>
