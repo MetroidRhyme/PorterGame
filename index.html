@@ -206,6 +206,7 @@ const state = {
   pickupQueue: [],   // [pkgId, ...] remaining pickups in order
   destQueue:   [],   // [destId, ...] remaining deliveries in order
   carrying:    [],   // [pkgId, ...] currently holding
+  resumingRun: false,// true while editing a mid-run route (carrying preserved)
 };
 
 const PROXIMITY_M = 20;
@@ -415,6 +416,7 @@ function generateRun() {
   state.pickupQueue  = [];
   state.destQueue    = [];
   state.carrying     = [];
+  state.resumingRun  = false;
   state.phase        = 'idle';
 
   var numDests      = Math.min(2, nearDrops.length);
@@ -473,12 +475,34 @@ function clearPlan() {
 }
 
 function startRun() {
-  if (state.plan.length === 0) return;
+  var hasWork = state.plan.length > 0 || (state.resumingRun && state.carrying.length > 0);
+  if (!hasWork) return;
+
   state.pickupQueue = state.plan.slice();
-  state.destQueue   = plannedDestOrder();
-  state.carrying    = [];
   state.plan        = [];
-  state.phase       = 'moving_to_pickup';
+
+  if (state.resumingRun) {
+    // Keep carrying; recalculate destQueue: carried dests first (old order), then new plan dests
+    var seen = {};
+    var newDestQueue = [];
+    state.destQueue.forEach(function(destId) {
+      if (!seen[destId] && state.carrying.some(function(id) {
+        var p = state.packages.find(function(p) { return p.id === id; });
+        return p && p.destId === destId;
+      })) { seen[destId] = true; newDestQueue.push(destId); }
+    });
+    state.pickupQueue.forEach(function(pkgId) {
+      var p = state.packages.find(function(p) { return p.id === pkgId; });
+      if (p && !seen[p.destId]) { seen[p.destId] = true; newDestQueue.push(p.destId); }
+    });
+    state.destQueue  = newDestQueue;
+    state.resumingRun = false;
+  } else {
+    state.destQueue = plannedDestOrder();
+    state.carrying  = [];
+  }
+
+  state.phase = state.pickupQueue.length > 0 ? 'moving_to_pickup' : 'delivering';
   renderOrderMarkers();
   updateRouteLine();
   updateHUD();
@@ -752,8 +776,31 @@ function skipNextPickup() {
 }
 
 function editMidRun() {
-  if (state.phase !== 'moving_to_pickup' && state.phase !== 'delivering') return;
-  // Un-pick all carried packages so they return to the map
+  if (state.phase === 'moving_to_pickup') {
+    // Preserve carried packages; put remaining pickups back as a pre-filled, reorderable plan
+    state.plan        = state.pickupQueue.slice();
+    state.pickupQueue = [];
+    state.resumingRun = true;
+    state.phase       = 'idle';
+  } else if (state.phase === 'delivering') {
+    // No pickups left to reorder — full reset so user can replan from scratch
+    state.packages.forEach(function(p) {
+      if (state.carrying.includes(p.id)) p.picked = false;
+    });
+    state.carrying    = [];
+    state.pickupQueue = [];
+    state.destQueue   = [];
+    state.plan        = [];
+    state.phase       = 'idle';
+    renderZoneMarkers();
+  } else { return; }
+  renderOrderMarkers();
+  updateRouteLine();
+  updateHUD();
+}
+
+function cancelEdit() {
+  // Abandon mid-run edit entirely — un-pick carried packages and return to clean idle
   state.packages.forEach(function(p) {
     if (state.carrying.includes(p.id)) p.picked = false;
   });
@@ -761,6 +808,7 @@ function editMidRun() {
   state.pickupQueue = [];
   state.destQueue   = [];
   state.plan        = [];
+  state.resumingRun = false;
   state.phase       = 'idle';
   renderOrderMarkers();
   renderZoneMarkers();
@@ -842,6 +890,33 @@ function updateHUD() {
       var nearSpawns = state.userPos ? state.spawnPoints.filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
       var nearDrops  = state.userPos ? state.dropPoints.filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
       var canGen     = nearSpawns.length > 0 && nearDrops.length > 0;
+
+      // ── MID-RUN EDIT MODE ──
+      if (state.resumingRun) {
+        var carriedCount  = state.carrying.length;
+        var remainingPlan = state.plan.length;
+        statusEl.textContent = 'EDITING ROUTE · ' + carriedCount + ' PKG' + (carriedCount > 1 ? 'S' : '') + ' HELD';
+        if (remainingPlan > 0) {
+          var dests2     = plannedDestOrder();
+          var destLabels2 = dests2.map(function(id) {
+            var d = state.destinations.find(function(d) { return d.id === id; });
+            return d ? 'Zone ' + d.label : '';
+          }).join(' → ');
+          detailEl.textContent = remainingPlan + ' pickup' + (remainingPlan > 1 ? 's' : '') + ' → ' + destLabels2 + '. Tap to reorder.';
+          distEl.textContent   = 'Held packages will be delivered after pickups';
+        } else {
+          detailEl.textContent = 'No more pickups planned — will go straight to delivery.';
+          distEl.textContent   = carriedCount + ' package' + (carriedCount > 1 ? 's' : '') + ' to deliver';
+        }
+        btn.className   = 'pickup ready';
+        btn.textContent = 'RESUME RUN';
+        btn.onclick     = startRun;
+
+        secBtn.style.display = 'block';
+        secBtn.textContent   = 'CANCEL EDIT';
+        secBtn.onclick       = cancelEdit;
+        break;
+      }
 
       if (state.packages.length === 0) {
         // ── No active orders ──
