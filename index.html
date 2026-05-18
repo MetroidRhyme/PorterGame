@@ -98,6 +98,19 @@
     }
     #secondary-btn:hover { color: #c04040; border-color: #602020; }
 
+    /* ── MID-RUN ACTIONS (skip / edit) ── */
+    #mid-run-actions { display: none; gap: 8px; margin-top: 8px; }
+    #mid-run-actions button {
+      flex: 1; padding: 10px; border-radius: 2px;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+      cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    #skip-btn:hover  { color: #e8a030; border-color: #4a3010; }
+    #edit-btn:hover  { color: #8060d0; border-color: #402080; }
+    #skip-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+    #skip-btn:disabled:hover { color: #555; border-color: #2a2a3a; }
+
     /* ── DELIVERY COMPLETE FLASH ── */
     #completion-overlay {
       display: none; position: fixed; inset: 0; z-index: 9999;
@@ -144,6 +157,10 @@
   </div>
   <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
   <button id="secondary-btn"></button>
+  <div id="mid-run-actions">
+    <button id="skip-btn" onclick="skipNextPickup()">SKIP PICKUP</button>
+    <button id="edit-btn" onclick="editMidRun()">EDIT ROUTE</button>
+  </div>
 </div>
 
 <!-- COMPLETION FLASH -->
@@ -192,7 +209,7 @@ const state = {
   carrying:    [],   // [pkgId, ...] currently holding
 };
 
-const PROXIMITY_M = 40;
+const PROXIMITY_M = 20;
 const ONE_MILE_M  = 1609;
 
 // ═══════════════════════════════════════════════════════════
@@ -704,25 +721,77 @@ function showCompletion(pts, count, zoneLabel) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  MID-RUN ACTIONS
+// ═══════════════════════════════════════════════════════════
+
+function skipNextPickup() {
+  if (state.phase !== 'moving_to_pickup' || state.pickupQueue.length === 0) return;
+  state.pickupQueue.shift();
+
+  // Remove destinations that no longer have any package in carry or remaining queue
+  state.destQueue = state.destQueue.filter(function(destId) {
+    return state.packages.some(function(p) {
+      return p.destId === destId &&
+             (state.carrying.includes(p.id) || state.pickupQueue.includes(p.id));
+    });
+  });
+
+  if (state.pickupQueue.length === 0) {
+    state.phase = (state.carrying.length > 0 && state.destQueue.length > 0) ? 'delivering' : 'idle';
+    if (state.phase === 'idle') {
+      // Nothing left to do — full reset
+      state.packages.forEach(function(p) { if (state.carrying.includes(p.id)) p.picked = false; });
+      state.carrying = [];
+      state.destQueue = [];
+      renderZoneMarkers();
+    }
+  }
+
+  renderOrderMarkers();
+  updateRouteLine();
+  updateHUD();
+}
+
+function editMidRun() {
+  if (state.phase !== 'moving_to_pickup' && state.phase !== 'delivering') return;
+  // Un-pick all carried packages so they return to the map
+  state.packages.forEach(function(p) {
+    if (state.carrying.includes(p.id)) p.picked = false;
+  });
+  state.carrying    = [];
+  state.pickupQueue = [];
+  state.destQueue   = [];
+  state.plan        = [];
+  state.phase       = 'idle';
+  renderOrderMarkers();
+  renderZoneMarkers();
+  updateRouteLine();
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  HUD
 // ═══════════════════════════════════════════════════════════
 
 function updateHUD() {
-  var statusEl   = document.getElementById('mission-status');
-  var detailEl   = document.getElementById('mission-detail');
-  var distEl     = document.getElementById('mission-distance');
-  var scoreEl    = document.getElementById('score-value');
-  var btn        = document.getElementById('action-btn');
-  var secBtn     = document.getElementById('secondary-btn');
-  var toggle     = document.getElementById('zone-toggle');
-  var editBtn    = document.getElementById('edit-zones-btn');
+  var statusEl      = document.getElementById('mission-status');
+  var detailEl      = document.getElementById('mission-detail');
+  var distEl        = document.getElementById('mission-distance');
+  var scoreEl       = document.getElementById('score-value');
+  var btn           = document.getElementById('action-btn');
+  var secBtn        = document.getElementById('secondary-btn');
+  var toggle        = document.getElementById('zone-toggle');
+  var editBtn       = document.getElementById('edit-zones-btn');
+  var midRunActions = document.getElementById('mid-run-actions');
+  var skipBtn       = document.getElementById('skip-btn');
 
   scoreEl.textContent = state.score;
   btn.className  = '';
   btn.onclick    = null;
   btn.disabled   = false;
-  secBtn.style.display = 'none';
-  secBtn.onclick = null;
+  secBtn.style.display    = 'none';
+  secBtn.onclick          = null;
+  midRunActions.style.display = 'none';
 
   // ── EDIT MODE ──────────────────────────────────────────
   if (state.editMode) {
@@ -843,6 +912,9 @@ function updateHUD() {
       btn.disabled    = !ready;
       btn.textContent = ready ? 'PICK UP PACKAGE' : 'PICK UP  (' + dPickup + 'm away)';
       btn.onclick     = pickupNext;
+
+      midRunActions.style.display = 'flex';
+      skipBtn.disabled = state.pickupQueue.length === 0;
       break;
     }
 
@@ -866,6 +938,9 @@ function updateHUD() {
         ? 'DELIVER ' + pkgsHere.length + ' TO ZONE ' + (dest ? dest.label : '')
         : 'DELIVER  (' + dDest + 'm away)';
       btn.onclick     = deliverCurrent;
+
+      midRunActions.style.display = 'flex';
+      skipBtn.disabled = true;  // no pickups left to skip during delivery
       break;
     }
   }
