@@ -671,7 +671,6 @@ function startRun() {
   if (!hasWork) return;
 
   state.pickupQueue = state.plan.slice();
-  state.plan        = [];
 
   if (state.resumingRun) {
     // Keep carrying; recalculate destQueue: carried dests first (old order), then new plan dests
@@ -690,10 +689,11 @@ function startRun() {
     state.destQueue  = newDestQueue;
     state.resumingRun = false;
   } else {
-    state.destQueue = plannedDestOrder();
+    state.destQueue = plannedDestOrder();  // reads state.plan before it's cleared
     state.carrying  = [];
   }
 
+  state.plan  = [];
   state.phase = state.pickupQueue.length > 0 ? 'moving_to_pickup' : 'delivering';
   renderOrderMarkers();
   updateRouteLine();
