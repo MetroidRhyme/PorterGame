@@ -975,16 +975,11 @@ function editMidRun() {
     state.resumingRun = true;
     state.phase       = 'idle';
   } else if (state.phase === 'delivering') {
-    // No pickups left to reorder — full reset so user can replan from scratch
-    state.packages.forEach(function(p) {
-      if (state.carrying.includes(p.id)) p.picked = false;
-    });
-    state.carrying    = [];
-    state.pickupQueue = [];
-    state.destQueue   = [];
+    // Keep carried packages and remaining destinations — pause for editing
     state.plan        = [];
+    state.pickupQueue = [];
+    state.resumingRun = true;
     state.phase       = 'idle';
-    renderZoneMarkers();
   } else { return; }
   expandHUD();
   renderOrderMarkers();
@@ -993,19 +988,22 @@ function editMidRun() {
 }
 
 function cancelEdit() {
-  // Abandon mid-run edit entirely — un-pick carried packages and return to clean idle
-  state.packages.forEach(function(p) {
-    if (state.carrying.includes(p.id)) p.picked = false;
-  });
-  state.carrying    = [];
-  state.pickupQueue = [];
-  state.destQueue   = [];
-  state.plan        = [];
   state.resumingRun = false;
-  state.phase       = 'idle';
-  expandHUD();
+  if (state.plan.length === 0 && state.carrying.length > 0) {
+    // Came from delivery edit — return to delivering with progress intact
+    state.phase = 'delivering';
+  } else {
+    // Came from pickup edit — abandon and un-pick carried packages
+    state.packages.forEach(function(p) {
+      if (state.carrying.includes(p.id)) p.picked = false;
+    });
+    state.carrying = [];
+    state.destQueue = [];
+    state.plan      = [];
+    state.phase     = 'idle';
+    renderZoneMarkers();
+  }
   renderOrderMarkers();
-  renderZoneMarkers();
   updateRouteLine();
   updateHUD();
 }
