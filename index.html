@@ -159,7 +159,7 @@
     #secondary-btn:active { color: #c04040; border-color: #602020; }
 
     /* ── MID-RUN ACTIONS ── always visible when shown, outside collapsible */
-    #mid-run-actions { display: none; gap: 8px; margin-top: 10px; padding: 0 16px; }
+    #mid-run-actions { display: none; gap: 8px; margin-top: 10px; }
     #mid-run-actions button {
       flex: 1; padding: 14px; border-radius: 4px;
       font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
@@ -243,13 +243,12 @@
       <button id="zone-drop-btn"  onclick="setEditType('drop')">DROP ZONE</button>
     </div>
     <button id="secondary-btn"></button>
+    <div id="mid-run-actions">
+      <button id="skip-btn" onclick="skipNextPickup()">SKIP PICKUP</button>
+      <button id="edit-btn" onclick="editMidRun()">EDIT ROUTE</button>
+    </div>
   </div>
 
-  <!-- Always visible: skip/edit during runs, then primary action -->
-  <div id="mid-run-actions">
-    <button id="skip-btn" onclick="skipNextPickup()">SKIP PICKUP</button>
-    <button id="edit-btn" onclick="editMidRun()">EDIT ROUTE</button>
-  </div>
   <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
 
 </div>
