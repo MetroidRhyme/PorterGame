@@ -42,7 +42,7 @@
     /* ── MAP ── */
     #map { flex: 1; min-height: 0; }
 
-    /* ── GPS STATUS BADGE ── */
+    /* ── MAP OVERLAY BADGES ── */
     #gps-status {
       position: absolute;
       top: 66px;
@@ -57,6 +57,24 @@
     #gps-status.acquiring { background: rgba(80,40,0,0.9); color: #e8a030; }
     #gps-status.locked    { background: rgba(0,50,0,0.9);  color: #5ab05a; }
 
+    #edit-zones-btn {
+      position: absolute;
+      top: 66px;
+      left: 12px;
+      z-index: 999;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      padding: 4px 10px;
+      border-radius: 2px;
+      background: rgba(10,10,20,0.92);
+      color: #555;
+      border: 1px solid #2a2a3a;
+      cursor: pointer;
+    }
+    #edit-zones-btn:hover  { color: #888; border-color: #4a4a5a; }
+    #edit-zones-btn.active { color: #5ab05a; border-color: #2a6030; background: rgba(5,20,10,0.95); }
+
     /* ── BOTTOM HUD ── */
     #hud-bottom {
       background: rgba(10,10,15,0.97);
@@ -68,6 +86,27 @@
     #mission-status  { font-size: 10px; letter-spacing: 3px; color: #555; margin-bottom: 4px; }
     #mission-detail  { font-size: 13px; color: #a09888; line-height: 1.5; }
     #mission-distance{ font-size: 11px; color: #4a7a4a; margin-top: 3px; min-height: 16px; }
+
+    /* ── ZONE TYPE TOGGLE (edit mode only) ── */
+    #zone-toggle {
+      display: none;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    #zone-toggle button {
+      flex: 1;
+      padding: 10px;
+      border-radius: 2px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      border: 1px solid #2a2a3a;
+      background: #111;
+      color: #555;
+    }
+    #zone-spawn-btn.active { border-color: #2a6030; background: #0a2010; color: #5ab05a; }
+    #zone-drop-btn.active  { border-color: #5030a0; background: #150a25; color: #8060d0; }
 
     #action-btn {
       width: 100%;
@@ -87,7 +126,7 @@
       color: #4a7a4a;
       border: 1px solid #1e3020;
     }
-    #action-btn.pickup  {
+    #action-btn.pickup {
       background: #1a1000;
       color: #a06018;
       border: 1px solid #2e1e00;
@@ -148,14 +187,19 @@
 <!-- MAP -->
 <div id="map"></div>
 
-<!-- GPS BADGE -->
+<!-- MAP OVERLAY BADGES -->
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
+<button id="edit-zones-btn" onclick="enterEditMode()">ZONES</button>
 
 <!-- BOTTOM HUD -->
 <div id="hud-bottom">
   <div id="mission-status">STANDBY</div>
   <div id="mission-detail">Acquiring GPS lock…</div>
   <div id="mission-distance"></div>
+  <div id="zone-toggle">
+    <button id="zone-spawn-btn" onclick="setEditType('spawn')">SPAWN POINT</button>
+    <button id="zone-drop-btn"  onclick="setEditType('drop')">DROP ZONE</button>
+  </div>
   <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
 </div>
 
@@ -175,19 +219,27 @@
 // ═══════════════════════════════════════════════════════════
 
 const state = {
-  score:        parseInt(localStorage.getItem('porter_score')      || '0'),
-  deliveries:   parseInt(localStorage.getItem('porter_deliveries') || '0'),
-  phase:        'no_gps',   // no_gps | idle | moving_to_pickup | carrying
-  userPos:      null,
+  score:      parseInt(localStorage.getItem('porter_score')      || '0'),
+  deliveries: parseInt(localStorage.getItem('porter_deliveries') || '0'),
+  phase:      'no_gps',   // no_gps | idle | moving_to_pickup | carrying
+  userPos:    null,
+  editMode:   false,
+  editType:   'spawn',    // 'spawn' | 'drop'
 
+  // User-defined zone points (persisted to localStorage)
+  spawnPoints: JSON.parse(localStorage.getItem('porter_spawn_points') || '[]'),
+  dropPoints:  JSON.parse(localStorage.getItem('porter_drop_points')  || '[]'),
+
+  // Generated run data
   destinations: [],   // [{ id, loc, label }]
   packages:     [],   // [{ id, pickupLoc, destId, dist, picked }]
   carrying:     [],   // [pkgId, ...]
-  activePkgId:  null, // pkg id being walked to for pickup
-  activeDest:   null, // dest id currently delivering to
+  activePkgId:  null,
+  activeDest:   null,
 };
 
 const PROXIMITY_M = 40;
+const ONE_MILE_M  = 1609;
 
 // ═══════════════════════════════════════════════════════════
 //  MAP
@@ -200,24 +252,30 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 map.setView([20, 0], 3);
 
-function makeIcon(bg, emoji) {
+function makeIcon(bg, emoji, size) {
+  size = size || 38;
   return L.divIcon({
-    html: `<div style="background:${bg};border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 2px 10px rgba(0,0,0,0.6)">${emoji}</div>`,
-    iconSize: [38, 38], iconAnchor: [19, 19], className: ''
+    html: `<div style="background:${bg};border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-size:${Math.round(size * 0.5)}px;box-shadow:0 2px 10px rgba(0,0,0,0.6)">${emoji}</div>`,
+    iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
   });
 }
 
 const icons = {
   user:           makeIcon('#1a3050', '🧍'),
-  pickup:         makeIcon('#2a1800', '📦'),   // available, dim
-  pickup_target:  makeIcon('#e8a030', '📦'),   // accepted, bright orange
-  pickup_sibling: makeIcon('#6a3a08', '📦'),   // same-dest bonus, medium orange
-  dest:           makeIcon('#0c1e30', '🏠'),   // drop zone, dim blue (visible in idle)
-  dest_active:    makeIcon('#3080c0', '🏠'),   // active drop zone, bright blue
+  pickup:         makeIcon('#2a1800', '📦'),
+  pickup_target:  makeIcon('#e8a030', '📦'),
+  pickup_sibling: makeIcon('#6a3a08', '📦'),
+  dest:           makeIcon('#0c1e30', '🏠'),
+  dest_active:    makeIcon('#3080c0', '🏠'),
+  spawn_dim:      makeIcon('#0a2010', '📍', 30),
+  spawn_edit:     makeIcon('#1a5020', '📍', 34),
+  drop_dim:       makeIcon('#1a0830', '🎯', 30),
+  drop_edit:      makeIcon('#40106a', '🎯', 34),
 };
 
 let userMarker   = null;
 let orderMarkers = [];
+let zoneMarkers  = [];
 let routeLine    = null;
 
 // ═══════════════════════════════════════════════════════════
@@ -261,46 +319,148 @@ function onGpsLocked() {
   badge.className = 'locked';
   setTimeout(() => badge.style.display = 'none', 3000);
   state.phase = 'idle';
+  renderZoneMarkers();
   updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
-//  ROAD SNAPPING  (OSRM public API — foot profile)
+//  MAP CLICK — zone placement in edit mode
 // ═══════════════════════════════════════════════════════════
 
-async function snapToRoad(lat, lng) {
-  const url = `https://router.project-osrm.org/nearest/v1/foot/${lng},${lat}?number=1`;
-  try {
-    const res  = await fetch(url);
-    const data = await res.json();
-    if (data.code === 'Ok' && data.waypoints?.length) {
-      const [sLng, sLat] = data.waypoints[0].location;
-      return { lat: sLat, lng: sLng };
+map.on('click', function(e) {
+  if (!state.editMode) return;
+  const { lat, lng } = e.latlng;
+  if (state.editType === 'spawn') {
+    addSpawnPoint(lat, lng);
+  } else {
+    addDropPoint(lat, lng);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  ZONE MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+
+function saveZones() {
+  localStorage.setItem('porter_spawn_points', JSON.stringify(state.spawnPoints));
+  localStorage.setItem('porter_drop_points',  JSON.stringify(state.dropPoints));
+}
+
+function addSpawnPoint(lat, lng) {
+  state.spawnPoints.push({ id: 'spawn_' + Date.now(), lat, lng });
+  saveZones();
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function removeSpawnPoint(id) {
+  state.spawnPoints = state.spawnPoints.filter(p => p.id !== id);
+  saveZones();
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function addDropPoint(lat, lng) {
+  state.dropPoints.push({ id: 'drop_' + Date.now(), lat, lng });
+  saveZones();
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function removeDropPoint(id) {
+  state.dropPoints = state.dropPoints.filter(p => p.id !== id);
+  saveZones();
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function enterEditMode() {
+  state.editMode = true;
+  state.editType = 'spawn';
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function exitEditMode() {
+  state.editMode = false;
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function setEditType(type) {
+  state.editType = type;
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ZONE MARKERS
+// ═══════════════════════════════════════════════════════════
+
+function renderZoneMarkers() {
+  zoneMarkers.forEach(m => map.removeLayer(m));
+  zoneMarkers = [];
+
+  // Show zone markers only in edit mode, or when idle with no active run
+  const showZones = state.editMode || (state.phase === 'idle' && state.packages.length === 0);
+  if (!showZones) return;
+
+  state.spawnPoints.forEach(function(p) {
+    const icon = state.editMode ? icons.spawn_edit : icons.spawn_dim;
+    const m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
+    if (state.editMode) {
+      m.bindTooltip('SPAWN · TAP TO REMOVE', { permanent: false });
+      m.on('click', function(e) {
+        e.originalEvent.stopPropagation();
+        removeSpawnPoint(p.id);
+      });
+    } else {
+      m.bindTooltip('SPAWN ZONE', { permanent: false });
     }
-  } catch (e) { console.warn('OSRM snap failed, using raw coords:', e); }
-  return { lat, lng };
+    zoneMarkers.push(m);
+  });
+
+  state.dropPoints.forEach(function(p) {
+    const icon = state.editMode ? icons.drop_edit : icons.drop_dim;
+    const m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
+    if (state.editMode) {
+      m.bindTooltip('DROP ZONE · TAP TO REMOVE', { permanent: false });
+      m.on('click', function(e) {
+        e.originalEvent.stopPropagation();
+        removeDropPoint(p.id);
+      });
+    } else {
+      m.bindTooltip('DROP ZONE', { permanent: false });
+    }
+    zoneMarkers.push(m);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
 //  ORDER GENERATION
 // ═══════════════════════════════════════════════════════════
 
-function randomNearby(lat, lng, minM, maxM) {
-  const dist  = minM + Math.random() * (maxM - minM);
-  const angle = Math.random() * 2 * Math.PI;
-  const dlat  = (dist * Math.cos(angle)) / 111111;
-  const dlng  = (dist * Math.sin(angle)) / (111111 * Math.cos(lat * Math.PI / 180));
-  return { lat: lat + dlat, lng: lng + dlng };
-}
+function shuffle(arr) { return arr.slice().sort(function() { return Math.random() - 0.5; }); }
 
-async function generateRun() {
+function generateRun() {
   if (!state.userPos) return;
+
+  // Filter to zones within 1 mile of current position
+  const nearSpawns = state.spawnPoints.filter(p => haversine(state.userPos, p) <= ONE_MILE_M);
+  const nearDrops  = state.dropPoints.filter(p  => haversine(state.userPos, p) <= ONE_MILE_M);
+
+  if (nearSpawns.length === 0 || nearDrops.length === 0) {
+    updateHUD();
+    return;
+  }
 
   const btn = document.getElementById('action-btn');
   btn.disabled = true;
-  btn.textContent = 'SCANNING ROUTES…';
+  btn.textContent = 'BUILDING RUN…';
 
-  clearMarkers();
+  // Clear all map state
+  orderMarkers.forEach(m => map.removeLayer(m)); orderMarkers = [];
+  zoneMarkers.forEach(m => map.removeLayer(m));  zoneMarkers  = [];
+
   state.destinations = [];
   state.packages     = [];
   state.carrying     = [];
@@ -308,26 +468,29 @@ async function generateRun() {
   state.activeDest   = null;
   state.phase        = 'idle';
 
-  const { lat, lng } = state.userPos;
+  // Pick up to 2 unique drop zones from in-range points
+  const numDests       = Math.min(2, nearDrops.length);
+  const selectedDrops  = shuffle(nearDrops).slice(0, numDests);
+  state.destinations   = selectedDrops.map(function(p, i) {
+    return { id: 'dest_' + i, loc: { lat: p.lat, lng: p.lng }, label: String.fromCharCode(65 + i) };
+  });
 
-  // 2 drop zones, 400–1200m from player
-  for (let i = 0; i < 2; i++) {
-    const raw = randomNearby(lat, lng, 400, 1200);
-    const loc = await snapToRoad(raw.lat, raw.lng);
-    state.destinations.push({ id: `dest_${i}`, loc, label: String.fromCharCode(65 + i) });
+  // Pick up to 3 unique spawn points from in-range points (no repeats)
+  const numPkgs       = Math.min(3, nearSpawns.length);
+  const selectedSpawns = shuffle(nearSpawns).slice(0, numPkgs);
+
+  // Assign packages to destinations — guarantee each dest gets ≥1, remainder random
+  const assignments = Array.from({ length: numDests }, function(_, i) { return i; });
+  while (assignments.length < numPkgs) {
+    assignments.push(Math.floor(Math.random() * numDests));
   }
+  const assignedDests = shuffle(assignments);
 
-  // 3 packages — each dest gets ≥1, one dest gets 2 (enables multi-carry)
-  const assignments = [0, 1, Math.random() < 0.5 ? 0 : 1];
-  assignments.sort(() => Math.random() - 0.5);
-
-  for (let i = 0; i < 3; i++) {
-    const raw       = randomNearby(lat, lng, 150, 500);
-    const pickupLoc = await snapToRoad(raw.lat, raw.lng);
-    const dest      = state.destinations[assignments[i]];
-    const dist      = haversine(pickupLoc, dest.loc);
-    state.packages.push({ id: `pkg_${i}`, pickupLoc, destId: dest.id, dist, picked: false });
-  }
+  state.packages = selectedSpawns.map(function(spawn, i) {
+    const dest = state.destinations[assignedDests[i]];
+    const dist = haversine({ lat: spawn.lat, lng: spawn.lng }, dest.loc);
+    return { id: 'pkg_' + i, pickupLoc: { lat: spawn.lat, lng: spawn.lng }, destId: dest.id, dist: dist, picked: false };
+  });
 
   renderOrderMarkers();
   updateRouteLine();
@@ -347,20 +510,18 @@ function renderOrderMarkers() {
   clearMarkers();
 
   if (state.phase === 'idle') {
-    // Drop zones — show how many packages each has
-    state.destinations.forEach(d => {
+    state.destinations.forEach(function(d) {
       const count = state.packages.filter(p => p.destId === d.id && !p.picked).length;
       if (count === 0) return;
       const m = L.marker([d.loc.lat, d.loc.lng], { icon: icons.dest }).addTo(map);
-      m.bindTooltip(`ZONE ${d.label} · ${count} pkg${count > 1 ? 's' : ''}`, { permanent: false });
+      m.bindTooltip('ZONE ' + d.label + ' · ' + count + ' pkg' + (count > 1 ? 's' : ''), { permanent: false });
       orderMarkers.push(m);
     });
-    // Available pickups — show which zone they go to
-    state.packages.filter(p => !p.picked).forEach(p => {
+    state.packages.filter(p => !p.picked).forEach(function(p) {
       const dest = state.destinations.find(d => d.id === p.destId);
       const m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icons.pickup }).addTo(map);
-      m.bindTooltip(`→ Zone ${dest.label} · ${Math.round(p.dist)} pts`, { permanent: false });
-      m.on('click', () => acceptPackage(p.id));
+      m.bindTooltip('→ Zone ' + dest.label + ' · ' + Math.round(p.dist) + ' pts', { permanent: false });
+      m.on('click', function() { acceptPackage(p.id); });
       orderMarkers.push(m);
     });
 
@@ -368,34 +529,29 @@ function renderOrderMarkers() {
     const pkg  = state.packages.find(p => p.id === state.activePkgId);
     const dest = state.destinations.find(d => d.id === pkg.destId);
 
-    // Active pickup target (bright orange)
     const pm = L.marker([pkg.pickupLoc.lat, pkg.pickupLoc.lng], { icon: icons.pickup_target }).addTo(map);
     orderMarkers.push(pm);
 
-    // Destination shown now so you see where you're heading before arriving
     const dm = L.marker([dest.loc.lat, dest.loc.lng], { icon: icons.dest_active }).addTo(map);
-    dm.bindTooltip(`ZONE ${dest.label} · YOUR DROP-OFF`, { permanent: false });
+    dm.bindTooltip('ZONE ' + dest.label + ' · YOUR DROP-OFF', { permanent: false });
     orderMarkers.push(dm);
 
-    // Sibling pickups going to the same zone (bonus opportunity)
-    state.packages.filter(p => !p.picked && p.id !== state.activePkgId && p.destId === pkg.destId).forEach(p => {
+    state.packages.filter(p => !p.picked && p.id !== state.activePkgId && p.destId === pkg.destId).forEach(function(p) {
       const sm = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icons.pickup_sibling }).addTo(map);
-      sm.bindTooltip(`BONUS → Zone ${dest.label} · +${Math.round(p.dist)} pts`, { permanent: false });
+      sm.bindTooltip('BONUS → Zone ' + dest.label + ' · +' + Math.round(p.dist) + ' pts', { permanent: false });
       orderMarkers.push(sm);
     });
 
   } else if (state.phase === 'carrying') {
     const dest = state.destinations.find(d => d.id === state.activeDest);
 
-    // Active drop zone
     const dm = L.marker([dest.loc.lat, dest.loc.lng], { icon: icons.dest_active }).addTo(map);
-    dm.bindTooltip(`ZONE ${dest.label} · DELIVER HERE`, { permanent: false });
+    dm.bindTooltip('ZONE ' + dest.label + ' · DELIVER HERE', { permanent: false });
     orderMarkers.push(dm);
 
-    // Sibling pickups still available for this zone
-    state.packages.filter(p => p.destId === state.activeDest && !p.picked).forEach(p => {
+    state.packages.filter(p => p.destId === state.activeDest && !p.picked).forEach(function(p) {
       const sm = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icons.pickup_sibling }).addTo(map);
-      sm.bindTooltip(`ADD TO RUN · +${Math.round(p.dist)} pts`, { permanent: false });
+      sm.bindTooltip('ADD TO RUN · +' + Math.round(p.dist) + ' pts', { permanent: false });
       orderMarkers.push(sm);
     });
   }
@@ -418,7 +574,7 @@ function updateRouteLine() {
   if (!dest) return;
   routeLine = L.polyline(
     [[state.userPos.lat, state.userPos.lng], [dest.lat, dest.lng]],
-    { color, weight: 2, dashArray: '6 6', opacity: 0.7 }
+    { color: color, weight: 2, dashArray: '6 6', opacity: 0.7 }
   ).addTo(map);
 }
 
@@ -463,7 +619,7 @@ function deliverPackages() {
   if (state.phase !== 'carrying' || state.carrying.length === 0) return;
 
   const carriedPkgs = state.packages.filter(p => state.carrying.includes(p.id));
-  const pts   = carriedPkgs.reduce((sum, p) => sum + Math.round(p.dist), 0);
+  const pts   = carriedPkgs.reduce(function(sum, p) { return sum + Math.round(p.dist); }, 0);
   const count = state.carrying.length;
 
   state.score += pts;
@@ -483,6 +639,7 @@ function deliverPackages() {
     state.packages     = [];
     state.destinations = [];
     clearMarkers();
+    renderZoneMarkers();
   } else {
     renderOrderMarkers();
   }
@@ -493,11 +650,11 @@ function deliverPackages() {
 
 function showCompletion(pts, count) {
   const el = document.getElementById('completion-overlay');
-  document.getElementById('completion-pts').textContent   = `+${pts}`;
+  document.getElementById('completion-pts').textContent   = '+' + pts;
   document.getElementById('completion-total').textContent =
-    `${count > 1 ? `${count} PACKAGES · ` : ''}SCORE: ${state.score}`;
+    (count > 1 ? count + ' PACKAGES · ' : '') + 'SCORE: ' + state.score;
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2800);
+  setTimeout(function() { el.classList.remove('show'); }, 2800);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -505,17 +662,44 @@ function showCompletion(pts, count) {
 // ═══════════════════════════════════════════════════════════
 
 function updateHUD() {
-  const statusEl = document.getElementById('mission-status');
-  const detailEl = document.getElementById('mission-detail');
-  const distEl   = document.getElementById('mission-distance');
-  const scoreEl  = document.getElementById('score-value');
-  const btn      = document.getElementById('action-btn');
+  const statusEl  = document.getElementById('mission-status');
+  const detailEl  = document.getElementById('mission-detail');
+  const distEl    = document.getElementById('mission-distance');
+  const scoreEl   = document.getElementById('score-value');
+  const btn       = document.getElementById('action-btn');
+  const toggle    = document.getElementById('zone-toggle');
+  const editBtn   = document.getElementById('edit-zones-btn');
 
   scoreEl.textContent = state.score;
   btn.className = '';
   btn.onclick   = null;
   btn.disabled  = false;
 
+  // ── EDIT MODE ──────────────────────────────────────────
+  if (state.editMode) {
+    editBtn.textContent = '✕ ZONES';
+    editBtn.classList.add('active');
+    toggle.style.display = 'flex';
+    document.getElementById('zone-spawn-btn').className = state.editType === 'spawn' ? 'active' : '';
+    document.getElementById('zone-drop-btn').className  = state.editType === 'drop'  ? 'active' : '';
+
+    const nearSpawns = state.userPos ? state.spawnPoints.filter(p => haversine(state.userPos, p) <= ONE_MILE_M).length : '?';
+    const nearDrops  = state.userPos ? state.dropPoints.filter(p  => haversine(state.userPos, p) <= ONE_MILE_M).length : '?';
+
+    statusEl.textContent = 'ZONE EDITOR';
+    detailEl.textContent = 'Tap map to place a ' + (state.editType === 'spawn' ? 'spawn point 📍' : 'drop zone 🎯') + '. Tap an existing marker to remove it.';
+    distEl.textContent   = state.spawnPoints.length + ' spawns · ' + state.dropPoints.length + ' drops  ·  ' + nearSpawns + ' spawns / ' + nearDrops + ' drops within 1 mile';
+    btn.className   = 'generate';
+    btn.textContent = 'DONE EDITING';
+    btn.onclick     = exitEditMode;
+    return;
+  }
+
+  editBtn.textContent = 'ZONES';
+  editBtn.classList.remove('active');
+  toggle.style.display = 'none';
+
+  // ── GAME PHASES ────────────────────────────────────────
   switch (state.phase) {
 
     case 'no_gps':
@@ -527,24 +711,42 @@ function updateHUD() {
       btn.disabled    = true;
       break;
 
-    case 'idle':
+    case 'idle': {
+      const nearSpawns = state.userPos ? state.spawnPoints.filter(p => haversine(state.userPos, p) <= ONE_MILE_M) : [];
+      const nearDrops  = state.userPos ? state.dropPoints.filter(p  => haversine(state.userPos, p) <= ONE_MILE_M) : [];
+      const canGenerate = nearSpawns.length > 0 && nearDrops.length > 0;
+
       if (state.packages.length === 0) {
         statusEl.textContent = 'STANDBY';
-        detailEl.textContent = `${state.deliveries} deliveries completed. Generate a new run to begin.`;
-        distEl.textContent   = '';
-        btn.className   = 'generate';
-        btn.textContent = 'GENERATE ORDERS';
-        btn.onclick     = generateRun;
+
+        if (!canGenerate) {
+          if (state.spawnPoints.length === 0 || state.dropPoints.length === 0) {
+            detailEl.textContent = 'No zones set. Tap ZONES to mark spawn points (📍) and drop zones (🎯) on the map.';
+          } else {
+            detailEl.textContent = 'No zones within 1 mile. Move closer to your zones or add new ones nearby.';
+          }
+          distEl.textContent = nearSpawns.length + ' spawns / ' + nearDrops.length + ' drops in range';
+          btn.className   = 'generate';
+          btn.textContent = 'EDIT ZONES';
+          btn.onclick     = enterEditMode;
+        } else {
+          detailEl.textContent = nearSpawns.length + ' spawn' + (nearSpawns.length > 1 ? 's' : '') + ' · ' + nearDrops.length + ' drop' + (nearDrops.length > 1 ? 's' : '') + ' in range. Ready to run.';
+          distEl.textContent   = state.deliveries + ' deliveries completed';
+          btn.className   = 'generate';
+          btn.textContent = 'GENERATE ORDERS';
+          btn.onclick     = generateRun;
+        }
       } else {
         const avail = state.packages.filter(p => !p.picked).length;
         statusEl.textContent = 'ORDERS AVAILABLE';
-        detailEl.textContent = `${avail} package${avail > 1 ? 's' : ''} available. Blue markers show drop zones. Tap a package to accept.`;
+        detailEl.textContent = avail + ' package' + (avail > 1 ? 's' : '') + ' available. Blue markers show drop zones. Tap a package to accept.';
         distEl.textContent   = '';
         btn.className   = 'generate';
         btn.textContent = 'REGENERATE';
         btn.onclick     = generateRun;
       }
       break;
+    }
 
     case 'moving_to_pickup': {
       const pkg  = state.packages.find(p => p.id === state.activePkgId);
@@ -555,11 +757,11 @@ function updateHUD() {
       const ready = dPickup <= PROXIMITY_M;
 
       statusEl.textContent = 'EN ROUTE TO PICKUP';
-      detailEl.textContent = `Heading to orange marker → Zone ${dest.label}.${siblings.length ? ` ${siblings.length} bonus pkg${siblings.length > 1 ? 's' : ''} share this drop zone.` : ''}`;
-      distEl.textContent   = `${dPickup}m to pickup · drop-off ${dDest}m away · ${Math.round(pkg.dist)} pts`;
+      detailEl.textContent = 'Heading to orange marker → Zone ' + dest.label + '.' + (siblings.length ? ' ' + siblings.length + ' bonus pkg' + (siblings.length > 1 ? 's' : '') + ' share this drop zone.' : '');
+      distEl.textContent   = dPickup + 'm to pickup · drop-off ' + dDest + 'm away · ' + Math.round(pkg.dist) + ' pts';
       btn.className  = 'pickup' + (ready ? ' ready' : '');
       btn.disabled   = !ready;
-      btn.textContent = ready ? 'PICK UP PACKAGE' : `PICK UP  (${dPickup}m away)`;
+      btn.textContent = ready ? 'PICK UP PACKAGE' : 'PICK UP  (' + dPickup + 'm away)';
       btn.onclick    = pickupPackage;
       break;
     }
@@ -570,36 +772,36 @@ function updateHUD() {
       const siblings = state.packages.filter(p => p.destId === state.activeDest && !p.picked);
       const nearSib  = state.userPos ? siblings.find(p => haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M) : null;
       const count    = state.carrying.length;
-      const totalPts = state.packages.filter(p => state.carrying.includes(p.id)).reduce((s, p) => s + Math.round(p.dist), 0);
+      const totalPts = state.packages.filter(p => state.carrying.includes(p.id)).reduce(function(s, p) { return s + Math.round(p.dist); }, 0);
 
-      statusEl.textContent = `CARRYING ${count} PACKAGE${count > 1 ? 'S' : ''}`;
+      statusEl.textContent = 'CARRYING ' + count + ' PACKAGE' + (count > 1 ? 'S' : '');
 
       if (dDest <= PROXIMITY_M) {
         detailEl.textContent = siblings.length
-          ? `At Zone ${dest.label}. Deliver now or detour to grab ${siblings.length} bonus pkg${siblings.length > 1 ? 's' : ''} first.`
-          : `At Zone ${dest.label}. Deliver your package${count > 1 ? 's' : ''}.`;
-        distEl.textContent = `${totalPts} pts`;
+          ? 'At Zone ' + dest.label + '. Deliver now or detour for ' + siblings.length + ' bonus pkg' + (siblings.length > 1 ? 's' : '') + ' first.'
+          : 'At Zone ' + dest.label + '. Deliver your package' + (count > 1 ? 's' : '') + '.';
+        distEl.textContent = totalPts + ' pts';
         btn.className  = 'deliver ready';
         btn.disabled   = false;
-        btn.textContent = `DELIVER ${count} PACKAGE${count > 1 ? 'S' : ''}`;
+        btn.textContent = 'DELIVER ' + count + ' PACKAGE' + (count > 1 ? 'S' : '');
         btn.onclick    = deliverPackages;
       } else if (nearSib) {
-        detailEl.textContent = `Bonus package nearby going to Zone ${dest.label}! Grab it to boost your run.`;
-        distEl.textContent   = `+${Math.round(nearSib.dist)} pts bonus · drop-off ${dDest}m away`;
+        detailEl.textContent = 'Bonus package nearby going to Zone ' + dest.label + '! Grab it to boost your run.';
+        distEl.textContent   = '+' + Math.round(nearSib.dist) + ' pts bonus · drop-off ' + dDest + 'm away';
         btn.className  = 'pickup ready';
         btn.disabled   = false;
-        btn.textContent = `ADD PACKAGE (+${Math.round(nearSib.dist)} pts)`;
-        btn.onclick    = () => addSiblingPackage(nearSib.id);
+        btn.textContent = 'ADD PACKAGE (+' + Math.round(nearSib.dist) + ' pts)';
+        btn.onclick    = function() { addSiblingPackage(nearSib.id); };
       } else {
         detailEl.textContent = siblings.length
-          ? `${siblings.length} bonus pkg${siblings.length > 1 ? 's' : ''} on map going to Zone ${dest.label}.`
-          : `Deliver to Zone ${dest.label} (blue marker).`;
-        distEl.textContent   = `${dDest}m to drop-off · ${totalPts} pts`;
+          ? siblings.length + ' bonus pkg' + (siblings.length > 1 ? 's' : '') + ' on map going to Zone ' + dest.label + '.'
+          : 'Deliver to Zone ' + dest.label + ' (blue marker).';
+        distEl.textContent   = dDest + 'm to drop-off · ' + totalPts + ' pts';
         btn.className  = 'deliver' + (dDest <= PROXIMITY_M ? ' ready' : '');
         btn.disabled   = dDest > PROXIMITY_M;
         btn.textContent = dDest <= PROXIMITY_M
-          ? `DELIVER ${count} PACKAGE${count > 1 ? 'S' : ''}`
-          : `DELIVER  (${dDest}m away)`;
+          ? 'DELIVER ' + count + ' PACKAGE' + (count > 1 ? 'S' : '')
+          : 'DELIVER  (' + dDest + 'm away)';
         btn.onclick    = deliverPackages;
       }
       break;
