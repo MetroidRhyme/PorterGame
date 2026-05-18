@@ -392,14 +392,14 @@ function removeArea(id) {
 
 function setEditArea(id) {
   state.editArea = (state.editArea === id) ? null : id;
-  updateHUD();
+  renderZoneMarkers(); updateHUD();
 }
 
 function toggleActiveArea(id) {
   var idx = state.activeAreas.indexOf(id);
   if (idx === -1) state.activeAreas.push(id);
   else            state.activeAreas.splice(idx, 1);
-  saveAreas(); updateHUD();
+  saveAreas(); renderZoneMarkers(); updateHUD();
 }
 
 // Points eligible for the current run (respects active-area filter when 2+ areas exist)
@@ -448,7 +448,7 @@ function renderZoneMarkers() {
 
   spawns.forEach(function(p) {
     var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
-    var isSelected = state.editMode && state.editArea === p.area && p.area;
+    var isSelected = state.editMode && (p.area || null) === state.editArea;
     var icon = state.editMode
       ? (isSelected ? icons.spawn_edit : makeIcon('#0d2810', '📍', 30))
       : icons.spawn_dim;
@@ -465,7 +465,7 @@ function renderZoneMarkers() {
 
   drops.forEach(function(p) {
     var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
-    var isSelected = state.editMode && state.editArea === p.area && p.area;
+    var isSelected = state.editMode && (p.area || null) === state.editArea;
     var icon = state.editMode
       ? (isSelected ? icons.drop_edit : makeIcon('#1a0828', '🎯', 30))
       : icons.drop_dim;
@@ -562,6 +562,16 @@ function togglePlan(pkgId) {
 function clearPlan() {
   state.plan = [];
   renderOrderMarkers();
+  updateRouteLine();
+  updateHUD();
+}
+
+function cancelOrders() {
+  state.packages     = [];
+  state.destinations = [];
+  state.plan         = [];
+  clearMarkers();
+  renderZoneMarkers();
   updateRouteLine();
   updateHUD();
 }
@@ -1005,7 +1015,7 @@ function updateHUD() {
       var canGen     = nearSpawns.length > 0 && nearDrops.length > 0 && !noAreaChosen;
 
       // ── Area selector chips (shown when 2+ areas exist and no active run) ──
-      if (needAreaSel && state.packages.length === 0) {
+      if (needAreaSel && !state.resumingRun) {
         areaSel.style.display = 'flex';
         var selHtml = '';
         state.areas.forEach(function(a) {
@@ -1076,6 +1086,10 @@ function updateHUD() {
         btn.className   = 'generate';
         btn.textContent = 'REGENERATE';
         btn.onclick     = generateRun;
+
+        secBtn.style.display = 'block';
+        secBtn.textContent   = 'CANCEL ORDERS';
+        secBtn.onclick       = cancelOrders;
       } else {
         // ── Route planned ──
         var dests     = plannedDestOrder();
