@@ -340,47 +340,105 @@ function saveGameState() {
   localStorage.setItem('porter_destinations', JSON.stringify(state.destinations));
 }
 
+// Removes all packages/destinations/carrying entries belonging to one zone.
+// Mutates state only — caller handles save + render.
+function removeZoneOrders(zone) {
+  if (!zone.cells || !zone.cells.length) return;
+  var zoneKeys = new Set(zone.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
+
+  var removedIds = new Set();
+  state.packages = state.packages.filter(function(p) {
+    var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
+    if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedIds.add(p.id); return false; }
+    return true;
+  });
+  var removedDestIds = new Set();
+  state.destinations = state.destinations.filter(function(d) {
+    var c = latLngToCell(d.loc.lat, d.loc.lng);
+    if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedDestIds.add(d.id); return false; }
+    return true;
+  });
+  state.packages = state.packages.filter(function(p) {
+    if (removedDestIds.has(p.destId)) { removedIds.add(p.id); return false; }
+    return true;
+  });
+  state.carrying = state.carrying.filter(function(cid) { return !removedIds.has(cid); });
+}
+
+// Adds new destinations + packages for one zone only, respecting existing occupied cells.
+// Mutates state only — caller handles save + render.
+function generateOrdersForZone(zone) {
+  if (!zone.active) return;
+
+  var occupied = new Set();
+  state.packages.forEach(function(p) {
+    var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
+    occupied.add(cellKey(c.gx, c.gy));
+  });
+  state.destinations.forEach(function(d) {
+    var c = latLngToCell(d.loc.lat, d.loc.lng);
+    occupied.add(cellKey(c.gx, c.gy));
+  });
+
+  var labelOffset = state.destinations.length;
+  var newDests = [];
+  for (var i = 0; i < 2; i++) {
+    var pt = randomPointInZone(zone, occupied);
+    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + i, loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
+  }
+  if (!newDests.length) return;
+  state.destinations = state.destinations.concat(newDests);
+
+  var weightPool = [1, 1, 2, 2, 3];
+  for (var j = 0; j < 3; j++) {
+    var pt2  = randomPointInZone(zone, occupied);
+    if (!pt2) continue;
+    var dest   = newDests[j % newDests.length];
+    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
+    var dist   = haversine(pt2, dest.loc);
+    state.packages.push({
+      id: 'pkg_' + Date.now() + '_' + j, pickupLoc: pt2, destId: dest.id,
+      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
+      weight: weight, picked: false
+    });
+  }
+}
+
 function toggleZoneActive(id) {
   var z = state.zones.find(function(z) { return z.id === id; });
-  if (z) z.active = !z.active;
-  saveZones(); renderZoneMarkers(); generateOrders(); updateHUD();
+  if (!z) return;
+
+  if (z.active) {
+    // Warn if carried packages from this zone will be lost
+    if (z.cells && z.cells.length) {
+      var zoneKeys = new Set(z.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
+      var carriedCount = state.carrying.filter(function(cid) {
+        var p = state.packages.find(function(p) { return p.id === cid; });
+        if (!p) return false;
+        var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
+        return zoneKeys.has(cellKey(c.gx, c.gy));
+      }).length;
+      if (carriedCount > 0 && !confirm(
+        carriedCount + ' carried package' + (carriedCount > 1 ? 's' : '') +
+        ' from this zone will be deleted. Disable zone?'
+      )) return;
+    }
+    z.active = false;
+    removeZoneOrders(z);
+  } else {
+    z.active = true;
+    if (state.phase === 'active') generateOrdersForZone(z);
+  }
+
+  saveZones(); saveGameState(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
 
 function deleteZone(id) {
   var z = state.zones.find(function(z) { return z.id === id; });
   if (!z || !confirm('Delete zone "' + z.name + '"?')) return;
-
-  if (z.cells && z.cells.length) {
-    var zoneKeys = new Set(z.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
-
-    // Remove packages picked up inside this zone
-    var removedIds = new Set();
-    state.packages = state.packages.filter(function(p) {
-      var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
-      if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedIds.add(p.id); return false; }
-      return true;
-    });
-
-    // Remove destinations inside this zone
-    var removedDestIds = new Set();
-    state.destinations = state.destinations.filter(function(d) {
-      var c = latLngToCell(d.loc.lat, d.loc.lng);
-      if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedDestIds.add(d.id); return false; }
-      return true;
-    });
-
-    // Remove packages whose destination was just removed
-    state.packages = state.packages.filter(function(p) {
-      if (removedDestIds.has(p.destId)) { removedIds.add(p.id); return false; }
-      return true;
-    });
-
-    state.carrying = state.carrying.filter(function(cid) { return !removedIds.has(cid); });
-    saveGameState();
-  }
-
+  removeZoneOrders(z);
   state.zones = state.zones.filter(function(z) { return z.id !== id; });
-  saveZones(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
+  saveZones(); saveGameState(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
 
 function clearAllZones() {
@@ -585,6 +643,7 @@ function finishDraw() {
   if (baseName === null) { state.gridCells = null; renderGridCanvas(); updateHUD(); return; }
   baseName = baseName.trim();
 
+  var newZones = [];
   comps.forEach(function(comp, idx) {
     var cells = Array.from(comp).map(function(key) {
       var p = key.split(',');
@@ -593,13 +652,20 @@ function finishDraw() {
     var name  = baseName || ('Zone ' + (state.zones.length + 1));
     if (comps.length > 1) name += ' ' + (idx + 1);
     var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-    state.zones.push({ id: 'zone_' + Date.now() + '_' + idx, name: name, color: color, cells: cells, active: true });
+    var z = { id: 'zone_' + Date.now() + '_' + idx, name: name, color: color, cells: cells, active: true };
+    state.zones.push(z);
+    newZones.push(z);
   });
 
   state.gridCells = null;
   saveZones();
   renderGridCanvas();
-  if (state.phase === 'active') generateOrders(); else updateHUD();
+  if (state.phase === 'active') {
+    newZones.forEach(function(z) { generateOrdersForZone(z); });
+    saveGameState();
+    renderOrderMarkers();
+  }
+  updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
