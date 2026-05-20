@@ -308,9 +308,9 @@ var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CEL
 const ZONE_COLORS   = ['#e8a030', '#3080c0', '#5ab05a', '#c04040', '#8060d0', '#30a0a0'];
 
 const WEIGHT = {
-  1: { label: 'LIGHT',    multiplier: 0.7, size: 36 },
-  2: { label: 'STANDARD', multiplier: 1.0, size: 48 },
-  3: { label: 'HEAVY',    multiplier: 1.5, size: 60 },
+  1: { label: 'LIGHT',    multiplier: 0.7 },
+  2: { label: 'STANDARD', multiplier: 1.0 },
+  3: { label: 'HEAVY',    multiplier: 1.5 },
 };
 
 function vibrate(p)    { if (navigator.vibrate) navigator.vibrate(p); }
@@ -358,12 +358,26 @@ function makeIcon(bg, emoji, size) {
   });
 }
 
+function makePackageIcon(weight, size, isNext, tooHeavy) {
+  var bg = isNext ? '#e8a030' : (tooHeavy ? '#2a1a1a' : '#2a1800');
+  var fs = weight === 1 ? Math.round(size * 0.48) : Math.round(size * 0.30);
+  var inner = '';
+  for (var i = 0; i < weight; i++) inner += '<span>📦</span>';
+  return L.divIcon({
+    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;font-size:' + fs + 'px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + inner + '</div>',
+    iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
+  });
+}
+
+function getCellPixelWidth() {
+  var lat = state.userPos ? state.userPos.lat : map.getCenter().lat;
+  var p1  = map.latLngToContainerPoint([lat, 0]);
+  var p2  = map.latLngToContainerPoint([lat, CELL_LNG_DEG]);
+  return Math.abs(p2.x - p1.x);
+}
+
 const icons = {
-  user:        makeIcon('#1a3050', '🧍', 44),
-  pickup:      makeIcon('#2a1800', '📦'),
-  dest:        makeIcon('#0c1e30', '🏠'),
-  dest_next:   makeIcon('#3080c0', '🏠'),
-  dest_queued: makeIcon('#164060', '🏠'),
+  user: makeIcon('#1a3050', '🧍', 44),
 };
 
 let userMarker   = null;
@@ -810,6 +824,7 @@ function renderGridCanvas() {
 }
 
 map.on('move zoom', scheduleGridRender);
+map.on('zoomend',  renderOrderMarkers);
 map.on('dragstart', function() {
   if (state.following) {
     state.following = false;
@@ -1184,6 +1199,7 @@ function renderOrderMarkers() {
   var pickable    = nearestPickable();
   var deliverable = nearestDeliverable();
   var rem         = getCapacity() - currentLoad();
+  var iconPx      = Math.max(20, Math.round(getCellPixelWidth() * 0.85));
 
   // Connection lines — added first so they land in overlayPane (below markerPane)
   state.packages.forEach(function(p) {
@@ -1204,8 +1220,7 @@ function renderOrderMarkers() {
     var isNext   = pickable && pickable.id === p.id;
     var tooheavy = p.weight > rem;
     var cfg      = WEIGHT[p.weight];
-    var bg       = isNext ? '#e8a030' : (tooheavy ? '#2a1a1a' : '#2a1800');
-    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makeIcon(bg, '📦', cfg.size) }).addTo(map);
+    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy) }).addTo(map);
     m.bindTooltip(cfg.label + ' · → Zone ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts' + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + 'u)');
     orderMarkers.push(m);
   });
@@ -1216,8 +1231,8 @@ function renderOrderMarkers() {
       return p && p.destId === d.id;
     }).length;
     var isNext = deliverable && deliverable.id === d.id;
-    var icon   = isNext ? icons.dest_next : (n > 0 ? icons.dest_queued : icons.dest);
-    var m = L.marker([d.loc.lat, d.loc.lng], { icon: icon }).addTo(map);
+    var destBg = isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30');
+    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeIcon(destBg, '🏠', iconPx) }).addTo(map);
     m.bindTooltip('Zone ' + d.label + (n > 0 ? ' · ' + n + ' to deliver' : ' · drop zone'));
     orderMarkers.push(m);
   });
