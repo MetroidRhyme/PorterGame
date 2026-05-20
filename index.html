@@ -206,9 +206,9 @@ const state = {
   drawing:    false,
   gridCells:  null,   // Set of "gx,gy" strings while drawing
 
-  packages:     [],
-  destinations: [],
-  carrying:     [],
+  packages:     JSON.parse(localStorage.getItem('porter_packages')     || '[]'),
+  destinations: JSON.parse(localStorage.getItem('porter_destinations') || '[]'),
+  carrying:     JSON.parse(localStorage.getItem('porter_carrying')     || '[]'),
 };
 
 const PROXIMITY_M   = 20;
@@ -333,6 +333,12 @@ function onGpsLocked() {
 // ═══════════════════════════════════════════════════════════
 
 function saveZones() { localStorage.setItem('porter_zones', JSON.stringify(state.zones)); }
+
+function saveGameState() {
+  localStorage.setItem('porter_carrying',     JSON.stringify(state.carrying));
+  localStorage.setItem('porter_packages',     JSON.stringify(state.packages));
+  localStorage.setItem('porter_destinations', JSON.stringify(state.destinations));
+}
 
 function toggleZoneActive(id) {
   var z = state.zones.find(function(z) { return z.id === id; });
@@ -619,8 +625,8 @@ function randomPointInZone(zone, occupied) {
     var b = cellBounds(c.gx, c.gy);
     occupied.add(cellKey(c.gx, c.gy));
     return {
-      lat: b.sw.lat + Math.random() * CELL_LAT_DEG,
-      lng: b.sw.lng + Math.random() * CELL_LNG_DEG,
+      lat: b.sw.lat + CELL_LAT_DEG * 0.5,
+      lng: b.sw.lng + CELL_LNG_DEG * 0.5,
     };
   }
 
@@ -635,8 +641,13 @@ function randomPointInZone(zone, occupied) {
     var lat = minLat + Math.random() * (maxLat - minLat);
     var lng = minLng + Math.random() * (maxLng - minLng);
     if (pointInPolygon({ lat: lat, lng: lng }, poly)) {
-      var ck = cellKey(latLngToCell(lat, lng).gx, latLngToCell(lat, lng).gy);
-      if (!occupied.has(ck)) { occupied.add(ck); return { lat: lat, lng: lng }; }
+      var cl = latLngToCell(lat, lng);
+      var ck = cellKey(cl.gx, cl.gy);
+      if (!occupied.has(ck)) {
+        occupied.add(ck);
+        var bc = cellBounds(cl.gx, cl.gy);
+        return { lat: bc.sw.lat + CELL_LAT_DEG * 0.5, lng: bc.sw.lng + CELL_LNG_DEG * 0.5 };
+      }
     }
   }
   return null;
@@ -696,6 +707,7 @@ function generateOrders() {
       weight: weight, picked: false
     });
   }
+  saveGameState();
   renderOrderMarkers();
   updateHUD();
 }
@@ -750,6 +762,7 @@ function attemptPickup() {
   pkg.picked = true;
   state.carrying.push(pkg.id);
   vibrate(60);
+  saveGameState();
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
@@ -767,6 +780,7 @@ function attemptDeliver() {
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
   vibrate([80, 40, 120]);
+  saveGameState();
   showCompletion(pts, pkgs.length, dest.label);
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
@@ -778,6 +792,7 @@ function abandonPackage(id) {
   state.destinations = state.destinations.filter(function(d) {
     return state.packages.some(function(p) { return p.destId === d.id; });
   });
+  saveGameState();
   checkRefresh();
   renderOrderMarkers();
   updateHUD();
