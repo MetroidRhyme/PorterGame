@@ -75,7 +75,7 @@
     }
     #hud-bottom.collapsed #collapsible-hud { max-height: 0; opacity: 0; }
 
-    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #555; margin-bottom: 5px; }
+    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #888; margin-bottom: 5px; }
     #mission-detail   { font-size: 14px; color: #a09888; line-height: 1.5; }
     #mission-distance { font-size: 11px; color: #4a7a4a; margin-top: 5px; min-height: 16px; }
 
@@ -102,7 +102,7 @@
     .inv-abandon {
       font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
       padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
-      background: transparent; color: #5a2020; border: 1px solid #2a1010;
+      background: transparent; color: #c04040; border: 1px solid #502020;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
       white-space: nowrap; flex-shrink: 0; margin-left: 10px;
     }
@@ -786,6 +786,11 @@ function attemptDeliver() {
 }
 
 function abandonPackage(id) {
+  var p = state.packages.find(function(p) { return p.id === id; });
+  if (!p) return;
+  var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+  var wcfg = WEIGHT[p.weight];
+  if (!confirm('Abandon ' + wcfg.label.toLowerCase() + ' package for Zone ' + (dest ? dest.label : '?') + ' (' + p.pts + ' pts)? It will not be reassigned.')) return;
   state.carrying    = state.carrying.filter(function(cid) { return cid !== id; });
   state.packages    = state.packages.filter(function(p)   { return p.id  !== id; });
   // Remove destinations that no longer have any package pointing to them
