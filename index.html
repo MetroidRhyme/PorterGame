@@ -7,47 +7,37 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     body {
-      background: #0a0a0f;
-      color: #e0d8c8;
+      background: #0a0a0f; color: #e0d8c8;
       font-family: 'Courier New', monospace;
-      height: 100dvh;
-      overflow: hidden;
+      height: 100dvh; overflow: hidden;
     }
 
-    #map { position: fixed; inset: 0; z-index: 0; }
+    #map        { position: fixed; inset: 0; z-index: 0; }
+    #draw-canvas { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
 
     /* ── TOP HUD ── */
     #hud-top {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 2000;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
       background: rgba(10,10,15,0.88);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid rgba(255,255,255,0.06);
       padding: max(12px, env(safe-area-inset-top)) 16px 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
     }
     #game-title { font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; flex-shrink: 0; }
     #score-display { text-align: right; flex-shrink: 0; }
     #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
-    /* ── GPS STATUS ── */
     #gps-status {
       position: fixed; top: 74px; right: 12px; z-index: 1999;
       font-size: 10px; letter-spacing: 2px; padding: 4px 10px; border-radius: 2px;
       pointer-events: none;
     }
-    #gps-status.acquiring { background: rgba(80,40,0,0.9); color: #e8a030; }
-    #gps-status.locked    { background: rgba(0,50,0,0.9);  color: #5ab05a; }
+    #gps-status.acquiring { background: rgba(80,40,0,0.9);  color: #e8a030; }
+    #gps-status.locked    { background: rgba(0,50,0,0.9);   color: #5ab05a; }
 
-    /* ── ZONES BUTTON ── */
     #edit-zones-btn {
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
       padding: 10px 14px; border-radius: 4px; background: transparent;
@@ -60,12 +50,9 @@
 
     /* ── BOTTOM HUD ── */
     #hud-bottom {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      z-index: 2000;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 2000;
       background: rgba(10,10,15,0.92);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       border-top: 1px solid rgba(255,255,255,0.06);
       border-radius: 18px 18px 0 0;
       padding-bottom: max(18px, env(safe-area-inset-bottom));
@@ -83,9 +70,8 @@
     #hud-collapse-btn:active::before { background: #4a4a5a; }
 
     #collapsible-hud {
-      overflow: hidden; max-height: 800px; opacity: 1;
-      padding: 0 16px;
-      transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.20s ease;
+      overflow: hidden; max-height: 800px; opacity: 1; padding: 0 16px;
+      transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.20s ease;
     }
     #hud-bottom.collapsed #collapsible-hud { max-height: 0; opacity: 0; }
 
@@ -93,7 +79,6 @@
     #mission-detail   { font-size: 14px; color: #a09888; line-height: 1.5; }
     #mission-distance { font-size: 11px; color: #4a7a4a; margin-top: 5px; min-height: 16px; }
 
-    /* ── ZONE CHIPS ── */
     #zone-chips { display: none; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     #zone-chips button {
       padding: 10px 14px; border-radius: 4px;
@@ -103,13 +88,9 @@
       -webkit-tap-highlight-color: transparent;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    #zone-chips .del-zone-btn {
-      padding: 10px 12px; font-size: 14px;
-      color: #3a3a3a; border-color: #2a2a3a;
-    }
+    #zone-chips .del-zone-btn { padding: 10px 12px; font-size: 14px; }
     #zone-chips .del-zone-btn:active { color: #c04040; border-color: #602020; }
 
-    /* ── SECONDARY ACTION ── */
     #secondary-btn {
       display: none; width: 100%; margin-top: 10px; padding: 14px;
       background: transparent; color: #555; border: 1px solid #2a2a3a; border-radius: 4px;
@@ -119,10 +100,8 @@
     }
     #secondary-btn:active { color: #c04040; border-color: #602020; }
 
-    /* ── PRIMARY ACTION ── */
     #action-btn {
-      display: block;
-      width: calc(100% - 32px); margin: 10px 16px 0;
+      display: block; width: calc(100% - 32px); margin: 10px 16px 0;
       padding: 18px; border: none; border-radius: 6px;
       font-family: 'Courier New', monospace; font-size: 15px; font-weight: bold;
       letter-spacing: 4px; cursor: pointer; min-height: 58px;
@@ -138,7 +117,6 @@
     #action-btn.deliver.ready { background: #3080c0; color: #0a0a0f; border-color: #3080c0; }
     #action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-    /* ── DELIVERY FLASH ── */
     #completion-overlay {
       display: none; position: fixed; inset: 0; z-index: 9999;
       background: rgba(20,60,120,0.18);
@@ -167,6 +145,7 @@
 </div>
 
 <div id="map"></div>
+<canvas id="draw-canvas"></canvas>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
@@ -197,31 +176,30 @@
 // ═══════════════════════════════════════════════════════════
 
 const state = {
-  score:      parseInt(localStorage.getItem('porter_score')      || '0'),
-  deliveries: parseInt(localStorage.getItem('porter_deliveries') || '0'),
-  phase:      'no_gps',
-  userPos:    null,
-  editMode:   false,
+  score:       parseInt(localStorage.getItem('porter_score')       || '0'),
+  deliveries:  parseInt(localStorage.getItem('porter_deliveries')  || '0'),
+  phase:       'no_gps',
+  userPos:     null,
+  editMode:    false,
   sessionDist: parseFloat(localStorage.getItem('porter_session_dist') || '0'),
-  lastPos:    null,
+  lastPos:     null,
 
-  // Painted zones: [{ id, name, color, polygon:[{lat,lng},...], active }]
-  zones: JSON.parse(localStorage.getItem('porter_zones') || '[]'),
+  zones:   JSON.parse(localStorage.getItem('porter_zones') || '[]'),
+  drawing: false,
+  erasing: false,
 
-  // Drawing a new zone
-  drawing:  false,
-  drawPath: [],
-
-  // Game objects
   packages:     [],
   destinations: [],
   carrying:     [],
 };
 
-const PROXIMITY_M    = 20;
-const ONE_MILE_M     = 1609;
-const MAX_GPS_DELTA  = 50;
-const ZONE_COLORS    = ['#e8a030', '#3080c0', '#5ab05a', '#c04040', '#8060d0', '#30a0a0'];
+const PROXIMITY_M   = 20;
+const ONE_MILE_M    = 1609;
+const MAX_GPS_DELTA = 50;
+const BRUSH_RADIUS  = 30;   // CSS pixels
+const BORDER_WIDTH  = 4;    // CSS pixels
+const NUM_RAYS      = 120;
+const ZONE_COLORS   = ['#e8a030', '#3080c0', '#5ab05a', '#c04040', '#8060d0', '#30a0a0'];
 
 const WEIGHT = {
   1: { label: 'LIGHT',    multiplier: 0.7, size: 36 },
@@ -229,12 +207,12 @@ const WEIGHT = {
   3: { label: 'HEAVY',    multiplier: 1.5, size: 60 },
 };
 
-function vibrate(pattern)   { if (navigator.vibrate) navigator.vibrate(pattern); }
-function getCapacity()      { return Math.min(3 + Math.floor(state.score / 500), 12); }
+function vibrate(p)    { if (navigator.vibrate) navigator.vibrate(p); }
+function getCapacity() { return Math.min(3 + Math.floor(state.score / 500), 12); }
 function currentLoad() {
-  return state.carrying.reduce(function(sum, id) {
+  return state.carrying.reduce(function(s, id) {
     var p = state.packages.find(function(p) { return p.id === id; });
-    return sum + (p ? p.weight : 0);
+    return s + (p ? p.weight : 0);
   }, 0);
 }
 
@@ -274,14 +252,13 @@ const icons = {
 let userMarker   = null;
 let orderMarkers = [];
 let zoneMarkers  = [];
-let _liveLayer   = null;  // polygon preview while drawing
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
 // ═══════════════════════════════════════════════════════════
 
 if (!navigator.geolocation) {
-  document.getElementById('mission-detail').textContent = 'Geolocation not supported by this browser.';
+  document.getElementById('mission-detail').textContent = 'Geolocation not supported.';
 } else {
   navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, {
     enableHighAccuracy: true, maximumAge: 3000, timeout: 15000
@@ -289,10 +266,8 @@ if (!navigator.geolocation) {
 }
 
 function onLocationUpdate(pos) {
-  var lat    = pos.coords.latitude;
-  var lng    = pos.coords.longitude;
+  var lat = pos.coords.latitude, lng = pos.coords.longitude;
   var newPos = { lat: lat, lng: lng };
-
   if (state.lastPos) {
     var delta = haversine(state.lastPos, newPos);
     if (delta > 0 && delta <= MAX_GPS_DELTA) {
@@ -302,7 +277,6 @@ function onLocationUpdate(pos) {
   }
   state.lastPos = newPos;
   state.userPos = newPos;
-
   if (!userMarker) {
     userMarker = L.marker([lat, lng], { icon: icons.user, zIndexOffset: 1000 }).addTo(map);
     map.setView([lat, lng], 17);
@@ -336,34 +310,24 @@ function onGpsLocked() {
 //  ZONE STORAGE
 // ═══════════════════════════════════════════════════════════
 
-function saveZones() {
-  localStorage.setItem('porter_zones', JSON.stringify(state.zones));
-}
+function saveZones() { localStorage.setItem('porter_zones', JSON.stringify(state.zones)); }
 
 function toggleZoneActive(id) {
-  var zone = state.zones.find(function(z) { return z.id === id; });
-  if (zone) zone.active = !zone.active;
-  saveZones();
-  renderZoneMarkers();
-  generateOrders();
-  updateHUD();
+  var z = state.zones.find(function(z) { return z.id === id; });
+  if (z) z.active = !z.active;
+  saveZones(); renderZoneMarkers(); generateOrders(); updateHUD();
 }
 
 function deleteZone(id) {
-  var zone = state.zones.find(function(z) { return z.id === id; });
-  if (!zone) return;
-  if (!confirm('Delete zone "' + zone.name + '"?')) return;
+  var z = state.zones.find(function(z) { return z.id === id; });
+  if (!z || !confirm('Delete zone "' + z.name + '"?')) return;
   state.zones = state.zones.filter(function(z) { return z.id !== id; });
-  saveZones();
-  renderZoneMarkers();
-  updateHUD();
+  saveZones(); renderZoneMarkers(); updateHUD();
 }
 
 function clearAllZones() {
   state.zones = [];
-  saveZones();
-  renderZoneMarkers();
-  updateHUD();
+  saveZones(); renderZoneMarkers(); updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -372,152 +336,288 @@ function clearAllZones() {
 
 function enterEditMode() {
   state.editMode = true;
-  expandHUD();
-  renderZoneMarkers();
-  updateHUD();
+  expandHUD(); renderZoneMarkers(); updateHUD();
 }
 
 function exitEditMode() {
   if (state.drawing) cancelDraw();
   state.editMode = false;
-  renderZoneMarkers();
-  updateHUD();
+  renderZoneMarkers(); updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
-//  ZONE DRAWING
+//  CANVAS SETUP
 // ═══════════════════════════════════════════════════════════
 
+var drawCanvas, drawCtx, maskCanvas, maskCtx, tmpCanvas, tmpCtx;
+var _mouseDown  = false;
+var _lastPaint  = null;   // {x,y} in CSS pixels — for stroke interpolation
+var _cursorPos  = null;   // {x,y} for brush preview
+var _paintCount = 0;      // any pixels painted this session?
+
+function initDrawCanvas() {
+  var dpr = window.devicePixelRatio || 1;
+  var W   = window.innerWidth, H = window.innerHeight;
+
+  drawCanvas = document.getElementById('draw-canvas');
+  drawCanvas.width  = W * dpr;
+  drawCanvas.height = H * dpr;
+  drawCanvas.style.width  = W + 'px';
+  drawCanvas.style.height = H + 'px';
+  drawCtx = drawCanvas.getContext('2d');
+  drawCtx.scale(dpr, dpr);
+
+  maskCanvas = document.createElement('canvas');
+  maskCanvas.width  = W * dpr;
+  maskCanvas.height = H * dpr;
+  maskCtx = maskCanvas.getContext('2d');
+  maskCtx.scale(dpr, dpr);
+
+  tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width  = W * dpr;
+  tmpCanvas.height = H * dpr;
+  tmpCtx = tmpCanvas.getContext('2d');
+  tmpCtx.scale(dpr, dpr);
+}
+
+// ── Paint a circle stroke onto the mask ──
+function paintAt(x, y) {
+  maskCtx.save();
+  maskCtx.globalCompositeOperation = state.erasing ? 'destination-out' : 'source-over';
+  maskCtx.fillStyle = 'white';
+
+  // Interpolate from last position to fill gaps on fast drags
+  if (_lastPaint) {
+    var dx = x - _lastPaint.x, dy = y - _lastPaint.y;
+    var dist  = Math.sqrt(dx * dx + dy * dy);
+    var steps = Math.max(1, Math.ceil(dist / (BRUSH_RADIUS * 0.4)));
+    for (var i = 0; i <= steps; i++) {
+      maskCtx.beginPath();
+      maskCtx.arc(_lastPaint.x + dx * i / steps, _lastPaint.y + dy * i / steps, BRUSH_RADIUS, 0, Math.PI * 2);
+      maskCtx.fill();
+    }
+  } else {
+    maskCtx.beginPath();
+    maskCtx.arc(x, y, BRUSH_RADIUS, 0, Math.PI * 2);
+    maskCtx.fill();
+  }
+
+  maskCtx.restore();
+  _lastPaint = { x: x, y: y };
+  if (!state.erasing) _paintCount++;
+  renderDrawCanvas();
+}
+
+// ── Render fill + hard border from mask onto visible canvas ──
+function renderDrawCanvas() {
+  var W = window.innerWidth, H = window.innerHeight;
+  drawCtx.clearRect(0, 0, W, H);
+  if (!state.drawing) return;
+
+  var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+
+  // ── FILL at 15% ──
+  tmpCtx.clearRect(0, 0, W, H);
+  tmpCtx.drawImage(maskCanvas, 0, 0, W, H);          // draw mask (white alpha)
+  tmpCtx.globalCompositeOperation = 'source-in';
+  tmpCtx.fillStyle = color;
+  tmpCtx.fillRect(0, 0, W, H);                        // colorize where mask is painted
+  tmpCtx.globalCompositeOperation = 'source-over';
+  drawCtx.globalAlpha = 0.15;
+  drawCtx.drawImage(tmpCanvas, 0, 0, W, H);
+  drawCtx.globalAlpha = 1.0;
+
+  // ── BORDER ring at 100% ──
+  // Expand mask in 8 directions → colorize → punch out interior
+  tmpCtx.clearRect(0, 0, W, H);
+  var N = BORDER_WIDTH;
+  for (var a = 0; a < 8; a++) {
+    var ang = a * Math.PI / 4;
+    var ox = Math.round(N * Math.cos(ang)), oy = Math.round(N * Math.sin(ang));
+    tmpCtx.drawImage(maskCanvas, ox, oy, W, H);
+  }
+  tmpCtx.globalCompositeOperation = 'source-in';
+  tmpCtx.fillStyle = color;
+  tmpCtx.fillRect(0, 0, W, H);
+  tmpCtx.globalCompositeOperation = 'destination-out';  // punch interior
+  tmpCtx.drawImage(maskCanvas, 0, 0, W, H);
+  tmpCtx.globalCompositeOperation = 'source-over';
+  drawCtx.drawImage(tmpCanvas, 0, 0, W, H);
+
+  // ── BRUSH CURSOR ──
+  if (_cursorPos) {
+    drawCtx.save();
+    drawCtx.strokeStyle = state.erasing ? '#c04040' : color;
+    drawCtx.lineWidth = 2;
+    drawCtx.setLineDash([5, 4]);
+    drawCtx.beginPath();
+    drawCtx.arc(_cursorPos.x, _cursorPos.y, BRUSH_RADIUS, 0, Math.PI * 2);
+    drawCtx.stroke();
+    drawCtx.restore();
+  }
+}
+
+// ── Extract lat/lng polygon by ray-casting from painted centroid ──
+function extractZonePolygon() {
+  var dpr = window.devicePixelRatio || 1;
+  var W   = window.innerWidth, H = window.innerHeight;
+  var pw  = maskCanvas.width;
+  var img = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+  var px  = img.data;
+
+  function painted(cssX, cssY) {
+    var qx = Math.min(Math.round(cssX * dpr), maskCanvas.width  - 1);
+    var qy = Math.min(Math.round(cssY * dpr), maskCanvas.height - 1);
+    if (qx < 0 || qy < 0) return false;
+    return px[(qy * pw + qx) * 4 + 3] > 64;
+  }
+
+  // Centroid of painted area
+  var step = 8, sx = 0, sy = 0, cnt = 0;
+  for (var gy = 0; gy < H; gy += step) {
+    for (var gx = 0; gx < W; gx += step) {
+      if (painted(gx, gy)) { sx += gx; sy += gy; cnt++; }
+    }
+  }
+  if (!cnt) return [];
+  var cx = sx / cnt, cy = sy / cnt;
+
+  // If centroid is outside the painted area, snap to nearest painted sample
+  if (!painted(cx, cy)) {
+    var best = Infinity;
+    for (var fy = 0; fy < H; fy += step) {
+      for (var fx = 0; fx < W; fx += step) {
+        if (painted(fx, fy)) {
+          var d = (fx - cx) * (fx - cx) + (fy - cy) * (fy - cy);
+          if (d < best) { best = d; cx = fx; cy = fy; }
+        }
+      }
+    }
+  }
+
+  // Cast rays outward, find outermost painted pixel per direction
+  var maxR   = Math.sqrt(W * W + H * H);
+  var rStep  = 3;
+  var polygon = [];
+
+  for (var i = 0; i < NUM_RAYS; i++) {
+    var angle = (i / NUM_RAYS) * Math.PI * 2;
+    var dx = Math.cos(angle), dy = Math.sin(angle);
+    var lastX = null, lastY = null;
+
+    for (var r = 0; r <= maxR; r += rStep) {
+      var rx = cx + dx * r, ry = cy + dy * r;
+      if (rx < 0 || rx >= W || ry < 0 || ry >= H) break;
+      if (painted(rx, ry)) { lastX = rx; lastY = ry; }
+      else if (lastX !== null) break;
+    }
+
+    if (lastX !== null) {
+      var ll = map.containerPointToLatLng(L.point(lastX, lastY));
+      polygon.push({ lat: ll.lat, lng: ll.lng });
+    }
+  }
+
+  return polygon;
+}
+
+// ── Drawing lifecycle ──
 function startDrawing() {
   state.drawing  = true;
-  state.drawPath = [];
+  state.erasing  = false;
+  _lastPaint     = null;
+  _cursorPos     = null;
+  _paintCount    = 0;
+  maskCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  drawCanvas.style.pointerEvents = 'auto';
   map.dragging.disable();
   map.touchZoom.disable();
   updateHUD();
 }
 
 function cancelDraw() {
-  state.drawing  = false;
-  state.drawPath = [];
-  if (_liveLayer) { map.removeLayer(_liveLayer); _liveLayer = null; }
+  state.drawing = false;
+  drawCanvas.style.pointerEvents = 'none';
+  drawCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  maskCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
   map.dragging.enable();
   map.touchZoom.enable();
   updateHUD();
 }
 
 function finishDraw() {
-  if (!state.drawing) return;
+  if (!state.drawing || !_paintCount) return;
   state.drawing = false;
+  drawCanvas.style.pointerEvents = 'none';
   map.dragging.enable();
   map.touchZoom.enable();
 
-  if (_liveLayer) { map.removeLayer(_liveLayer); _liveLayer = null; }
+  var polygon = extractZonePolygon();
+  drawCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  maskCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-  var simplified = simplifyPath(state.drawPath);
-  state.drawPath = [];
-
-  if (simplified.length < 3) { updateHUD(); return; }
+  if (polygon.length < 3) { updateHUD(); return; }
 
   var name = prompt('Zone name (leave blank to auto-name):');
   if (name === null) { renderZoneMarkers(); updateHUD(); return; }
   name = name.trim() || ('Zone ' + (state.zones.length + 1));
 
   var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-  state.zones.push({ id: 'zone_' + Date.now(), name: name, color: color, polygon: simplified, active: true });
+  state.zones.push({ id: 'zone_' + Date.now(), name: name, color: color, polygon: polygon, active: true });
   saveZones();
   renderZoneMarkers();
   updateHUD();
 }
 
-function updateLiveLayer() {
-  if (_liveLayer) { map.removeLayer(_liveLayer); _liveLayer = null; }
-  if (state.drawPath.length < 2) return;
-  var color   = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-  var latlngs = state.drawPath.map(function(p) { return [p.lat, p.lng]; });
-  _liveLayer  = L.polygon(latlngs, {
-    color: color, weight: 3, opacity: 1,
-    fillColor: color, fillOpacity: 0.15,
-    interactive: false
-  }).addTo(map);
-}
-
-function simplifyPath(path) {
-  if (path.length < 3) return path;
-  var THRESHOLD = 0.00008;
-  var result = [path[0]];
-  for (var i = 1; i < path.length - 1; i++) {
-    var last = result[result.length - 1];
-    var dlat = path[i].lat - last.lat;
-    var dlng = path[i].lng - last.lng;
-    if (Math.sqrt(dlat * dlat + dlng * dlng) >= THRESHOLD) result.push(path[i]);
-  }
-  result.push(path[path.length - 1]);
-  return result;
-}
-
-// ── Touch events (mobile drawing) ──
-var _mapEl = document.getElementById('map');
-
-_mapEl.addEventListener('touchstart', function(e) {
+// ── Canvas touch events ──
+drawCanvas.addEventListener('touchstart', function(e) {
   if (!state.drawing) return;
   e.preventDefault();
-  var touch = e.touches[0];
-  var rect  = _mapEl.getBoundingClientRect();
-  var latlng = map.containerPointToLatLng(L.point(touch.clientX - rect.left, touch.clientY - rect.top));
-  state.drawPath = [{ lat: latlng.lat, lng: latlng.lng }];
-  updateLiveLayer();
+  _lastPaint = null;
+  var t = e.touches[0], r = drawCanvas.getBoundingClientRect();
+  paintAt(t.clientX - r.left, t.clientY - r.top);
 }, { passive: false });
 
-_mapEl.addEventListener('touchmove', function(e) {
-  if (!state.drawing || !state.drawPath.length) return;
-  e.preventDefault();
-  var touch  = e.touches[0];
-  var rect   = _mapEl.getBoundingClientRect();
-  var latlng = map.containerPointToLatLng(L.point(touch.clientX - rect.left, touch.clientY - rect.top));
-  var pt     = { lat: latlng.lat, lng: latlng.lng };
-  var last   = state.drawPath[state.drawPath.length - 1];
-  var dlat   = pt.lat - last.lat, dlng = pt.lng - last.lng;
-  if (Math.sqrt(dlat * dlat + dlng * dlng) > 0.00005) {
-    state.drawPath.push(pt);
-    updateLiveLayer();
-  }
-}, { passive: false });
-
-_mapEl.addEventListener('touchend', function(e) {
+drawCanvas.addEventListener('touchmove', function(e) {
   if (!state.drawing) return;
   e.preventDefault();
-  finishDraw();
+  var t = e.touches[0], r = drawCanvas.getBoundingClientRect();
+  var x = t.clientX - r.left, y = t.clientY - r.top;
+  _cursorPos = { x: x, y: y };
+  paintAt(x, y);
 }, { passive: false });
 
-// ── Mouse events (desktop drawing) ──
-var _mouseDown = false;
-
-map.on('mousedown', function(e) {
+drawCanvas.addEventListener('touchend', function(e) {
   if (!state.drawing) return;
-  _mouseDown     = true;
-  state.drawPath = [{ lat: e.latlng.lat, lng: e.latlng.lng }];
-  updateLiveLayer();
+  e.preventDefault();
+  _lastPaint = null; _cursorPos = null;
+  renderDrawCanvas();
+  updateHUD();
+}, { passive: false });
+
+// ── Canvas mouse events ──
+drawCanvas.addEventListener('mousedown', function(e) {
+  if (!state.drawing) return;
+  _mouseDown = true; _lastPaint = null;
+  paintAt(e.clientX, e.clientY);
 });
-
-map.on('mousemove', function(e) {
-  if (!state.drawing || !_mouseDown || !state.drawPath.length) return;
-  var pt   = { lat: e.latlng.lat, lng: e.latlng.lng };
-  var last = state.drawPath[state.drawPath.length - 1];
-  var dlat = pt.lat - last.lat, dlng = pt.lng - last.lng;
-  if (Math.sqrt(dlat * dlat + dlng * dlng) > 0.00005) {
-    state.drawPath.push(pt);
-    updateLiveLayer();
-  }
+drawCanvas.addEventListener('mousemove', function(e) {
+  if (!state.drawing) return;
+  _cursorPos = { x: e.clientX, y: e.clientY };
+  if (_mouseDown) paintAt(e.clientX, e.clientY);
+  else renderDrawCanvas();
 });
-
-map.on('mouseup', function() {
-  if (!state.drawing || !_mouseDown) return;
-  _mouseDown = false;
-  finishDraw();
+drawCanvas.addEventListener('mouseup', function() {
+  if (!state.drawing) return;
+  _mouseDown = false; _lastPaint = null;
+  updateHUD();
+});
+drawCanvas.addEventListener('mouseleave', function() {
+  _cursorPos = null; renderDrawCanvas();
 });
 
 // ═══════════════════════════════════════════════════════════
-//  ZONE RENDERING
+//  ZONE RENDERING (Leaflet polygons during play / edit)
 // ═══════════════════════════════════════════════════════════
 
 function renderZoneMarkers() {
@@ -528,27 +628,22 @@ function renderZoneMarkers() {
     if (zone.polygon.length < 3) return;
     if (!state.editMode && !zone.active) return;
 
-    var latlngs   = zone.polygon.map(function(p) { return [p.lat, p.lng]; });
-    var isActive  = zone.active;
-    var fillOp    = state.editMode ? (isActive ? 0.15 : 0.06) : 0.08;
-    var strokeOp  = state.editMode ? 1.0 : (isActive ? 0.65 : 0.2);
-    var strokeW   = state.editMode ? 3 : 2;
+    var latlngs  = zone.polygon.map(function(p) { return [p.lat, p.lng]; });
+    var fillOp   = state.editMode ? (zone.active ? 0.15 : 0.06) : 0.08;
+    var strokeOp = state.editMode ? 1.0 : (zone.active ? 0.7 : 0.2);
+    var strokeW  = state.editMode ? 3   : 2;
 
     var poly = L.polygon(latlngs, {
-      color:       zone.color,
-      weight:      strokeW,
-      opacity:     strokeOp,
-      fillColor:   zone.color,
-      fillOpacity: fillOp,
+      color: zone.color, weight: strokeW, opacity: strokeOp,
+      fillColor: zone.color, fillOpacity: fillOp,
       interactive: false,
     }).addTo(map);
-
     zoneMarkers.push(poly);
   });
 }
 
 // ═══════════════════════════════════════════════════════════
-//  GEOMETRY HELPERS
+//  GEOMETRY
 // ═══════════════════════════════════════════════════════════
 
 function pointInPolygon(pt, polygon) {
@@ -557,25 +652,22 @@ function pointInPolygon(pt, polygon) {
     var xi = polygon[i].lng, yi = polygon[i].lat;
     var xj = polygon[j].lng, yj = polygon[j].lat;
     if (((yi > pt.lat) !== (yj > pt.lat)) &&
-        (pt.lng < (xj - xi) * (pt.lat - yi) / (yj - yi) + xi)) {
-      inside = !inside;
-    }
+        (pt.lng < (xj - xi) * (pt.lat - yi) / (yj - yi) + xi)) inside = !inside;
   }
   return inside;
 }
 
 function randomPointInZone(zone) {
-  var poly    = zone.polygon;
-  var lats    = poly.map(function(p) { return p.lat; });
-  var lngs    = poly.map(function(p) { return p.lng; });
-  var minLat  = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
-  var minLng  = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
+  var poly   = zone.polygon;
+  var lats   = poly.map(function(p) { return p.lat; });
+  var lngs   = poly.map(function(p) { return p.lng; });
+  var minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
+  var minLng = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
   for (var i = 0; i < 200; i++) {
     var lat = minLat + Math.random() * (maxLat - minLat);
     var lng = minLng + Math.random() * (maxLng - minLng);
     if (pointInPolygon({ lat: lat, lng: lng }, poly)) return { lat: lat, lng: lng };
   }
-  // fallback: centroid
   return {
     lat: lats.reduce(function(a, b) { return a + b; }, 0) / lats.length,
     lng: lngs.reduce(function(a, b) { return a + b; }, 0) / lngs.length,
@@ -589,10 +681,9 @@ function randomPointInZone(zone) {
 function shuffle(arr) { return arr.slice().sort(function() { return Math.random() - 0.5; }); }
 
 function generateOrders() {
-  var activeZones = state.zones.filter(function(z) { return z.active && z.polygon.length >= 3; });
-  if (!activeZones.length) { updateHUD(); return; }
+  var active = state.zones.filter(function(z) { return z.active && z.polygon.length >= 3; });
+  if (!active.length) { updateHUD(); return; }
 
-  // Keep carried packages and their destinations; drop the rest
   var carriedDestIds = state.carrying.map(function(id) {
     var p = state.packages.find(function(p) { return p.id === id; });
     return p ? p.destId : null;
@@ -600,43 +691,30 @@ function generateOrders() {
   state.packages     = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
   state.destinations = state.destinations.filter(function(d) { return carriedDestIds.includes(d.id); });
 
-  // Generate 2 new destinations at random points inside zones
   var labelOffset = state.destinations.length;
   var newDests    = [];
   for (var i = 0; i < 2; i++) {
-    var zone = activeZones[Math.floor(Math.random() * activeZones.length)];
-    var pt   = randomPointInZone(zone);
-    if (pt) {
-      newDests.push({
-        id:    'dest_' + Date.now() + '_' + i,
-        loc:   pt,
-        label: String.fromCharCode(65 + (labelOffset + i) % 26)
-      });
-    }
+    var z  = active[Math.floor(Math.random() * active.length)];
+    var pt = randomPointInZone(z);
+    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + i, loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
   }
   state.destinations = state.destinations.concat(newDests);
   if (!newDests.length) { updateHUD(); return; }
 
-  // Generate 3 packages at random points inside zones
   var weightPool = [1, 1, 2, 2, 3];
   for (var j = 0; j < 3; j++) {
-    var zone2  = activeZones[Math.floor(Math.random() * activeZones.length)];
-    var pt2    = randomPointInZone(zone2);
+    var z2     = active[Math.floor(Math.random() * active.length)];
+    var pt2    = randomPointInZone(z2);
     if (!pt2) continue;
     var dest   = newDests[j % newDests.length];
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
     var dist   = haversine(pt2, dest.loc);
     state.packages.push({
-      id:        'pkg_' + Date.now() + '_' + j,
-      pickupLoc: pt2,
-      destId:    dest.id,
-      dist:      dist,
-      pts:       Math.round(dist * WEIGHT[weight].multiplier),
-      weight:    weight,
-      picked:    false
+      id: 'pkg_' + Date.now() + '_' + j, pickupLoc: pt2, destId: dest.id,
+      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
+      weight: weight, picked: false
     });
   }
-
   renderOrderMarkers();
   updateHUD();
 }
@@ -647,42 +725,38 @@ function checkRefresh() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  PROXIMITY HELPERS
+//  PROXIMITY
 // ═══════════════════════════════════════════════════════════
 
 function nearestPickable() {
   if (!state.userPos) return null;
-  var remaining  = getCapacity() - currentLoad();
-  var candidates = state.packages.filter(function(p) {
-    return !p.picked && p.weight <= remaining && haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M;
+  var rem  = getCapacity() - currentLoad();
+  var cands = state.packages.filter(function(p) {
+    return !p.picked && p.weight <= rem && haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M;
   });
-  if (!candidates.length) return null;
-  return candidates.reduce(function(best, p) {
-    return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, best.pickupLoc) ? p : best;
-  });
+  if (!cands.length) return null;
+  return cands.reduce(function(b, p) { return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, b.pickupLoc) ? p : b; });
 }
 
 function overweightInRange() {
   if (!state.userPos) return [];
-  var remaining = getCapacity() - currentLoad();
+  var rem = getCapacity() - currentLoad();
   return state.packages.filter(function(p) {
-    return !p.picked && p.weight > remaining && haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M;
+    return !p.picked && p.weight > rem && haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M;
   });
 }
 
 function nearestDeliverable() {
   if (!state.userPos || !state.carrying.length) return null;
-  var candidates = state.destinations.filter(function(d) {
-    var hasPkgs = state.carrying.some(function(id) {
+  var cands = state.destinations.filter(function(d) {
+    var has = state.carrying.some(function(id) {
       var p = state.packages.find(function(p) { return p.id === id; });
       return p && p.destId === d.id;
     });
-    return hasPkgs && haversine(state.userPos, d.loc) <= PROXIMITY_M;
+    return has && haversine(state.userPos, d.loc) <= PROXIMITY_M;
   });
-  if (!candidates.length) return null;
-  return candidates.reduce(function(best, d) {
-    return haversine(state.userPos, d.loc) < haversine(state.userPos, best.loc) ? d : best;
-  });
+  if (!cands.length) return null;
+  return cands.reduce(function(b, d) { return haversine(state.userPos, d.loc) < haversine(state.userPos, b.loc) ? d : b; });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -695,39 +769,30 @@ function attemptPickup() {
   pkg.picked = true;
   state.carrying.push(pkg.id);
   vibrate(60);
-  checkRefresh();
-  renderOrderMarkers();
-  updateHUD();
+  checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
 function attemptDeliver() {
   var dest = nearestDeliverable();
   if (!dest) return;
-
-  var pkgsForDest  = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === dest.id; });
-  var pts          = pkgsForDest.reduce(function(sum, p) { return sum + p.pts; }, 0);
-  var count        = pkgsForDest.length;
-  var deliveredIds = pkgsForDest.map(function(p) { return p.id; });
-
-  state.carrying     = state.carrying.filter(function(id) { return !deliveredIds.includes(id); });
-  state.packages     = state.packages.filter(function(p)  { return !deliveredIds.includes(p.id); });
+  var pkgs = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === dest.id; });
+  var pts  = pkgs.reduce(function(s, p) { return s + p.pts; }, 0);
+  var ids  = pkgs.map(function(p) { return p.id; });
+  state.carrying     = state.carrying.filter(function(id) { return !ids.includes(id); });
+  state.packages     = state.packages.filter(function(p)  { return !ids.includes(p.id); });
   state.destinations = state.destinations.filter(function(d) { return d.id !== dest.id; });
-
-  state.score += pts;
-  state.deliveries += count;
+  state.score      += pts;
+  state.deliveries += pkgs.length;
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
   vibrate([80, 40, 120]);
-  showCompletion(pts, count, dest.label);
-
-  checkRefresh();
-  renderOrderMarkers();
-  updateHUD();
+  showCompletion(pts, pkgs.length, dest.label);
+  checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
 function showCompletion(pts, count, zoneLabel) {
-  var el  = document.getElementById('completion-overlay');
-  var km  = (state.sessionDist / 1000).toFixed(2);
+  var el = document.getElementById('completion-overlay');
+  var km = (state.sessionDist / 1000).toFixed(2);
   document.getElementById('completion-pts').textContent   = '+' + pts;
   document.getElementById('completion-total').textContent =
     (count > 1 ? count + ' PKGS' : '1 PKG') +
@@ -741,43 +806,32 @@ function showCompletion(pts, count, zoneLabel) {
 //  ORDER MARKERS
 // ═══════════════════════════════════════════════════════════
 
-function clearMarkers() {
-  orderMarkers.forEach(function(m) { map.removeLayer(m); });
-  orderMarkers = [];
-}
+function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; }
 
 function renderOrderMarkers() {
   clearMarkers();
   if (state.phase !== 'active') return;
-
   var pickable    = nearestPickable();
   var deliverable = nearestDeliverable();
-  var remaining   = getCapacity() - currentLoad();
+  var rem         = getCapacity() - currentLoad();
 
   state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
     var dest     = state.destinations.find(function(d) { return d.id === p.destId; });
     var isNext   = pickable && pickable.id === p.id;
-    var tooheavy = p.weight > remaining;
+    var tooheavy = p.weight > rem;
     var cfg      = WEIGHT[p.weight];
     var bg       = isNext ? '#e8a030' : (tooheavy ? '#2a1a1a' : '#2a1800');
-    var icon     = makeIcon(bg, '📦', cfg.size);
-    var label    = cfg.label + ' · → Zone ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts'
-                 + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + 'u)';
-    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icon }).addTo(map);
-    m.bindTooltip(label, { permanent: false });
+    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makeIcon(bg, '📦', cfg.size) }).addTo(map);
+    m.bindTooltip(cfg.label + ' · → Zone ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts' + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + 'u)');
     orderMarkers.push(m);
   });
 
   state.destinations.forEach(function(d) {
-    var carriedCount = state.carrying.filter(function(id) {
-      var p = state.packages.find(function(p) { return p.id === id; });
-      return p && p.destId === d.id;
-    }).length;
+    var n      = state.carrying.filter(function(id) { var p = state.packages.find(function(p) { return p.id === id; }); return p && p.destId === d.id; }).length;
     var isNext = deliverable && deliverable.id === d.id;
-    var icon   = isNext ? icons.dest_next : (carriedCount > 0 ? icons.dest_queued : icons.dest);
-    var label  = 'Zone ' + d.label + (carriedCount > 0 ? ' · ' + carriedCount + ' to deliver' : ' · drop zone');
+    var icon   = isNext ? icons.dest_next : (n > 0 ? icons.dest_queued : icons.dest);
     var m = L.marker([d.loc.lat, d.loc.lng], { icon: icon }).addTo(map);
-    m.bindTooltip(label, { permanent: false });
+    m.bindTooltip('Zone ' + d.label + (n > 0 ? ' · ' + n + ' to deliver' : ' · drop zone'));
     orderMarkers.push(m);
   });
 }
@@ -787,62 +841,61 @@ function renderOrderMarkers() {
 // ═══════════════════════════════════════════════════════════
 
 function updateHUD() {
-  var statusEl  = document.getElementById('mission-status');
-  var detailEl  = document.getElementById('mission-detail');
-  var distEl    = document.getElementById('mission-distance');
-  var scoreEl   = document.getElementById('score-value');
-  var btn       = document.getElementById('action-btn');
-  var secBtn    = document.getElementById('secondary-btn');
-  var editBtn   = document.getElementById('edit-zones-btn');
-  var chipsEl   = document.getElementById('zone-chips');
+  var statusEl = document.getElementById('mission-status');
+  var detailEl = document.getElementById('mission-detail');
+  var distEl   = document.getElementById('mission-distance');
+  var scoreEl  = document.getElementById('score-value');
+  var btn      = document.getElementById('action-btn');
+  var secBtn   = document.getElementById('secondary-btn');
+  var editBtn  = document.getElementById('edit-zones-btn');
+  var chipsEl  = document.getElementById('zone-chips');
 
   scoreEl.textContent   = state.score;
-  btn.className         = '';
-  btn.onclick           = null;
-  btn.disabled          = false;
-  secBtn.style.display  = 'none';
-  secBtn.onclick        = null;
+  btn.className         = ''; btn.onclick = null; btn.disabled = false;
+  secBtn.style.display  = 'none'; secBtn.onclick = null;
   chipsEl.style.display = 'none';
 
-  // ── DRAWING MODE ──────────────────────────────────────────
+  // ── DRAWING ──────────────────────────────────────────────
   if (state.editMode && state.drawing) {
-    editBtn.textContent = '✕ ZONES';
-    editBtn.classList.add('active');
-    editBtn.onclick = exitEditMode;
-
+    editBtn.textContent = '✕ ZONES'; editBtn.classList.add('active'); editBtn.onclick = exitEditMode;
     statusEl.textContent = 'DRAWING ZONE';
-    detailEl.textContent = 'Drag finger on the map to trace the boundary. Lift to finish.';
-    distEl.textContent   = state.drawPath.length + ' points traced';
+    detailEl.textContent = 'Drag to paint your zone. Switch modes below.';
+    distEl.textContent   = '';
 
-    btn.className   = 'cancel';
-    btn.textContent = 'CANCEL DRAW';
-    btn.onclick     = cancelDraw;
+    var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+    chipsEl.style.display = 'flex';
+    chipsEl.innerHTML =
+      '<button onclick="state.erasing=false;updateHUD()" style="border-color:' + (!state.erasing ? color : '#2a2a3a') + ';color:' + (!state.erasing ? color : '#555') + '">PAINT</button>' +
+      '<button onclick="state.erasing=true;updateHUD()" style="border-color:' + ( state.erasing ? '#c04040' : '#2a2a3a') + ';color:' + ( state.erasing ? '#c04040' : '#555') + '">ERASE</button>';
+
+    var hasPaint = _paintCount > 0;
+    btn.className   = hasPaint ? 'pickup ready' : 'generate';
+    btn.textContent = 'FINISH ZONE';
+    btn.disabled    = !hasPaint;
+    btn.onclick     = hasPaint ? finishDraw : null;
+
+    secBtn.style.display = 'block';
+    secBtn.textContent   = 'CANCEL';
+    secBtn.onclick       = cancelDraw;
     return;
   }
 
-  // ── EDIT MODE ──────────────────────────────────────────
+  // ── EDIT (not drawing) ────────────────────────────────────
   if (state.editMode) {
-    editBtn.textContent = '✕ ZONES';
-    editBtn.classList.add('active');
-    editBtn.onclick = exitEditMode;
-
+    editBtn.textContent = '✕ ZONES'; editBtn.classList.add('active'); editBtn.onclick = exitEditMode;
     statusEl.textContent = 'ZONE EDITOR';
     detailEl.textContent = state.zones.length
-      ? 'Tap a zone to toggle it on/off. Tap ✕ to delete. Draw a new zone below.'
-      : 'No zones yet. Draw your play area on the map.';
-    distEl.textContent   = state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + ' defined';
+      ? 'Tap to toggle zones on/off. Tap ✕ to delete.'
+      : 'No zones yet. Paint your play area.';
+    distEl.textContent = state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + ' defined';
 
-    // Zone chips
     if (state.zones.length) {
       chipsEl.style.display = 'flex';
       var html = '';
-      state.zones.forEach(function(zone) {
-        var bg     = zone.active ? 'rgba(0,0,0,0.35)' : '#111';
-        var border = zone.active ? zone.color : '#2a2a3a';
-        var color  = zone.active ? zone.color : '#555';
-        html += '<button onclick="toggleZoneActive(\'' + zone.id + '\')" style="background:' + bg + ';border-color:' + border + ';color:' + color + '">'
-              + zone.name.toUpperCase() + '</button>'
-              + '<button class="del-zone-btn" onclick="deleteZone(\'' + zone.id + '\')">✕</button>';
+      state.zones.forEach(function(z) {
+        var bg = z.active ? 'rgba(0,0,0,0.35)' : '#111';
+        html += '<button onclick="toggleZoneActive(\'' + z.id + '\')" style="background:' + bg + ';border-color:' + (z.active ? z.color : '#2a2a3a') + ';color:' + (z.active ? z.color : '#555') + '">' + z.name.toUpperCase() + '</button>'
+              + '<button class="del-zone-btn" onclick="deleteZone(\'' + z.id + '\')">✕</button>';
       });
       chipsEl.innerHTML = html;
     }
@@ -851,7 +904,7 @@ function updateHUD() {
     btn.textContent = 'DRAW NEW ZONE';
     btn.onclick     = startDrawing;
 
-    if (state.zones.length > 0) {
+    if (state.zones.length) {
       secBtn.style.display = 'block';
       secBtn.textContent   = 'CLEAR ALL ZONES';
       secBtn.onclick       = function() {
@@ -861,109 +914,72 @@ function updateHUD() {
     return;
   }
 
-  // ── NORMAL MODE ──────────────────────────────────────────
-  editBtn.textContent = 'ZONES';
-  editBtn.classList.remove('active');
-  editBtn.onclick = enterEditMode;
+  // ── NORMAL ────────────────────────────────────────────────
+  editBtn.textContent = 'ZONES'; editBtn.classList.remove('active'); editBtn.onclick = enterEditMode;
 
   if (state.phase === 'no_gps') {
     statusEl.textContent = 'ACQUIRING GPS';
     detailEl.textContent = 'Acquiring GPS lock…';
     distEl.textContent   = '';
-    btn.className   = 'generate';
-    btn.textContent = 'WAITING FOR GPS';
-    btn.disabled    = true;
+    btn.className = 'generate'; btn.textContent = 'WAITING FOR GPS'; btn.disabled = true;
     return;
   }
 
-  var activeZones = state.zones.filter(function(z) { return z.active; });
-
-  if (!activeZones.length) {
+  if (!state.zones.filter(function(z) { return z.active; }).length) {
     statusEl.textContent = 'NO ZONES';
-    detailEl.textContent = state.zones.length
-      ? 'All zones inactive. Tap ZONES to enable some.'
-      : 'No zones defined. Tap ZONES to paint your play area.';
+    detailEl.textContent = state.zones.length ? 'All zones inactive. Tap ZONES to enable some.' : 'No zones defined. Tap ZONES to paint your play area.';
     distEl.textContent   = '';
-    btn.className   = 'draw';
-    btn.textContent = 'ADD ZONE';
-    btn.onclick     = enterEditMode;
+    btn.className = 'draw'; btn.textContent = 'ADD ZONE'; btn.onclick = enterEditMode;
     return;
   }
 
-  // Active play
-  var load     = currentLoad();
-  var capacity = getCapacity();
-  var km       = (state.sessionDist / 1000).toFixed(2);
-  statusEl.textContent = 'LOAD ' + load + ' / ' + capacity + '  ·  ' + km + 'km';
+  var load = currentLoad(), cap = getCapacity(), km = (state.sessionDist / 1000).toFixed(2);
+  statusEl.textContent = 'LOAD ' + load + ' / ' + cap + '  ·  ' + km + 'km';
 
-  var carrying  = state.carrying.length;
-  var available = state.packages.filter(function(p) { return !p.picked; }).length;
-  var pickable  = nearestPickable();
-  var deliver   = nearestDeliverable();
+  var carrying    = state.carrying.length;
+  var available   = state.packages.filter(function(p) { return !p.picked; }).length;
+  var pickable    = nearestPickable();
+  var deliver     = nearestDeliverable();
 
   if (deliver) {
     var pkgsHere = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === deliver.id; });
     var pts = pkgsHere.reduce(function(s, p) { return s + p.pts; }, 0);
     detailEl.textContent = 'Deliver ' + pkgsHere.length + ' pkg' + (pkgsHere.length > 1 ? 's' : '') + ' to Zone ' + deliver.label + ' for ' + pts + ' pts.';
     distEl.textContent   = Math.round(haversine(state.userPos, deliver.loc)) + 'm to drop-off';
-    btn.className   = 'deliver ready';
-    btn.textContent = 'DELIVER TO ZONE ' + deliver.label;
-    btn.onclick     = attemptDeliver;
+    btn.className = 'deliver ready'; btn.textContent = 'DELIVER TO ZONE ' + deliver.label; btn.onclick = attemptDeliver;
   } else if (pickable) {
     var dest2 = state.destinations.find(function(d) { return d.id === pickable.destId; });
     var wcfg  = WEIGHT[pickable.weight];
-    detailEl.textContent = wcfg.label + ' package → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts · ' + pickable.weight + 'u.';
+    detailEl.textContent = wcfg.label + ' → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts · ' + pickable.weight + 'u.';
     distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
-    btn.className   = 'pickup ready';
-    btn.textContent = 'PICK UP PACKAGE';
-    btn.onclick     = attemptPickup;
-  } else if (load >= capacity && overweightInRange().length > 0) {
+    btn.className = 'pickup ready'; btn.textContent = 'PICK UP PACKAGE'; btn.onclick = attemptPickup;
+  } else if (load >= cap && overweightInRange().length > 0) {
     detailEl.textContent = 'At capacity — deliver first, or find a lighter box.';
-    distEl.textContent   = load + '/' + capacity + ' units used';
-    btn.className   = 'pickup';
-    btn.textContent = 'AT CAPACITY';
-    btn.disabled    = true;
+    distEl.textContent   = load + '/' + cap + ' units used';
+    btn.className = 'pickup'; btn.textContent = 'AT CAPACITY'; btn.disabled = true;
   } else if (carrying > 0) {
-    var nearestDest = state.destinations
-      .filter(function(d) {
-        return state.carrying.some(function(id) {
-          var p = state.packages.find(function(p) { return p.id === id; });
-          return p && p.destId === d.id;
-        });
-      })
-      .reduce(function(best, d) {
-        if (!best) return d;
-        return haversine(state.userPos, d.loc) < haversine(state.userPos, best.loc) ? d : best;
-      }, null);
-    if (nearestDest) {
-      var dDest = Math.round(haversine(state.userPos, nearestDest.loc));
-      detailEl.textContent = 'Walk to Zone ' + nearestDest.label + ' to deliver ' + carrying + ' pkg' + (carrying > 1 ? 's' : '') + '.';
-      distEl.textContent   = dDest + 'm to Zone ' + nearestDest.label;
+    var nd = state.destinations
+      .filter(function(d) { return state.carrying.some(function(id) { var p = state.packages.find(function(p) { return p.id === id; }); return p && p.destId === d.id; }); })
+      .reduce(function(b, d) { if (!b) return d; return haversine(state.userPos, d.loc) < haversine(state.userPos, b.loc) ? d : b; }, null);
+    if (nd) {
+      detailEl.textContent = 'Walk to Zone ' + nd.label + ' to deliver ' + carrying + ' pkg' + (carrying > 1 ? 's' : '') + '.';
+      distEl.textContent   = Math.round(haversine(state.userPos, nd.loc)) + 'm to Zone ' + nd.label;
     } else {
       detailEl.textContent = 'Walk to a drop zone to deliver.';
       distEl.textContent   = '';
     }
-    btn.className   = 'deliver';
-    btn.textContent = 'DELIVER  (get closer)';
-    btn.disabled    = true;
+    btn.className = 'deliver'; btn.textContent = 'DELIVER  (get closer)'; btn.disabled = true;
   } else {
     if (available > 0) {
-      var nearestPkg = state.packages
-        .filter(function(p) { return !p.picked; })
-        .reduce(function(best, p) {
-          if (!best) return p;
-          return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, best.pickupLoc) ? p : best;
-        }, null);
-      var dPkg = nearestPkg ? Math.round(haversine(state.userPos, nearestPkg.pickupLoc)) : 0;
-      detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up. (' + (capacity - load) + 'u free)';
+      var np  = state.packages.filter(function(p) { return !p.picked; }).reduce(function(b, p) { if (!b) return p; return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, b.pickupLoc) ? p : b; }, null);
+      var dPkg = np ? Math.round(haversine(state.userPos, np.pickupLoc)) : 0;
+      detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up. (' + (cap - load) + 'u free)';
       distEl.textContent   = dPkg + 'm to nearest package';
     } else {
       detailEl.textContent = 'No packages. Move around your zone to trigger a refresh.';
       distEl.textContent   = '';
     }
-    btn.className   = 'pickup';
-    btn.textContent = 'PICK UP  (get closer)';
-    btn.disabled    = true;
+    btn.className = 'pickup'; btn.textContent = 'PICK UP  (get closer)'; btn.disabled = true;
   }
 }
 
@@ -972,12 +988,8 @@ function updateHUD() {
 // ═══════════════════════════════════════════════════════════
 
 function haversine(a, b) {
-  var R    = 6371000;
-  var dLat = (b.lat - a.lat) * Math.PI / 180;
-  var dLng = (b.lng - a.lng) * Math.PI / 180;
-  var s    = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-           + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180)
-           * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  var R = 6371000, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
+  var s = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
   return R * 2 * Math.asin(Math.sqrt(s));
 }
 
@@ -985,6 +997,7 @@ function haversine(a, b) {
 //  INIT
 // ═══════════════════════════════════════════════════════════
 
+initDrawCanvas();
 updateHUD();
 </script>
 </body>
