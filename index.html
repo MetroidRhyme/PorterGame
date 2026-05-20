@@ -30,13 +30,14 @@
     #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
-    #settings-btn {
+    #settings-btn, #follow-btn {
       font-size: 20px; line-height: 1; padding: 10px 14px; border-radius: 4px;
       background: transparent; color: #999; border: 1px solid #2a2a3a; cursor: pointer;
       touch-action: manipulation; min-height: 44px; min-width: 44px;
       -webkit-tap-highlight-color: transparent;
     }
-    #settings-btn:active { color: #bbb; border-color: #4a4a5a; }
+    #settings-btn:active, #follow-btn:active { color: #bbb; border-color: #4a4a5a; }
+    #follow-btn.active { color: #5ab05a; border-color: #1e4020; }
 
     #gps-status {
       position: fixed; top: 74px; right: 12px; z-index: 1999;
@@ -216,6 +217,7 @@
 <div id="hud-top">
   <div id="game-title">PORTER</div>
   <button id="settings-btn" onclick="openSettings()">&#9776;</button>
+  <button id="follow-btn" onclick="toggleFollow()">&#9678;</button>
   <div id="score-display">
     <div class="label">SCORE</div>
     <div class="value" id="score-value">0</div>
@@ -283,6 +285,7 @@ const state = {
   score:       parseInt(localStorage.getItem('porter_score')       || '0'),
   deliveries:  parseInt(localStorage.getItem('porter_deliveries')  || '0'),
   phase:       'no_gps',
+  following:   false,
   userPos:     null,
   sessionDist: parseFloat(localStorage.getItem('porter_session_dist') || '0'),
   lastPos:     null,
@@ -316,6 +319,18 @@ function currentLoad() {
     var p = state.packages.find(function(p) { return p.id === id; });
     return s + (p ? p.weight : 0);
   }, 0);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FOLLOW MODE
+// ═══════════════════════════════════════════════════════════
+
+function toggleFollow() {
+  state.following = !state.following;
+  document.getElementById('follow-btn').classList.toggle('active', state.following);
+  if (state.following && state.userPos) {
+    map.panTo([state.userPos.lat, state.userPos.lng], { animate: true, duration: 0.4 });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -384,6 +399,7 @@ function onLocationUpdate(pos) {
     onGpsLocked();
   } else {
     userMarker.setLatLng([lat, lng]);
+    if (state.following) map.panTo([lat, lng], { animate: true, duration: 0.4 });
   }
   renderOrderMarkers();
   updateHUD();
@@ -761,6 +777,12 @@ function renderGridCanvas() {
 }
 
 map.on('move zoom', scheduleGridRender);
+map.on('dragstart', function() {
+  if (state.following) {
+    state.following = false;
+    document.getElementById('follow-btn').classList.remove('active');
+  }
+});
 
 map.on('click', function(e) {
   if (!state.drawing) return;
