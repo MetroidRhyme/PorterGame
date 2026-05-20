@@ -184,9 +184,9 @@ const state = {
   sessionDist: parseFloat(localStorage.getItem('porter_session_dist') || '0'),
   lastPos:     null,
 
-  zones:   JSON.parse(localStorage.getItem('porter_zones') || '[]'),
-  drawing: false,
-  erasing: false,
+  zones:      JSON.parse(localStorage.getItem('porter_zones') || '[]'),
+  drawing:    false,
+  gridCells:  null,   // Set of "gx,gy" strings while drawing
 
   packages:     [],
   destinations: [],
@@ -196,9 +196,8 @@ const state = {
 const PROXIMITY_M   = 20;
 const ONE_MILE_M    = 1609;
 const MAX_GPS_DELTA = 50;
-const BRUSH_RADIUS  = 30;   // CSS pixels
-const BORDER_WIDTH  = 4;    // CSS pixels
-const NUM_RAYS      = 120;
+// ~20 metres per grid cell (111111 metres per degree of latitude)
+const CELL_DEG      = 20 / 111111;
 const ZONE_COLORS   = ['#e8a030', '#3080c0', '#5ab05a', '#c04040', '#8060d0', '#30a0a0'];
 
 const WEIGHT = {
@@ -251,7 +250,7 @@ const icons = {
 
 let userMarker   = null;
 let orderMarkers = [];
-let zoneMarkers  = [];
+let zoneMarkers  = [];   // only used for legacy polygon zones
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
@@ -349,16 +348,11 @@ function exitEditMode() {
 //  CANVAS SETUP
 // ═══════════════════════════════════════════════════════════
 
-var drawCanvas, drawCtx, maskCanvas, maskCtx, tmpCanvas, tmpCtx;
-var _mouseDown  = false;
-var _lastPaint  = null;   // {x,y} in CSS pixels — for stroke interpolation
-var _cursorPos  = null;   // {x,y} for brush preview
-var _paintCount = 0;      // any pixels painted this session?
+var drawCanvas, drawCtx;
 
 function initDrawCanvas() {
   var dpr = window.devicePixelRatio || 1;
   var W   = window.innerWidth, H = window.innerHeight;
-
   drawCanvas = document.getElementById('draw-canvas');
   drawCanvas.width  = W * dpr;
   drawCanvas.height = H * dpr;
@@ -366,258 +360,169 @@ function initDrawCanvas() {
   drawCanvas.style.height = H + 'px';
   drawCtx = drawCanvas.getContext('2d');
   drawCtx.scale(dpr, dpr);
-
-  maskCanvas = document.createElement('canvas');
-  maskCanvas.width  = W * dpr;
-  maskCanvas.height = H * dpr;
-  maskCtx = maskCanvas.getContext('2d');
-  maskCtx.scale(dpr, dpr);
-
-  tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width  = W * dpr;
-  tmpCanvas.height = H * dpr;
-  tmpCtx = tmpCanvas.getContext('2d');
-  tmpCtx.scale(dpr, dpr);
 }
 
-// ── Paint a circle stroke onto the mask ──
-function paintAt(x, y) {
-  maskCtx.save();
-  maskCtx.globalCompositeOperation = state.erasing ? 'destination-out' : 'source-over';
-  maskCtx.fillStyle = 'white';
+window.addEventListener('resize', function() {
+  initDrawCanvas();
+  renderGridCanvas();
+});
 
-  // Interpolate from last position to fill gaps on fast drags
-  if (_lastPaint) {
-    var dx = x - _lastPaint.x, dy = y - _lastPaint.y;
-    var dist  = Math.sqrt(dx * dx + dy * dy);
-    var steps = Math.max(1, Math.ceil(dist / (BRUSH_RADIUS * 0.4)));
-    for (var i = 0; i <= steps; i++) {
-      maskCtx.beginPath();
-      maskCtx.arc(_lastPaint.x + dx * i / steps, _lastPaint.y + dy * i / steps, BRUSH_RADIUS, 0, Math.PI * 2);
-      maskCtx.fill();
+// ═══════════════════════════════════════════════════════════
+//  GRID SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+function latLngToCell(lat, lng) {
+  return { gx: Math.floor(lng / CELL_DEG), gy: Math.floor(lat / CELL_DEG) };
+}
+
+function cellBounds(gx, gy) {
+  return {
+    sw: { lat: gy * CELL_DEG,       lng: gx * CELL_DEG },
+    ne: { lat: (gy + 1) * CELL_DEG, lng: (gx + 1) * CELL_DEG },
+  };
+}
+
+function cellKey(gx, gy) { return gx + ',' + gy; }
+
+function toggleCell(latlng) {
+  var c   = latLngToCell(latlng.lat, latlng.lng);
+  var key = cellKey(c.gx, c.gy);
+  if (state.gridCells.has(key)) state.gridCells.delete(key);
+  else                           state.gridCells.add(key);
+  renderGridCanvas();
+  updateHUD();
+}
+
+// BFS flood fill — 4-connected (shared edges only)
+function findConnectedComponents(cellSet) {
+  var visited = new Set();
+  var comps   = [];
+
+  cellSet.forEach(function(startKey) {
+    if (visited.has(startKey)) return;
+    var comp  = new Set();
+    var queue = [startKey];
+    visited.add(startKey);
+    comp.add(startKey);
+    while (queue.length) {
+      var key   = queue.shift();
+      var parts = key.split(',');
+      var gx = parseInt(parts[0]), gy = parseInt(parts[1]);
+      [cellKey(gx+1,gy), cellKey(gx-1,gy), cellKey(gx,gy+1), cellKey(gx,gy-1)].forEach(function(nk) {
+        if (cellSet.has(nk) && !visited.has(nk)) {
+          visited.add(nk); comp.add(nk); queue.push(nk);
+        }
+      });
     }
-  } else {
-    maskCtx.beginPath();
-    maskCtx.arc(x, y, BRUSH_RADIUS, 0, Math.PI * 2);
-    maskCtx.fill();
-  }
+    comps.push(comp);
+  });
 
-  maskCtx.restore();
-  _lastPaint = { x: x, y: y };
-  if (!state.erasing) _paintCount++;
-  renderDrawCanvas();
+  return comps;
 }
 
-// ── Render fill + hard border from mask onto visible canvas ──
-function renderDrawCanvas() {
+// ── Draw one grid cell onto the canvas ──
+function drawCell(gx, gy, color, fillOpacity, strokeOpacity) {
+  var b  = cellBounds(gx, gy);
+  var sw = map.latLngToContainerPoint([b.sw.lat, b.sw.lng]);
+  var ne = map.latLngToContainerPoint([b.ne.lat, b.ne.lng]);
+  var x  = Math.min(sw.x, ne.x), y = Math.min(sw.y, ne.y);
+  var w  = Math.abs(ne.x - sw.x), h = Math.abs(ne.y - sw.y);
+  var W  = window.innerWidth, H = window.innerHeight;
+  if (x + w < 0 || x > W || y + h < 0 || y > H) return;  // off-screen
+  drawCtx.globalAlpha = fillOpacity;
+  drawCtx.fillStyle = color;
+  drawCtx.fillRect(x, y, w, h);
+  drawCtx.globalAlpha = strokeOpacity;
+  drawCtx.strokeStyle = color;
+  drawCtx.lineWidth = 1;
+  drawCtx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  drawCtx.globalAlpha = 1.0;
+}
+
+// ── Redraw all zones + current drawing session onto canvas ──
+var _rafPending = false;
+function scheduleGridRender() {
+  if (_rafPending) return;
+  _rafPending = true;
+  requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); });
+}
+
+function renderGridCanvas() {
+  if (!drawCtx) return;
   var W = window.innerWidth, H = window.innerHeight;
   drawCtx.clearRect(0, 0, W, H);
+
+  // Saved zones (cell-based)
+  state.zones.forEach(function(zone) {
+    if (!zone.cells || !zone.cells.length) return;
+    if (!state.editMode && !zone.active) return;
+    var fillOp   = state.editMode ? (zone.active ? 0.25 : 0.08) : 0.12;
+    var strokeOp = state.editMode ? 1.0  : (zone.active ? 0.8 : 0.3);
+    zone.cells.forEach(function(c) { drawCell(c.gx, c.gy, zone.color, fillOp, strokeOp); });
+  });
+
+  // Current drawing session
+  if (state.drawing && state.gridCells) {
+    var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+    state.gridCells.forEach(function(key) {
+      var parts = key.split(',');
+      drawCell(parseInt(parts[0]), parseInt(parts[1]), color, 0.35, 1.0);
+    });
+  }
+}
+
+map.on('move zoom', scheduleGridRender);
+
+// Map tap → toggle cell when drawing
+map.on('click', function(e) {
   if (!state.drawing) return;
-
-  var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-
-  // ── FILL at 15% ──
-  tmpCtx.clearRect(0, 0, W, H);
-  tmpCtx.drawImage(maskCanvas, 0, 0, W, H);          // draw mask (white alpha)
-  tmpCtx.globalCompositeOperation = 'source-in';
-  tmpCtx.fillStyle = color;
-  tmpCtx.fillRect(0, 0, W, H);                        // colorize where mask is painted
-  tmpCtx.globalCompositeOperation = 'source-over';
-  drawCtx.globalAlpha = 0.15;
-  drawCtx.drawImage(tmpCanvas, 0, 0, W, H);
-  drawCtx.globalAlpha = 1.0;
-
-  // ── BORDER ring at 100% ──
-  // Expand mask in 8 directions → colorize → punch out interior
-  tmpCtx.clearRect(0, 0, W, H);
-  var N = BORDER_WIDTH;
-  for (var a = 0; a < 8; a++) {
-    var ang = a * Math.PI / 4;
-    var ox = Math.round(N * Math.cos(ang)), oy = Math.round(N * Math.sin(ang));
-    tmpCtx.drawImage(maskCanvas, ox, oy, W, H);
-  }
-  tmpCtx.globalCompositeOperation = 'source-in';
-  tmpCtx.fillStyle = color;
-  tmpCtx.fillRect(0, 0, W, H);
-  tmpCtx.globalCompositeOperation = 'destination-out';  // punch interior
-  tmpCtx.drawImage(maskCanvas, 0, 0, W, H);
-  tmpCtx.globalCompositeOperation = 'source-over';
-  drawCtx.drawImage(tmpCanvas, 0, 0, W, H);
-
-  // ── BRUSH CURSOR ──
-  if (_cursorPos) {
-    drawCtx.save();
-    drawCtx.strokeStyle = state.erasing ? '#c04040' : color;
-    drawCtx.lineWidth = 2;
-    drawCtx.setLineDash([5, 4]);
-    drawCtx.beginPath();
-    drawCtx.arc(_cursorPos.x, _cursorPos.y, BRUSH_RADIUS, 0, Math.PI * 2);
-    drawCtx.stroke();
-    drawCtx.restore();
-  }
-}
-
-// ── Extract lat/lng polygon by ray-casting from painted centroid ──
-function extractZonePolygon() {
-  var dpr = window.devicePixelRatio || 1;
-  var W   = window.innerWidth, H = window.innerHeight;
-  var pw  = maskCanvas.width;
-  var img = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-  var px  = img.data;
-
-  function painted(cssX, cssY) {
-    var qx = Math.min(Math.round(cssX * dpr), maskCanvas.width  - 1);
-    var qy = Math.min(Math.round(cssY * dpr), maskCanvas.height - 1);
-    if (qx < 0 || qy < 0) return false;
-    return px[(qy * pw + qx) * 4 + 3] > 64;
-  }
-
-  // Centroid of painted area
-  var step = 8, sx = 0, sy = 0, cnt = 0;
-  for (var gy = 0; gy < H; gy += step) {
-    for (var gx = 0; gx < W; gx += step) {
-      if (painted(gx, gy)) { sx += gx; sy += gy; cnt++; }
-    }
-  }
-  if (!cnt) return [];
-  var cx = sx / cnt, cy = sy / cnt;
-
-  // If centroid is outside the painted area, snap to nearest painted sample
-  if (!painted(cx, cy)) {
-    var best = Infinity;
-    for (var fy = 0; fy < H; fy += step) {
-      for (var fx = 0; fx < W; fx += step) {
-        if (painted(fx, fy)) {
-          var d = (fx - cx) * (fx - cx) + (fy - cy) * (fy - cy);
-          if (d < best) { best = d; cx = fx; cy = fy; }
-        }
-      }
-    }
-  }
-
-  // Cast rays outward, find outermost painted pixel per direction
-  var maxR   = Math.sqrt(W * W + H * H);
-  var rStep  = 3;
-  var polygon = [];
-
-  for (var i = 0; i < NUM_RAYS; i++) {
-    var angle = (i / NUM_RAYS) * Math.PI * 2;
-    var dx = Math.cos(angle), dy = Math.sin(angle);
-    var lastX = null, lastY = null;
-
-    for (var r = 0; r <= maxR; r += rStep) {
-      var rx = cx + dx * r, ry = cy + dy * r;
-      if (rx < 0 || rx >= W || ry < 0 || ry >= H) break;
-      if (painted(rx, ry)) { lastX = rx; lastY = ry; }
-      else if (lastX !== null) break;
-    }
-
-    if (lastX !== null) {
-      var ll = map.containerPointToLatLng(L.point(lastX, lastY));
-      polygon.push({ lat: ll.lat, lng: ll.lng });
-    }
-  }
-
-  return polygon;
-}
+  toggleCell(e.latlng);
+});
 
 // ── Drawing lifecycle ──
 function startDrawing() {
   state.drawing  = true;
-  state.erasing  = false;
-  _lastPaint     = null;
-  _cursorPos     = null;
-  _paintCount    = 0;
-  maskCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-  drawCanvas.style.pointerEvents = 'auto';
-  map.dragging.disable();
-  map.touchZoom.disable();
+  state.gridCells = new Set();
+  renderGridCanvas();
   updateHUD();
 }
 
 function cancelDraw() {
-  state.drawing = false;
-  drawCanvas.style.pointerEvents = 'none';
-  drawCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-  maskCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-  map.dragging.enable();
-  map.touchZoom.enable();
+  state.drawing  = false;
+  state.gridCells = null;
+  renderGridCanvas();
   updateHUD();
 }
 
 function finishDraw() {
-  if (!state.drawing || !_paintCount) return;
+  if (!state.drawing || !state.gridCells || !state.gridCells.size) return;
   state.drawing = false;
-  drawCanvas.style.pointerEvents = 'none';
-  map.dragging.enable();
-  map.touchZoom.enable();
 
-  var polygon = extractZonePolygon();
-  drawCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-  maskCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  var comps    = findConnectedComponents(state.gridCells);
+  var baseName = prompt('Zone name (leave blank to auto-name):');
+  if (baseName === null) { state.gridCells = null; renderGridCanvas(); updateHUD(); return; }
+  baseName = baseName.trim();
 
-  if (polygon.length < 3) { updateHUD(); return; }
+  comps.forEach(function(comp, idx) {
+    var cells = Array.from(comp).map(function(key) {
+      var p = key.split(',');
+      return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
+    });
+    var name  = baseName || ('Zone ' + (state.zones.length + 1));
+    if (comps.length > 1) name += ' ' + (idx + 1);
+    var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+    state.zones.push({ id: 'zone_' + Date.now() + '_' + idx, name: name, color: color, cells: cells, active: true });
+  });
 
-  var name = prompt('Zone name (leave blank to auto-name):');
-  if (name === null) { renderZoneMarkers(); updateHUD(); return; }
-  name = name.trim() || ('Zone ' + (state.zones.length + 1));
-
-  var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-  state.zones.push({ id: 'zone_' + Date.now(), name: name, color: color, polygon: polygon, active: true });
+  state.gridCells = null;
   saveZones();
-  renderZoneMarkers();
+  renderGridCanvas();
   updateHUD();
 }
 
-// ── Canvas touch events ──
-drawCanvas.addEventListener('touchstart', function(e) {
-  if (!state.drawing) return;
-  e.preventDefault();
-  _lastPaint = null;
-  var t = e.touches[0], r = drawCanvas.getBoundingClientRect();
-  paintAt(t.clientX - r.left, t.clientY - r.top);
-}, { passive: false });
-
-drawCanvas.addEventListener('touchmove', function(e) {
-  if (!state.drawing) return;
-  e.preventDefault();
-  var t = e.touches[0], r = drawCanvas.getBoundingClientRect();
-  var x = t.clientX - r.left, y = t.clientY - r.top;
-  _cursorPos = { x: x, y: y };
-  paintAt(x, y);
-}, { passive: false });
-
-drawCanvas.addEventListener('touchend', function(e) {
-  if (!state.drawing) return;
-  e.preventDefault();
-  _lastPaint = null; _cursorPos = null;
-  renderDrawCanvas();
-  updateHUD();
-}, { passive: false });
-
-// ── Canvas mouse events ──
-drawCanvas.addEventListener('mousedown', function(e) {
-  if (!state.drawing) return;
-  _mouseDown = true; _lastPaint = null;
-  paintAt(e.clientX, e.clientY);
-});
-drawCanvas.addEventListener('mousemove', function(e) {
-  if (!state.drawing) return;
-  _cursorPos = { x: e.clientX, y: e.clientY };
-  if (_mouseDown) paintAt(e.clientX, e.clientY);
-  else renderDrawCanvas();
-});
-drawCanvas.addEventListener('mouseup', function() {
-  if (!state.drawing) return;
-  _mouseDown = false; _lastPaint = null;
-  updateHUD();
-});
-drawCanvas.addEventListener('mouseleave', function() {
-  _cursorPos = null; renderDrawCanvas();
-});
-
 // ═══════════════════════════════════════════════════════════
-//  ZONE RENDERING (Leaflet polygons during play / edit)
+//  ZONE RENDERING  (legacy polygon zones via Leaflet;
+//                   grid-cell zones via canvas above)
 // ═══════════════════════════════════════════════════════════
 
 function renderZoneMarkers() {
@@ -625,21 +530,21 @@ function renderZoneMarkers() {
   zoneMarkers = [];
 
   state.zones.forEach(function(zone) {
-    if (zone.polygon.length < 3) return;
+    if (zone.cells) return;    // handled by renderGridCanvas
+    if (!zone.polygon || zone.polygon.length < 3) return;
     if (!state.editMode && !zone.active) return;
-
     var latlngs  = zone.polygon.map(function(p) { return [p.lat, p.lng]; });
     var fillOp   = state.editMode ? (zone.active ? 0.15 : 0.06) : 0.08;
     var strokeOp = state.editMode ? 1.0 : (zone.active ? 0.7 : 0.2);
     var strokeW  = state.editMode ? 3   : 2;
-
     var poly = L.polygon(latlngs, {
       color: zone.color, weight: strokeW, opacity: strokeOp,
-      fillColor: zone.color, fillOpacity: fillOp,
-      interactive: false,
+      fillColor: zone.color, fillOpacity: fillOp, interactive: false,
     }).addTo(map);
     zoneMarkers.push(poly);
   });
+
+  renderGridCanvas();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -658,6 +563,17 @@ function pointInPolygon(pt, polygon) {
 }
 
 function randomPointInZone(zone) {
+  // Grid-cell zones: pick a random cell, then a random point within it
+  if (zone.cells && zone.cells.length) {
+    var c = zone.cells[Math.floor(Math.random() * zone.cells.length)];
+    var b = cellBounds(c.gx, c.gy);
+    return {
+      lat: b.sw.lat + Math.random() * CELL_DEG,
+      lng: b.sw.lng + Math.random() * CELL_DEG,
+    };
+  }
+  // Legacy polygon zones
+  if (!zone.polygon || zone.polygon.length < 3) return null;
   var poly   = zone.polygon;
   var lats   = poly.map(function(p) { return p.lat; });
   var lngs   = poly.map(function(p) { return p.lng; });
@@ -681,7 +597,9 @@ function randomPointInZone(zone) {
 function shuffle(arr) { return arr.slice().sort(function() { return Math.random() - 0.5; }); }
 
 function generateOrders() {
-  var active = state.zones.filter(function(z) { return z.active && z.polygon.length >= 3; });
+  var active = state.zones.filter(function(z) {
+    return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
+  });
   if (!active.length) { updateHUD(); return; }
 
   var carriedDestIds = state.carrying.map(function(id) {
@@ -730,7 +648,7 @@ function checkRefresh() {
 
 function nearestPickable() {
   if (!state.userPos) return null;
-  var rem  = getCapacity() - currentLoad();
+  var rem   = getCapacity() - currentLoad();
   var cands = state.packages.filter(function(p) {
     return !p.picked && p.weight <= rem && haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M;
   });
@@ -858,21 +776,16 @@ function updateHUD() {
   // ── DRAWING ──────────────────────────────────────────────
   if (state.editMode && state.drawing) {
     editBtn.textContent = '✕ ZONES'; editBtn.classList.add('active'); editBtn.onclick = exitEditMode;
-    statusEl.textContent = 'DRAWING ZONE';
-    detailEl.textContent = 'Drag to paint your zone. Switch modes below.';
-    distEl.textContent   = '';
+    statusEl.textContent = 'SELECT AREA';
+    detailEl.textContent = 'Tap squares on the map to select your zone. Tap again to deselect. Pan freely.';
+    var cellCount = state.gridCells ? state.gridCells.size : 0;
+    distEl.textContent = cellCount + ' cell' + (cellCount !== 1 ? 's' : '') + ' selected (~' + (cellCount * 20 * 20) + ' m²)';
 
-    var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-    chipsEl.style.display = 'flex';
-    chipsEl.innerHTML =
-      '<button onclick="state.erasing=false;updateHUD()" style="border-color:' + (!state.erasing ? color : '#2a2a3a') + ';color:' + (!state.erasing ? color : '#555') + '">PAINT</button>' +
-      '<button onclick="state.erasing=true;updateHUD()" style="border-color:' + ( state.erasing ? '#c04040' : '#2a2a3a') + ';color:' + ( state.erasing ? '#c04040' : '#555') + '">ERASE</button>';
-
-    var hasPaint = _paintCount > 0;
-    btn.className   = hasPaint ? 'pickup ready' : 'generate';
+    var hasCells = cellCount > 0;
+    btn.className   = hasCells ? 'pickup ready' : 'generate';
     btn.textContent = 'FINISH ZONE';
-    btn.disabled    = !hasPaint;
-    btn.onclick     = hasPaint ? finishDraw : null;
+    btn.disabled    = !hasCells;
+    btn.onclick     = hasCells ? finishDraw : null;
 
     secBtn.style.display = 'block';
     secBtn.textContent   = 'CANCEL';
@@ -886,7 +799,7 @@ function updateHUD() {
     statusEl.textContent = 'ZONE EDITOR';
     detailEl.textContent = state.zones.length
       ? 'Tap to toggle zones on/off. Tap ✕ to delete.'
-      : 'No zones yet. Paint your play area.';
+      : 'No zones yet. Tap below to select your play area.';
     distEl.textContent = state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + ' defined';
 
     if (state.zones.length) {
@@ -901,7 +814,7 @@ function updateHUD() {
     }
 
     btn.className   = 'draw';
-    btn.textContent = 'DRAW NEW ZONE';
+    btn.textContent = 'SELECT NEW ZONE';
     btn.onclick     = startDrawing;
 
     if (state.zones.length) {
@@ -927,7 +840,7 @@ function updateHUD() {
 
   if (!state.zones.filter(function(z) { return z.active; }).length) {
     statusEl.textContent = 'NO ZONES';
-    detailEl.textContent = state.zones.length ? 'All zones inactive. Tap ZONES to enable some.' : 'No zones defined. Tap ZONES to paint your play area.';
+    detailEl.textContent = state.zones.length ? 'All zones inactive. Tap ZONES to enable some.' : 'No zones defined. Tap ZONES to select your play area.';
     distEl.textContent   = '';
     btn.className = 'draw'; btn.textContent = 'ADD ZONE'; btn.onclick = enterEditMode;
     return;
@@ -936,10 +849,10 @@ function updateHUD() {
   var load = currentLoad(), cap = getCapacity(), km = (state.sessionDist / 1000).toFixed(2);
   statusEl.textContent = 'LOAD ' + load + ' / ' + cap + '  ·  ' + km + 'km';
 
-  var carrying    = state.carrying.length;
-  var available   = state.packages.filter(function(p) { return !p.picked; }).length;
-  var pickable    = nearestPickable();
-  var deliver     = nearestDeliverable();
+  var carrying  = state.carrying.length;
+  var available = state.packages.filter(function(p) { return !p.picked; }).length;
+  var pickable  = nearestPickable();
+  var deliver   = nearestDeliverable();
 
   if (deliver) {
     var pkgsHere = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === deliver.id; });
@@ -971,7 +884,7 @@ function updateHUD() {
     btn.className = 'deliver'; btn.textContent = 'DELIVER  (get closer)'; btn.disabled = true;
   } else {
     if (available > 0) {
-      var np  = state.packages.filter(function(p) { return !p.picked; }).reduce(function(b, p) { if (!b) return p; return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, b.pickupLoc) ? p : b; }, null);
+      var np   = state.packages.filter(function(p) { return !p.picked; }).reduce(function(b, p) { if (!b) return p; return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, b.pickupLoc) ? p : b; }, null);
       var dPkg = np ? Math.round(haversine(state.userPos, np.pickupLoc)) : 0;
       detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up. (' + (cap - load) + 'u free)';
       distEl.textContent   = dPkg + 'm to nearest package';
