@@ -777,6 +777,29 @@ function scheduleGridRender() {
   requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); });
 }
 
+function renderOrderLines() {
+  if (state.phase !== 'active') return;
+  drawCtx.save();
+  drawCtx.lineCap     = 'round';
+  drawCtx.lineWidth   = 1.5;
+  drawCtx.setLineDash([3, 7]);
+
+  state.packages.forEach(function(p) {
+    var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+    if (!dest) return;
+    var from = map.latLngToContainerPoint([p.pickupLoc.lat, p.pickupLoc.lng]);
+    var to   = map.latLngToContainerPoint([dest.loc.lat,    dest.loc.lng   ]);
+    drawCtx.globalAlpha  = p.picked ? 0.45 : 0.35;
+    drawCtx.strokeStyle  = p.picked ? '#3080c0' : '#e8a030';
+    drawCtx.beginPath();
+    drawCtx.moveTo(from.x, from.y);
+    drawCtx.lineTo(to.x,   to.y);
+    drawCtx.stroke();
+  });
+
+  drawCtx.restore();
+}
+
 function renderGridCanvas() {
   if (!drawCtx) return;
   drawCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -800,6 +823,8 @@ function renderGridCanvas() {
     });
     renderZoneCells(cells, color, 0.25, 1.0);
   }
+
+  if (!state.drawing) renderOrderLines();
 }
 
 map.on('move zoom', scheduleGridRender);
@@ -1168,7 +1193,7 @@ function showCompletion(pts, count, zoneLabel) {
 //  ORDER MARKERS
 // ═══════════════════════════════════════════════════════════
 
-function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; }
+function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; scheduleGridRender(); }
 
 function renderOrderMarkers() {
   clearMarkers();
