@@ -196,8 +196,10 @@ const state = {
 const PROXIMITY_M   = 20;
 const ONE_MILE_M    = 1609;
 const MAX_GPS_DELTA = 50;
-// ~20 metres per grid cell (111111 metres per degree of latitude)
-const CELL_DEG      = 20 / 111111;
+const CELL_LAT_DEG = 20 / 111111;   // ~20 m per cell, latitude (fixed)
+// Longitude degree size is wider to compensate for Mercator compression at latitude.
+// Set to stored value on load; updated precisely when GPS locks.
+var   CELL_LNG_DEG = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 const ZONE_COLORS   = ['#e8a030', '#3080c0', '#5ab05a', '#c04040', '#8060d0', '#30a0a0'];
 
 const WEIGHT = {
@@ -297,7 +299,10 @@ function onGpsLocked() {
   badge.textContent = 'GPS LOCKED';
   badge.className   = 'locked';
   setTimeout(function() { badge.style.display = 'none'; }, 3000);
-  state.phase = 'active';
+  state.phase  = 'active';
+  // Fix cell longitude size for this latitude so cells appear square on screen
+  CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
+  localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
   vibrate(30);
   renderZoneMarkers();
   generateOrders();
@@ -372,13 +377,13 @@ window.addEventListener('resize', function() {
 // ═══════════════════════════════════════════════════════════
 
 function latLngToCell(lat, lng) {
-  return { gx: Math.floor(lng / CELL_DEG), gy: Math.floor(lat / CELL_DEG) };
+  return { gx: Math.floor(lng / CELL_LNG_DEG), gy: Math.floor(lat / CELL_LAT_DEG) };
 }
 
 function cellBounds(gx, gy) {
   return {
-    sw: { lat: gy * CELL_DEG,       lng: gx * CELL_DEG },
-    ne: { lat: (gy + 1) * CELL_DEG, lng: (gx + 1) * CELL_DEG },
+    sw: { lat: gy * CELL_LAT_DEG,       lng: gx * CELL_LNG_DEG },
+    ne: { lat: (gy + 1) * CELL_LAT_DEG, lng: (gx + 1) * CELL_LNG_DEG },
   };
 }
 
@@ -420,22 +425,44 @@ function findConnectedComponents(cellSet) {
   return comps;
 }
 
-// ── Draw one grid cell onto the canvas ──
-function drawCell(gx, gy, color, fillOpacity, strokeOpacity) {
+// ── Returns screen rect for a cell, or null if fully off-screen ──
+function cellRect(gx, gy) {
   var b  = cellBounds(gx, gy);
   var sw = map.latLngToContainerPoint([b.sw.lat, b.sw.lng]);
   var ne = map.latLngToContainerPoint([b.ne.lat, b.ne.lng]);
   var x  = Math.min(sw.x, ne.x), y = Math.min(sw.y, ne.y);
   var w  = Math.abs(ne.x - sw.x), h = Math.abs(ne.y - sw.y);
-  var W  = window.innerWidth, H = window.innerHeight;
-  if (x + w < 0 || x > W || y + h < 0 || y > H) return;  // off-screen
-  drawCtx.globalAlpha = fillOpacity;
-  drawCtx.fillStyle = color;
-  drawCtx.fillRect(x, y, w, h);
-  drawCtx.globalAlpha = strokeOpacity;
+  if (x + w < -2 || x > window.innerWidth + 2 || y + h < -2 || y > window.innerHeight + 2) return null;
+  return { x: x, y: y, w: w, h: h };
+}
+
+// ── Render zone as solid merged fill + outer edge only (no internal grid lines) ──
+function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
+  var cellSet = new Set(cells.map(function(c) { return cellKey(c.gx, c.gy); }));
+  drawCtx.fillStyle   = color;
   drawCtx.strokeStyle = color;
-  drawCtx.lineWidth = 1;
-  drawCtx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  drawCtx.lineWidth   = 2;
+
+  // Pass 1: fill all cells, slightly expanded so adjacent cells merge seamlessly
+  drawCtx.globalAlpha = fillOpacity;
+  cells.forEach(function(c) {
+    var r = cellRect(c.gx, c.gy);
+    if (!r) return;
+    drawCtx.fillRect(r.x - 0.5, r.y - 0.5, r.w + 1, r.h + 1);
+  });
+
+  // Pass 2: draw only edges that have no neighbour (outer border only)
+  drawCtx.globalAlpha = strokeOpacity;
+  drawCtx.beginPath();
+  cells.forEach(function(c) {
+    var r = cellRect(c.gx, c.gy);
+    if (!r) return;
+    if (!cellSet.has(cellKey(c.gx,     c.gy + 1))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x + r.w, r.y      ); }  // north
+    if (!cellSet.has(cellKey(c.gx,     c.gy - 1))) { drawCtx.moveTo(r.x,       r.y + r.h); drawCtx.lineTo(r.x + r.w, r.y + r.h); }  // south
+    if (!cellSet.has(cellKey(c.gx - 1, c.gy    ))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x,       r.y + r.h); }  // west
+    if (!cellSet.has(cellKey(c.gx + 1, c.gy    ))) { drawCtx.moveTo(r.x + r.w, r.y      ); drawCtx.lineTo(r.x + r.w, r.y + r.h); }  // east
+  });
+  drawCtx.stroke();
   drawCtx.globalAlpha = 1.0;
 }
 
@@ -456,18 +483,19 @@ function renderGridCanvas() {
   state.zones.forEach(function(zone) {
     if (!zone.cells || !zone.cells.length) return;
     if (!state.editMode && !zone.active) return;
-    var fillOp   = state.editMode ? (zone.active ? 0.25 : 0.08) : 0.12;
-    var strokeOp = state.editMode ? 1.0  : (zone.active ? 0.8 : 0.3);
-    zone.cells.forEach(function(c) { drawCell(c.gx, c.gy, zone.color, fillOp, strokeOp); });
+    var fillOp   = state.editMode ? (zone.active ? 0.2  : 0.07) : 0.1;
+    var strokeOp = state.editMode ? 0.9 : (zone.active ? 0.7 : 0.25);
+    renderZoneCells(zone.cells, zone.color, fillOp, strokeOp);
   });
 
   // Current drawing session
-  if (state.drawing && state.gridCells) {
+  if (state.drawing && state.gridCells && state.gridCells.size) {
     var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-    state.gridCells.forEach(function(key) {
-      var parts = key.split(',');
-      drawCell(parseInt(parts[0]), parseInt(parts[1]), color, 0.35, 1.0);
+    var cells  = Array.from(state.gridCells).map(function(key) {
+      var p = key.split(',');
+      return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
     });
+    renderZoneCells(cells, color, 0.25, 1.0);
   }
 }
 
@@ -568,8 +596,8 @@ function randomPointInZone(zone) {
     var c = zone.cells[Math.floor(Math.random() * zone.cells.length)];
     var b = cellBounds(c.gx, c.gy);
     return {
-      lat: b.sw.lat + Math.random() * CELL_DEG,
-      lng: b.sw.lng + Math.random() * CELL_DEG,
+      lat: b.sw.lat + Math.random() * CELL_LAT_DEG,
+      lng: b.sw.lng + Math.random() * CELL_LNG_DEG,
     };
   }
   // Legacy polygon zones
