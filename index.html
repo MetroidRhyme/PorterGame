@@ -262,9 +262,12 @@ const state = {
   activeAreas:  JSON.parse(localStorage.getItem('porter_active_areas')  || '[]'),
   editArea:     null,
 
-  packages:     [],  // [{ id, pickupLoc, destId, dist, picked }]
+  packages:     [],  // [{ id, pickupLoc, destId, dist, pts, weight, picked }]
   destinations: [],  // [{ id, loc, label }]
   carrying:     [],  // [pkgId, ...]
+
+  sessionDist:  parseFloat(localStorage.getItem('porter_session_dist') || '0'),
+  lastPos:      null,
 };
 
 const PROXIMITY_M = 20;
@@ -275,6 +278,10 @@ const WEIGHT = {
   2: { label: 'STANDARD', multiplier: 1.0, size: 48 },
   3: { label: 'HEAVY',    multiplier: 1.5, size: 60 },
 };
+
+const MAX_GPS_DELTA_M = 50;  // ignore jumps larger than this (GPS error)
+
+function vibrate(pattern) { if (navigator.vibrate) navigator.vibrate(pattern); }
 
 function getCapacity() { return Math.min(3 + Math.floor(state.score / 500), 12); }
 function currentLoad()  {
@@ -346,7 +353,18 @@ if (!navigator.geolocation) {
 function onLocationUpdate(pos) {
   var lat = pos.coords.latitude;
   var lng = pos.coords.longitude;
-  state.userPos = { lat: lat, lng: lng };
+  var newPos = { lat: lat, lng: lng };
+
+  if (state.lastPos) {
+    var delta = haversine(state.lastPos, newPos);
+    if (delta > 0 && delta <= MAX_GPS_DELTA_M) {
+      state.sessionDist += delta;
+      localStorage.setItem('porter_session_dist', state.sessionDist.toFixed(1));
+    }
+  }
+  state.lastPos = newPos;
+  state.userPos = newPos;
+
   if (!userMarker) {
     userMarker = L.marker([lat, lng], { icon: icons.user, zIndexOffset: 1000 }).addTo(map);
     map.setView([lat, lng], 17);
@@ -369,6 +387,7 @@ function onGpsLocked() {
   badge.className = 'locked';
   setTimeout(function() { badge.style.display = 'none'; }, 3000);
   state.phase = 'active';
+  vibrate(30);
   renderZoneMarkers();
   generateOrders();
   expandHUD();
@@ -632,6 +651,7 @@ function attemptPickup() {
   if (!pkg) return;
   pkg.picked = true;
   state.carrying.push(pkg.id);
+  vibrate(60);
   checkRefresh();
   renderOrderMarkers();
   updateHUD();
@@ -656,6 +676,7 @@ function attemptDeliver() {
   state.deliveries += count;
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
+  vibrate([80, 40, 120]);
   showCompletion(pts, count, dest.label);
 
   checkRefresh();
@@ -664,12 +685,13 @@ function attemptDeliver() {
 }
 
 function showCompletion(pts, count, zoneLabel) {
-  var el = document.getElementById('completion-overlay');
+  var el  = document.getElementById('completion-overlay');
+  var km  = (state.sessionDist / 1000).toFixed(2);
   document.getElementById('completion-pts').textContent   = '+' + pts;
   document.getElementById('completion-total').textContent =
     (count > 1 ? count + ' PKGS' : '1 PKG') +
     (zoneLabel ? ' · ZONE ' + zoneLabel : '') +
-    ' · SCORE: ' + state.score;
+    ' · SCORE: ' + state.score + ' · ' + km + 'km walked';
   el.classList.add('show');
   setTimeout(function() { el.classList.remove('show'); }, 2800);
 }
@@ -821,7 +843,8 @@ function updateHUD() {
 
   var load     = currentLoad();
   var capacity = getCapacity();
-  statusEl.textContent = 'LOAD ' + load + ' / ' + capacity;
+  var km       = (state.sessionDist / 1000).toFixed(2);
+  statusEl.textContent = 'LOAD ' + load + ' / ' + capacity + '  ·  ' + km + 'km';
 
   if (deliver) {
     var pkgsHere = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === deliver.id; });
