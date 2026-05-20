@@ -23,8 +23,6 @@
       z-index: 0;
     }
 
-    /* Push leaflet zoom control below top HUD */
-    .leaflet-top { top: 68px !important; }
 
     /* ── TOP HUD ── */
     #hud-top {
@@ -323,9 +321,9 @@ function toggleHUD() {
 //  MAP
 // ═══════════════════════════════════════════════════════════
 
-const map = L.map('map', { zoomControl: true });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors', maxZoom: 19
+const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 13 });
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19
 }).addTo(map);
 map.setView([20, 0], 3);
 
