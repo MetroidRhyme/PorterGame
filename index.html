@@ -349,13 +349,43 @@ function toggleZoneActive(id) {
 function deleteZone(id) {
   var z = state.zones.find(function(z) { return z.id === id; });
   if (!z || !confirm('Delete zone "' + z.name + '"?')) return;
+
+  if (z.cells && z.cells.length) {
+    var zoneKeys = new Set(z.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
+
+    // Remove packages picked up inside this zone
+    var removedIds = new Set();
+    state.packages = state.packages.filter(function(p) {
+      var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
+      if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedIds.add(p.id); return false; }
+      return true;
+    });
+
+    // Remove destinations inside this zone
+    var removedDestIds = new Set();
+    state.destinations = state.destinations.filter(function(d) {
+      var c = latLngToCell(d.loc.lat, d.loc.lng);
+      if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedDestIds.add(d.id); return false; }
+      return true;
+    });
+
+    // Remove packages whose destination was just removed
+    state.packages = state.packages.filter(function(p) {
+      if (removedDestIds.has(p.destId)) { removedIds.add(p.id); return false; }
+      return true;
+    });
+
+    state.carrying = state.carrying.filter(function(cid) { return !removedIds.has(cid); });
+    saveGameState();
+  }
+
   state.zones = state.zones.filter(function(z) { return z.id !== id; });
-  saveZones(); renderZoneMarkers(); updateHUD();
+  saveZones(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
 
 function clearAllZones() {
-  state.zones = [];
-  saveZones(); renderZoneMarkers(); updateHUD();
+  state.zones = []; state.packages = []; state.destinations = []; state.carrying = [];
+  saveZones(); saveGameState(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -569,7 +599,7 @@ function finishDraw() {
   state.gridCells = null;
   saveZones();
   renderGridCanvas();
-  updateHUD();
+  if (state.phase === 'active') generateOrders(); else updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
