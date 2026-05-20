@@ -23,7 +23,6 @@
       z-index: 0;
     }
 
-
     /* ── TOP HUD ── */
     #hud-top {
       position: fixed;
@@ -57,7 +56,7 @@
     #edit-zones-btn {
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
       padding: 10px 14px; border-radius: 4px; background: transparent;
-      color: #555; border: 1px solid #2a2a3a; cursor: pointer;
+      color: #999; border: 1px solid #2a2a3a; cursor: pointer;
       touch-action: manipulation; min-height: 44px; white-space: nowrap;
       -webkit-tap-highlight-color: transparent;
     }
@@ -77,7 +76,7 @@
       padding-bottom: max(18px, env(safe-area-inset-bottom));
     }
 
-    /* ── DRAG HANDLE ── tap to collapse/expand */
+    /* ── DRAG HANDLE ── */
     #hud-collapse-btn {
       display: flex;
       align-items: center;
@@ -156,21 +155,7 @@
     }
     #secondary-btn:active { color: #c04040; border-color: #602020; }
 
-    /* ── MID-RUN ACTIONS ── always visible when shown, outside collapsible */
-    #mid-run-actions { display: none; gap: 8px; margin-top: 10px; }
-    #mid-run-actions button {
-      flex: 1; padding: 14px; border-radius: 4px;
-      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
-      cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
-      transition: color 0.15s, border-color 0.15s;
-      touch-action: manipulation; min-height: 48px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #skip-btn:active { color: #e8a030; border-color: #4a3010; }
-    #edit-btn:active { color: #8060d0; border-color: #402080; }
-    #skip-btn:disabled { opacity: 0.25; cursor: not-allowed; }
-
-    /* ── PRIMARY ACTION ── always visible, outside collapsible */
+    /* ── PRIMARY ACTION ── */
     #action-btn {
       display: block;
       width: calc(100% - 32px); margin: 10px 16px 0;
@@ -226,7 +211,7 @@
 <!-- BOTTOM HUD -->
 <div id="hud-bottom">
 
-  <!-- Drag handle — tap to collapse/expand -->
+  <!-- Drag handle -->
   <button id="hud-collapse-btn" onclick="toggleHUD()" aria-label="Toggle panel"></button>
 
   <!-- Collapsible: status text, area chips, zone toggle, secondary actions -->
@@ -241,10 +226,6 @@
       <button id="zone-drop-btn"  onclick="setEditType('drop')">DROP ZONE</button>
     </div>
     <button id="secondary-btn"></button>
-    <div id="mid-run-actions">
-      <button id="skip-btn" onclick="skipNextPickup()">SKIP PICKUP</button>
-      <button id="edit-btn" onclick="editMidRun()">EDIT ROUTE</button>
-    </div>
   </div>
 
   <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
@@ -264,12 +245,7 @@
 
 // ═══════════════════════════════════════════════════════════
 //  STATE
-//
-//  Phases:
-//    no_gps          — waiting for GPS lock
-//    idle            — planning: tap packages to build plan[]
-//    moving_to_pickup— walking through pickupQueue
-//    delivering      — all pickups done, walking through destQueue
+//  Phases: no_gps | active
 // ═══════════════════════════════════════════════════════════
 
 const state = {
@@ -278,37 +254,39 @@ const state = {
   phase:      'no_gps',
   userPos:    null,
   editMode:   false,
-  editType:   'spawn',  // 'spawn' | 'drop'
+  editType:   'spawn',
 
-  // User-defined zone points (persisted)
   spawnPoints:  JSON.parse(localStorage.getItem('porter_spawn_points')  || '[]'),
   dropPoints:   JSON.parse(localStorage.getItem('porter_drop_points')   || '[]'),
   areas:        JSON.parse(localStorage.getItem('porter_areas')         || '[]'),
   activeAreas:  JSON.parse(localStorage.getItem('porter_active_areas')  || '[]'),
-  editArea:     null,   // area currently selected in zone editor (null = untagged/global)
+  editArea:     null,
 
-  // Generated run
-  destinations: [],  // [{ id, loc, label }]
   packages:     [],  // [{ id, pickupLoc, destId, dist, picked }]
-
-  // Planning (idle)
-  plan: [],          // ordered [pkgId, ...] built by tapping packages
-
-  // Active run
-  pickupQueue: [],   // [pkgId, ...] remaining pickups in order
-  destQueue:   [],   // [destId, ...] remaining deliveries in order
-  carrying:    [],   // [pkgId, ...] currently holding
-  resumingRun: false,// true while editing a mid-run route (carrying preserved)
+  destinations: [],  // [{ id, loc, label }]
+  carrying:     [],  // [pkgId, ...]
 };
 
 const PROXIMITY_M = 20;
 const ONE_MILE_M  = 1609;
 
+const WEIGHT = {
+  1: { label: 'LIGHT',    multiplier: 0.7, size: 36 },
+  2: { label: 'STANDARD', multiplier: 1.0, size: 48 },
+  3: { label: 'HEAVY',    multiplier: 1.5, size: 60 },
+};
+
+function getCapacity() { return Math.min(3 + Math.floor(state.score / 500), 12); }
+function currentLoad()  {
+  return state.carrying.reduce(function(sum, id) {
+    var p = state.packages.find(function(p) { return p.id === id; });
+    return sum + (p ? p.weight : 0);
+  }, 0);
+}
+
 // ═══════════════════════════════════════════════════════════
 //  HUD COLLAPSE
 // ═══════════════════════════════════════════════════════════
-
-var _hudPhase = null;  // tracks last phase to detect changes for auto-expand
 
 function expandHUD() {
   document.getElementById('hud-bottom').classList.remove('collapsed');
@@ -322,44 +300,36 @@ function toggleHUD() {
 // ═══════════════════════════════════════════════════════════
 
 const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 13 });
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   maxZoom: 19
 }).addTo(map);
 map.setView([20, 0], 3);
 
 function makeIcon(bg, emoji, size) {
   size = size || 48;
-  const fs = Math.round(size * 0.5);
+  var fs = Math.round(size * 0.5);
   return L.divIcon({
     html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + emoji + '</div>',
     iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
   });
 }
 
-function makeNumberedIcon(num) {
-  return L.divIcon({
-    html: '<div style="position:relative;width:48px;height:48px"><div style="background:#9a5808;border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 2px 12px rgba(0,0,0,0.7)">📦</div><div style="position:absolute;top:-4px;right:-4px;background:#e8a030;color:#0a0a0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;font-family:\'Courier New\',monospace">' + num + '</div></div>',
-    iconSize: [48, 48], iconAnchor: [24, 24], className: ''
-  });
-}
-
 const icons = {
   user:        makeIcon('#1a3050', '🧍', 44),
-  pickup:      makeIcon('#2a1800', '📦'),        // available, unplanned  (48px default)
-  pickup_next: makeIcon('#e8a030', '📦'),        // next in pickup queue
-  dest:        makeIcon('#0c1e30', '🏠'),        // drop zone, dim
-  dest_next:   makeIcon('#3080c0', '🏠'),        // next delivery target, bright
-  dest_queued: makeIcon('#164060', '🏠'),        // later in delivery queue, medium
+  pickup:      makeIcon('#2a1800', '📦'),
+  pickup_next: makeIcon('#e8a030', '📦'),
+  dest:        makeIcon('#0c1e30', '🏠'),
+  dest_next:   makeIcon('#3080c0', '🏠'),
+  dest_queued: makeIcon('#164060', '🏠'),
   spawn_dim:   makeIcon('#0a2010', '📍', 38),
   spawn_edit:  makeIcon('#1a5020', '📍', 48),
   drop_dim:    makeIcon('#1a0830', '🎯', 38),
   drop_edit:   makeIcon('#40106a', '🎯', 48),
 };
 
-let userMarker    = null;
-let orderMarkers  = [];
-let zoneMarkers   = [];
-let routeLines    = [];  // array of L.Polyline — cleared and rebuilt by updateRouteLine
+let userMarker   = null;
+let orderMarkers = [];
+let zoneMarkers  = [];
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
@@ -374,8 +344,9 @@ if (!navigator.geolocation) {
 }
 
 function onLocationUpdate(pos) {
-  const { latitude: lat, longitude: lng } = pos.coords;
-  state.userPos = { lat, lng };
+  var lat = pos.coords.latitude;
+  var lng = pos.coords.longitude;
+  state.userPos = { lat: lat, lng: lng };
   if (!userMarker) {
     userMarker = L.marker([lat, lng], { icon: icons.user, zIndexOffset: 1000 }).addTo(map);
     map.setView([lat, lng], 17);
@@ -383,22 +354,23 @@ function onLocationUpdate(pos) {
   } else {
     userMarker.setLatLng([lat, lng]);
   }
-  updateRouteLine();
+  renderOrderMarkers();
   updateHUD();
 }
 
 function onLocationError(err) {
-  const msgs = { 1: 'Location permission denied.', 2: 'Position unavailable.', 3: 'GPS timed out. Retrying…' };
+  var msgs = { 1: 'Location permission denied.', 2: 'Position unavailable.', 3: 'GPS timed out. Retrying…' };
   document.getElementById('mission-detail').textContent = msgs[err.code] || err.message;
 }
 
 function onGpsLocked() {
-  const badge = document.getElementById('gps-status');
+  var badge = document.getElementById('gps-status');
   badge.textContent = 'GPS LOCKED';
   badge.className = 'locked';
   setTimeout(function() { badge.style.display = 'none'; }, 3000);
-  state.phase = 'idle';
+  state.phase = 'active';
   renderZoneMarkers();
+  generateOrders();
   expandHUD();
   updateHUD();
 }
@@ -409,9 +381,8 @@ function onGpsLocked() {
 
 map.on('click', function(e) {
   if (!state.editMode) return;
-  var latlng = e.latlng;
-  if (state.editType === 'spawn') addSpawnPoint(latlng.lat, latlng.lng);
-  else                            addDropPoint(latlng.lat, latlng.lng);
+  if (state.editType === 'spawn') addSpawnPoint(e.latlng.lat, e.latlng.lng);
+  else                            addDropPoint(e.latlng.lat, e.latlng.lng);
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -453,8 +424,6 @@ function clearAllZones() {
   saveZones(); renderZoneMarkers(); updateHUD();
 }
 
-// ── Area management ──
-
 function addArea() {
   var name = prompt('Area name (leave blank to auto-name):');
   if (name === null) return;
@@ -471,8 +440,8 @@ function removeArea(id) {
   if (!confirm('Remove area "' + area.name + '"? Its points become untagged.')) return;
   state.spawnPoints.forEach(function(p) { if (p.area === id) delete p.area; });
   state.dropPoints.forEach(function(p)  { if (p.area === id) delete p.area; });
-  state.areas        = state.areas.filter(function(a)       { return a.id !== id; });
-  state.activeAreas  = state.activeAreas.filter(function(a) { return a !== id; });
+  state.areas       = state.areas.filter(function(a)       { return a.id !== id; });
+  state.activeAreas = state.activeAreas.filter(function(a) { return a !== id; });
   if (state.editArea === id) state.editArea = null;
   saveZones(); saveAreas(); renderZoneMarkers(); updateHUD();
 }
@@ -486,10 +455,9 @@ function toggleActiveArea(id) {
   var idx = state.activeAreas.indexOf(id);
   if (idx === -1) state.activeAreas.push(id);
   else            state.activeAreas.splice(idx, 1);
-  saveAreas(); renderZoneMarkers(); updateHUD();
+  saveAreas(); generateOrders(); updateHUD();
 }
 
-// Points eligible for the current run (respects active-area filter when 2+ areas exist)
 function getFilteredSpawns() {
   if (state.areas.length < 2) return state.spawnPoints;
   return state.spawnPoints.filter(function(p) {
@@ -528,44 +496,25 @@ function renderZoneMarkers() {
   zoneMarkers.forEach(function(m) { map.removeLayer(m); });
   zoneMarkers = [];
 
-  var showZones = state.editMode || (state.phase === 'idle' && state.packages.length === 0);
-  if (!showZones) return;
+  if (!state.editMode) return;
 
-  // In idle (non-edit) mode, only show points from active areas
-  var spawns = state.editMode ? state.spawnPoints : getFilteredSpawns();
-  var drops  = state.editMode ? state.dropPoints  : getFilteredDrops();
-
-  spawns.forEach(function(p) {
-    var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
-    var isSelected = state.editMode && (p.area || null) === state.editArea;
-    var icon = state.editMode
-      ? (isSelected ? icons.spawn_edit : makeIcon('#0d2810', '📍', 38))
-      : icons.spawn_dim;
+  state.spawnPoints.forEach(function(p) {
+    var areaName   = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
+    var isSelected = (p.area || null) === state.editArea;
+    var icon = isSelected ? icons.spawn_edit : makeIcon('#0d2810', '📍', 38);
     var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
-    if (state.editMode) {
-      var tip = 'SPAWN' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE';
-      m.bindTooltip(tip, { permanent: false });
-      m.on('click', function(e) { e.originalEvent.stopPropagation(); removeSpawnPoint(p.id); });
-    } else {
-      m.bindTooltip('SPAWN' + (areaName ? ' · ' + areaName.toUpperCase() : ''), { permanent: false });
-    }
+    m.bindTooltip('SPAWN' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE');
+    m.on('click', function(e) { e.originalEvent.stopPropagation(); removeSpawnPoint(p.id); });
     zoneMarkers.push(m);
   });
 
-  drops.forEach(function(p) {
-    var areaName = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
-    var isSelected = state.editMode && (p.area || null) === state.editArea;
-    var icon = state.editMode
-      ? (isSelected ? icons.drop_edit : makeIcon('#1a0828', '🎯', 38))
-      : icons.drop_dim;
+  state.dropPoints.forEach(function(p) {
+    var areaName   = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
+    var isSelected = (p.area || null) === state.editArea;
+    var icon = isSelected ? icons.drop_edit : makeIcon('#1a0828', '🎯', 38);
     var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
-    if (state.editMode) {
-      var tip = 'DROP' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE';
-      m.bindTooltip(tip, { permanent: false });
-      m.on('click', function(e) { e.originalEvent.stopPropagation(); removeDropPoint(p.id); });
-    } else {
-      m.bindTooltip('DROP' + (areaName ? ' · ' + areaName.toUpperCase() : ''), { permanent: false });
-    }
+    m.bindTooltip('DROP' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE');
+    m.on('click', function(e) { e.originalEvent.stopPropagation(); removeDropPoint(p.id); });
     zoneMarkers.push(m);
   });
 }
@@ -576,348 +525,141 @@ function renderZoneMarkers() {
 
 function shuffle(arr) { return arr.slice().sort(function() { return Math.random() - 0.5; }); }
 
-function generateRun() {
+function generateOrders() {
   if (!state.userPos) return;
 
   var nearSpawns = getFilteredSpawns().filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; });
   var nearDrops  = getFilteredDrops().filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; });
+  if (!nearSpawns.length || !nearDrops.length) { updateHUD(); return; }
 
-  if (nearSpawns.length === 0 || nearDrops.length === 0) { updateHUD(); return; }
+  // Preserve carried packages and their destinations; discard the rest
+  var carriedDestIds = state.carrying.map(function(id) {
+    var p = state.packages.find(function(p) { return p.id === id; });
+    return p ? p.destId : null;
+  }).filter(Boolean);
 
-  orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = [];
-  zoneMarkers.forEach(function(m)  { map.removeLayer(m); }); zoneMarkers  = [];
+  state.packages     = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
+  state.destinations = state.destinations.filter(function(d) { return carriedDestIds.includes(d.id); });
 
-  state.destinations = [];
-  state.packages     = [];
-  state.plan         = [];
-  state.pickupQueue  = [];
-  state.destQueue    = [];
-  state.carrying     = [];
-  state.resumingRun  = false;
-  state.phase        = 'idle';
+  // New destinations
+  var numDests    = Math.min(2, nearDrops.length);
+  var selDrops    = shuffle(nearDrops).slice(0, numDests);
+  var labelOffset = state.destinations.length;
+  var newDests    = selDrops.map(function(drop, i) {
+    return {
+      id:    'dest_' + Date.now() + '_' + i,
+      loc:   { lat: drop.lat, lng: drop.lng },
+      label: String.fromCharCode(65 + (labelOffset + i) % 26)
+    };
+  });
+  state.destinations = state.destinations.concat(newDests);
 
-  var numDests      = Math.min(2, nearDrops.length);
-  var selectedDrops = shuffle(nearDrops).slice(0, numDests);
-  state.destinations = selectedDrops.map(function(p, i) {
-    return { id: 'dest_' + i, loc: { lat: p.lat, lng: p.lng }, label: String.fromCharCode(65 + i) };
+  // New packages distributed across new destinations
+  var weightPool = [1, 1, 2, 2, 3];
+  var numPkgs   = Math.min(3, nearSpawns.length);
+  var selSpawns = shuffle(nearSpawns).slice(0, numPkgs);
+  selSpawns.forEach(function(spawn, i) {
+    var dest   = newDests[i % newDests.length];
+    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
+    var dist   = haversine({ lat: spawn.lat, lng: spawn.lng }, dest.loc);
+    state.packages.push({
+      id:        'pkg_' + Date.now() + '_' + i,
+      pickupLoc: { lat: spawn.lat, lng: spawn.lng },
+      destId:    dest.id,
+      dist:      dist,
+      pts:       Math.round(dist * WEIGHT[weight].multiplier),
+      weight:    weight,
+      picked:    false
+    });
   });
 
-  var numPkgs        = Math.min(3, nearSpawns.length);
-  var selectedSpawns = shuffle(nearSpawns).slice(0, numPkgs);
+  renderOrderMarkers();
+  updateHUD();
+}
 
-  var assignments = Array.from({ length: numDests }, function(_, i) { return i; });
-  while (assignments.length < numPkgs) { assignments.push(Math.floor(Math.random() * numDests)); }
-  var assignedDests = shuffle(assignments);
+// Refresh when no pickable packages remain and hands are empty
+function checkRefresh() {
+  var available = state.packages.filter(function(p) { return !p.picked; }).length;
+  if (available === 0 && state.carrying.length === 0) generateOrders();
+}
 
-  state.packages = selectedSpawns.map(function(spawn, i) {
-    var dest = state.destinations[assignedDests[i]];
-    var dist = haversine({ lat: spawn.lat, lng: spawn.lng }, dest.loc);
-    return { id: 'pkg_' + i, pickupLoc: { lat: spawn.lat, lng: spawn.lng }, destId: dest.id, dist: dist, picked: false };
+// ═══════════════════════════════════════════════════════════
+//  PROXIMITY HELPERS
+// ═══════════════════════════════════════════════════════════
+
+function nearestPickable() {
+  if (!state.userPos) return null;
+  var remaining  = getCapacity() - currentLoad();
+  var candidates = state.packages.filter(function(p) {
+    return !p.picked && p.weight <= remaining && haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M;
   });
-
-  expandHUD();
-  renderOrderMarkers();
-  updateRouteLine();
-  updateHUD();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  PLAN HELPERS
-// ═══════════════════════════════════════════════════════════
-
-// Returns dest IDs in the order they first appear in plan
-function plannedDestOrder() {
-  var seen = {};
-  var order = [];
-  state.plan.forEach(function(pkgId) {
-    var pkg = state.packages.find(function(p) { return p.id === pkgId; });
-    if (pkg && !seen[pkg.destId]) { seen[pkg.destId] = true; order.push(pkg.destId); }
+  if (!candidates.length) return null;
+  return candidates.reduce(function(best, p) {
+    return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, best.pickupLoc) ? p : best;
   });
-  return order;
 }
 
-function togglePlan(pkgId) {
-  var idx = state.plan.indexOf(pkgId);
-  if (idx === -1) state.plan.push(pkgId);
-  else            state.plan.splice(idx, 1);
-  renderOrderMarkers();
-  updateRouteLine();
-  updateHUD();
+// Packages in range that are too heavy to pick up right now
+function overweightInRange() {
+  if (!state.userPos) return [];
+  var remaining = getCapacity() - currentLoad();
+  return state.packages.filter(function(p) {
+    return !p.picked && p.weight > remaining && haversine(state.userPos, p.pickupLoc) <= PROXIMITY_M;
+  });
 }
 
-function clearPlan() {
-  state.plan = [];
-  renderOrderMarkers();
-  updateRouteLine();
-  updateHUD();
-}
-
-function cancelOrders() {
-  state.packages     = [];
-  state.destinations = [];
-  state.plan         = [];
-  clearMarkers();
-  renderZoneMarkers();
-  updateRouteLine();
-  expandHUD();
-  updateHUD();
-}
-
-function startRun() {
-  var hasWork = state.plan.length > 0 || (state.resumingRun && state.carrying.length > 0);
-  if (!hasWork) return;
-
-  state.pickupQueue = state.plan.slice();
-
-  if (state.resumingRun) {
-    // Keep carrying; recalculate destQueue: carried dests first (old order), then new plan dests
-    var seen = {};
-    var newDestQueue = [];
-    state.destQueue.forEach(function(destId) {
-      if (!seen[destId] && state.carrying.some(function(id) {
-        var p = state.packages.find(function(p) { return p.id === id; });
-        return p && p.destId === destId;
-      })) { seen[destId] = true; newDestQueue.push(destId); }
+function nearestDeliverable() {
+  if (!state.userPos || !state.carrying.length) return null;
+  var candidates = state.destinations.filter(function(d) {
+    var hasPkgs = state.carrying.some(function(id) {
+      var p = state.packages.find(function(p) { return p.id === id; });
+      return p && p.destId === d.id;
     });
-    state.pickupQueue.forEach(function(pkgId) {
-      var p = state.packages.find(function(p) { return p.id === pkgId; });
-      if (p && !seen[p.destId]) { seen[p.destId] = true; newDestQueue.push(p.destId); }
-    });
-    state.destQueue  = newDestQueue;
-    state.resumingRun = false;
-  } else {
-    state.destQueue = plannedDestOrder();  // reads state.plan before it's cleared
-    state.carrying  = [];
-  }
-
-  state.plan  = [];
-  state.phase = state.pickupQueue.length > 0 ? 'moving_to_pickup' : 'delivering';
-  renderOrderMarkers();
-  updateRouteLine();
-  updateHUD();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  MAP MARKERS
-// ═══════════════════════════════════════════════════════════
-
-function clearMarkers() {
-  orderMarkers.forEach(function(m) { map.removeLayer(m); });
-  orderMarkers = [];
-}
-
-function renderOrderMarkers() {
-  clearMarkers();
-
-  if (state.phase === 'idle') {
-    // ── Destination markers ──
-    state.destinations.forEach(function(d) {
-      var count = state.packages.filter(function(p) { return p.destId === d.id && !p.picked; }).length;
-      if (count === 0) return;
-      var inPlan = state.plan.some(function(pkgId) {
-        var pkg = state.packages.find(function(p) { return p.id === pkgId; });
-        return pkg && pkg.destId === d.id;
-      });
-      var icon = inPlan ? icons.dest_queued : icons.dest;
-      var m = L.marker([d.loc.lat, d.loc.lng], { icon: icon }).addTo(map);
-      m.bindTooltip('ZONE ' + d.label + ' · ' + count + ' pkg' + (count > 1 ? 's' : '') + (inPlan ? ' · IN PLAN' : ''), { permanent: false });
-      orderMarkers.push(m);
-    });
-    // ── Package markers ──
-    state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
-      var dest     = state.destinations.find(function(d) { return d.id === p.destId; });
-      var planIdx  = state.plan.indexOf(p.id);
-      var inPlan   = planIdx !== -1;
-      var icon     = inPlan ? makeNumberedIcon(planIdx + 1) : icons.pickup;
-      var label    = inPlan
-        ? 'Stop ' + (planIdx + 1) + ' → Zone ' + dest.label + ' · ' + Math.round(p.dist) + ' pts · tap to remove'
-        : '→ Zone ' + dest.label + ' · ' + Math.round(p.dist) + ' pts · tap to add';
-      var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icon }).addTo(map);
-      m.bindTooltip(label, { permanent: false });
-      m.on('click', function() { togglePlan(p.id); });
-      orderMarkers.push(m);
-    });
-
-  } else if (state.phase === 'moving_to_pickup') {
-    // ── Current pickup target ──
-    var targetId  = state.pickupQueue[0];
-    var targetPkg = state.packages.find(function(p) { return p.id === targetId; });
-    if (targetPkg) {
-      var m = L.marker([targetPkg.pickupLoc.lat, targetPkg.pickupLoc.lng], { icon: icons.pickup_next }).addTo(map);
-      m.bindTooltip('NEXT PICKUP', { permanent: false });
-      orderMarkers.push(m);
-    }
-    // ── Remaining queued pickups ──
-    state.pickupQueue.slice(1).forEach(function(pkgId, i) {
-      var pkg = state.packages.find(function(p) { return p.id === pkgId; });
-      if (!pkg) return;
-      var dest = state.destinations.find(function(d) { return d.id === pkg.destId; });
-      var qm = L.marker([pkg.pickupLoc.lat, pkg.pickupLoc.lng], { icon: makeNumberedIcon(i + 2) }).addTo(map);
-      qm.bindTooltip('Stop ' + (i + 2) + ' → Zone ' + dest.label, { permanent: false });
-      orderMarkers.push(qm);
-    });
-    // ── All planned destinations ──
-    state.destQueue.forEach(function(destId, i) {
-      var dest = state.destinations.find(function(d) { return d.id === destId; });
-      if (!dest) return;
-      var dm = L.marker([dest.loc.lat, dest.loc.lng], { icon: icons.dest }).addTo(map);
-      dm.bindTooltip('ZONE ' + dest.label + ' · delivery ' + (i + 1), { permanent: false });
-      orderMarkers.push(dm);
-    });
-    // ── Unplanned packages still on map (dim, info only) ──
-    state.packages.filter(function(p) { return !p.picked && !state.pickupQueue.includes(p.id); }).forEach(function(p) {
-      var dest = state.destinations.find(function(d) { return d.id === p.destId; });
-      var pm = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icons.pickup }).addTo(map);
-      pm.bindTooltip('→ Zone ' + (dest ? dest.label : '?') + ' (not in route)', { permanent: false });
-      orderMarkers.push(pm);
-    });
-
-  } else if (state.phase === 'delivering') {
-    // ── Current delivery destination ──
-    var currentDestId = state.destQueue[0];
-    var currentDest   = state.destinations.find(function(d) { return d.id === currentDestId; });
-    if (currentDest) {
-      var dm = L.marker([currentDest.loc.lat, currentDest.loc.lng], { icon: icons.dest_next }).addTo(map);
-      dm.bindTooltip('ZONE ' + currentDest.label + ' · DELIVER HERE', { permanent: false });
-      orderMarkers.push(dm);
-    }
-    // ── Remaining destinations ──
-    state.destQueue.slice(1).forEach(function(destId, i) {
-      var dest = state.destinations.find(function(d) { return d.id === destId; });
-      if (!dest) return;
-      var qm = L.marker([dest.loc.lat, dest.loc.lng], { icon: icons.dest_queued }).addTo(map);
-      qm.bindTooltip('ZONE ' + dest.label + ' · next stop', { permanent: false });
-      orderMarkers.push(qm);
-    });
-    // ── Remaining unplanned packages (info only) ──
-    state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
-      var dest = state.destinations.find(function(d) { return d.id === p.destId; });
-      var pm = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icons.pickup }).addTo(map);
-      pm.bindTooltip('→ Zone ' + (dest ? dest.label : '?') + ' (not in route)', { permanent: false });
-      orderMarkers.push(pm);
-    });
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  ROUTE LINE  (orange = pickups, blue = deliveries)
-// ═══════════════════════════════════════════════════════════
-
-function updateRouteLine() {
-  routeLines.forEach(function(l) { map.removeLayer(l); });
-  routeLines = [];
-  if (!state.userPos) return;
-
-  var pickupPts   = [];
-  var deliveryPts = [];
-
-  if (state.phase === 'idle' && state.plan.length > 0) {
-    pickupPts.push([state.userPos.lat, state.userPos.lng]);
-    state.plan.forEach(function(pkgId) {
-      var pkg = state.packages.find(function(p) { return p.id === pkgId; });
-      if (pkg) pickupPts.push([pkg.pickupLoc.lat, pkg.pickupLoc.lng]);
-    });
-    // Delivery segment starts from the last pickup
-    var dests = plannedDestOrder();
-    if (dests.length > 0) {
-      var lastPkg = state.packages.find(function(p) { return p.id === state.plan[state.plan.length - 1]; });
-      if (lastPkg) deliveryPts.push([lastPkg.pickupLoc.lat, lastPkg.pickupLoc.lng]);
-      dests.forEach(function(destId) {
-        var dest = state.destinations.find(function(d) { return d.id === destId; });
-        if (dest) deliveryPts.push([dest.loc.lat, dest.loc.lng]);
-      });
-    }
-
-  } else if (state.phase === 'moving_to_pickup') {
-    pickupPts.push([state.userPos.lat, state.userPos.lng]);
-    state.pickupQueue.forEach(function(pkgId) {
-      var pkg = state.packages.find(function(p) { return p.id === pkgId; });
-      if (pkg) pickupPts.push([pkg.pickupLoc.lat, pkg.pickupLoc.lng]);
-    });
-    if (state.destQueue.length > 0) {
-      var lastQueuedPkg = state.packages.find(function(p) {
-        return p.id === state.pickupQueue[state.pickupQueue.length - 1];
-      });
-      if (lastQueuedPkg) deliveryPts.push([lastQueuedPkg.pickupLoc.lat, lastQueuedPkg.pickupLoc.lng]);
-      state.destQueue.forEach(function(destId) {
-        var dest = state.destinations.find(function(d) { return d.id === destId; });
-        if (dest) deliveryPts.push([dest.loc.lat, dest.loc.lng]);
-      });
-    }
-
-  } else if (state.phase === 'delivering') {
-    deliveryPts.push([state.userPos.lat, state.userPos.lng]);
-    state.destQueue.forEach(function(destId) {
-      var dest = state.destinations.find(function(d) { return d.id === destId; });
-      if (dest) deliveryPts.push([dest.loc.lat, dest.loc.lng]);
-    });
-  }
-
-  if (pickupPts.length > 1) {
-    routeLines.push(L.polyline(pickupPts,   { color: '#e8a030', weight: 2, dashArray: '6 6', opacity: 0.75 }).addTo(map));
-  }
-  if (deliveryPts.length > 1) {
-    routeLines.push(L.polyline(deliveryPts, { color: '#3080c0', weight: 2, dashArray: '6 6', opacity: 0.75 }).addTo(map));
-  }
+    return hasPkgs && haversine(state.userPos, d.loc) <= PROXIMITY_M;
+  });
+  if (!candidates.length) return null;
+  return candidates.reduce(function(best, d) {
+    return haversine(state.userPos, d.loc) < haversine(state.userPos, best.loc) ? d : best;
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
 //  GAME ACTIONS
 // ═══════════════════════════════════════════════════════════
 
-function pickupNext() {
-  if (state.phase !== 'moving_to_pickup' || state.pickupQueue.length === 0) return;
-  var pkgId = state.pickupQueue[0];
-  var pkg   = state.packages.find(function(p) { return p.id === pkgId; });
+function attemptPickup() {
+  var pkg = nearestPickable();
   if (!pkg) return;
-
   pkg.picked = true;
   state.carrying.push(pkg.id);
-  state.pickupQueue.shift();
-
-  if (state.pickupQueue.length === 0) {
-    state.phase = 'delivering';
-  }
+  checkRefresh();
   renderOrderMarkers();
-  updateRouteLine();
   updateHUD();
 }
 
-function deliverCurrent() {
-  if (state.phase !== 'delivering' || state.destQueue.length === 0) return;
-  var destId      = state.destQueue[0];
-  var dest        = state.destinations.find(function(d) { return d.id === destId; });
-  var pkgsForDest = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === destId; });
+function attemptDeliver() {
+  var dest = nearestDeliverable();
+  if (!dest) return;
 
-  var pts   = pkgsForDest.reduce(function(sum, p) { return sum + Math.round(p.dist); }, 0);
-  var count = pkgsForDest.length;
-
-  pkgsForDest.forEach(function(p) {
-    state.carrying = state.carrying.filter(function(id) { return id !== p.id; });
+  var pkgsForDest  = state.packages.filter(function(p) {
+    return state.carrying.includes(p.id) && p.destId === dest.id;
   });
-  state.destQueue.shift();
+  var pts          = pkgsForDest.reduce(function(sum, p) { return sum + Math.round(p.dist); }, 0);
+  var count        = pkgsForDest.length;
+  var deliveredIds = pkgsForDest.map(function(p) { return p.id; });
+
+  state.carrying     = state.carrying.filter(function(id) { return !deliveredIds.includes(id); });
+  state.packages     = state.packages.filter(function(p)  { return !deliveredIds.includes(p.id); });
+  state.destinations = state.destinations.filter(function(d) { return d.id !== dest.id; });
 
   state.score += pts;
   state.deliveries += count;
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
-  showCompletion(pts, count, dest ? dest.label : '');
+  showCompletion(pts, count, dest.label);
 
-  if (state.destQueue.length === 0) {
-    // Run complete — back to idle
-    state.phase = 'idle';
-    var remaining = state.packages.filter(function(p) { return !p.picked; });
-    if (remaining.length === 0) {
-      state.packages = []; state.destinations = [];
-      clearMarkers(); renderZoneMarkers();
-    } else {
-      renderOrderMarkers();
-    }
-  } else {
-    renderOrderMarkers();
-  }
-
-  updateRouteLine();
+  checkRefresh();
+  renderOrderMarkers();
   updateHUD();
 }
 
@@ -933,76 +675,43 @@ function showCompletion(pts, count, zoneLabel) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  MID-RUN ACTIONS
+//  MAP MARKERS
 // ═══════════════════════════════════════════════════════════
 
-function skipNextPickup() {
-  if (state.phase !== 'moving_to_pickup' || state.pickupQueue.length === 0) return;
-  state.pickupQueue.shift();
+function clearMarkers() {
+  orderMarkers.forEach(function(m) { map.removeLayer(m); });
+  orderMarkers = [];
+}
 
-  // Remove destinations that no longer have any package in carry or remaining queue
-  state.destQueue = state.destQueue.filter(function(destId) {
-    return state.packages.some(function(p) {
-      return p.destId === destId &&
-             (state.carrying.includes(p.id) || state.pickupQueue.includes(p.id));
-    });
+function renderOrderMarkers() {
+  clearMarkers();
+  if (state.phase !== 'active') return;
+
+  var pickable    = nearestPickable();
+  var deliverable = nearestDeliverable();
+
+  state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
+    var dest   = state.destinations.find(function(d) { return d.id === p.destId; });
+    var isNext = pickable && pickable.id === p.id;
+    var icon   = isNext ? icons.pickup_next : icons.pickup;
+    var label  = '→ Zone ' + (dest ? dest.label : '?') + ' · ' + Math.round(p.dist) + ' pts';
+    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icon }).addTo(map);
+    m.bindTooltip(label, { permanent: false });
+    orderMarkers.push(m);
   });
 
-  if (state.pickupQueue.length === 0) {
-    state.phase = (state.carrying.length > 0 && state.destQueue.length > 0) ? 'delivering' : 'idle';
-    if (state.phase === 'idle') {
-      // Nothing left to do — full reset
-      state.packages.forEach(function(p) { if (state.carrying.includes(p.id)) p.picked = false; });
-      state.carrying = [];
-      state.destQueue = [];
-      renderZoneMarkers();
-    }
-  }
-
-  renderOrderMarkers();
-  updateRouteLine();
-  updateHUD();
-}
-
-function editMidRun() {
-  if (state.phase === 'moving_to_pickup') {
-    // Preserve carried packages; put remaining pickups back as a pre-filled, reorderable plan
-    state.plan        = state.pickupQueue.slice();
-    state.pickupQueue = [];
-    state.resumingRun = true;
-    state.phase       = 'idle';
-  } else if (state.phase === 'delivering') {
-    // Keep carried packages and remaining destinations — pause for editing
-    state.plan        = [];
-    state.pickupQueue = [];
-    state.resumingRun = true;
-    state.phase       = 'idle';
-  } else { return; }
-  expandHUD();
-  renderOrderMarkers();
-  updateRouteLine();
-  updateHUD();
-}
-
-function cancelEdit() {
-  state.resumingRun = false;
-  if (state.plan.length === 0 && state.carrying.length > 0) {
-    // Came from delivery edit — return to delivering with progress intact
-    state.phase = 'delivering';
-  } else {
-    // Came from pickup edit — abandon and un-pick carried packages
-    state.packages.forEach(function(p) {
-      if (state.carrying.includes(p.id)) p.picked = false;
-    });
-    state.carrying = [];
-    state.destQueue = [];
-    state.plan      = [];
-    state.phase     = 'idle';
-    renderZoneMarkers();
-  }
-  renderOrderMarkers();
-  updateRouteLine();
-  updateHUD();
+  state.destinations.forEach(function(d) {
+    var carriedCount = state.carrying.filter(function(id) {
+      var p = state.packages.find(function(p) { return p.id === id; });
+      return p && p.destId === d.id;
+    }).length;
+    var isNext = deliverable && deliverable.id === d.id;
+    var icon   = isNext ? icons.dest_next : (carriedCount > 0 ? icons.dest_queued : icons.dest);
+    var label  = 'Zone ' + d.label + (carriedCount > 0 ? ' · ' + carriedCount + ' to deliver' : ' · drop zone');
+    var m = L.marker([d.loc.lat, d.loc.lng], { icon: icon }).addTo(map);
+    m.bindTooltip(label, { permanent: false });
+    orderMarkers.push(m);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1010,34 +719,25 @@ function cancelEdit() {
 // ═══════════════════════════════════════════════════════════
 
 function updateHUD() {
-  // Auto-expand when the phase changes so users see updated status
-  if (state.phase !== _hudPhase) {
-    _hudPhase = state.phase;
-    expandHUD();
-  }
+  var statusEl = document.getElementById('mission-status');
+  var detailEl = document.getElementById('mission-detail');
+  var distEl   = document.getElementById('mission-distance');
+  var scoreEl  = document.getElementById('score-value');
+  var btn      = document.getElementById('action-btn');
+  var secBtn   = document.getElementById('secondary-btn');
+  var editBtn  = document.getElementById('edit-zones-btn');
+  var toggle   = document.getElementById('zone-toggle');
+  var areaSel  = document.getElementById('area-selector');
+  var areaEd   = document.getElementById('area-editor');
 
-  var statusEl      = document.getElementById('mission-status');
-  var detailEl      = document.getElementById('mission-detail');
-  var distEl        = document.getElementById('mission-distance');
-  var scoreEl       = document.getElementById('score-value');
-  var btn           = document.getElementById('action-btn');
-  var secBtn        = document.getElementById('secondary-btn');
-  var toggle        = document.getElementById('zone-toggle');
-  var editBtn       = document.getElementById('edit-zones-btn');
-  var midRunActions = document.getElementById('mid-run-actions');
-  var skipBtn       = document.getElementById('skip-btn');
-  var areaSel       = document.getElementById('area-selector');
-  var areaEd        = document.getElementById('area-editor');
-
-  scoreEl.textContent = state.score;
-  btn.className  = '';
-  btn.onclick    = null;
-  btn.disabled   = false;
-  secBtn.style.display    = 'none';
-  secBtn.onclick          = null;
-  midRunActions.style.display = 'none';
-  areaSel.style.display   = 'none';
-  areaEd.style.display    = 'none';
+  scoreEl.textContent   = state.score;
+  btn.className         = '';
+  btn.onclick           = null;
+  btn.disabled          = false;
+  secBtn.style.display  = 'none';
+  secBtn.onclick        = null;
+  areaSel.style.display = 'none';
+  areaEd.style.display  = 'none';
 
   // ── EDIT MODE ──────────────────────────────────────────
   if (state.editMode) {
@@ -1048,24 +748,21 @@ function updateHUD() {
     document.getElementById('zone-spawn-btn').className = state.editType === 'spawn' ? 'active' : '';
     document.getElementById('zone-drop-btn').className  = state.editType === 'drop'  ? 'active' : '';
 
-    var nSpawns = state.userPos ? state.spawnPoints.filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
-    var nDrops  = state.userPos ? state.dropPoints.filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
+    var nSpawns   = state.userPos ? state.spawnPoints.filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
+    var nDrops    = state.userPos ? state.dropPoints.filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
     var areaLabel = state.editArea
       ? (state.areas.find(function(a) { return a.id === state.editArea; }) || { name: '?' }).name
       : 'untagged';
 
     statusEl.textContent = 'ZONE EDITOR';
-    detailEl.textContent = 'Placing ' + (state.editType === 'spawn' ? 'spawn 📍' : 'drop 🎯')
-      + ' in ' + areaLabel + '. Tap map to place, tap marker to remove.';
+    detailEl.textContent = 'Placing ' + (state.editType === 'spawn' ? 'spawn 📍' : 'drop 🎯') + ' in ' + areaLabel + '. Tap map to place, tap marker to remove.';
     distEl.textContent   = state.spawnPoints.length + ' spawns · ' + state.dropPoints.length + ' drops  ·  ' + nSpawns + ' / ' + nDrops + ' within 1 mile';
 
-    // ── Area editor chips ──
     areaEd.style.display = 'flex';
     var edHtml = '<button onclick="setEditArea(null)" class="' + (!state.editArea ? 'active' : '') + '">UNTAGGED</button>';
     state.areas.forEach(function(a) {
-      edHtml += '<button onclick="setEditArea(\'' + a.id + '\')" class="' + (state.editArea === a.id ? 'active' : '') + '">'
-             + a.name.toUpperCase() + '</button>'
-             + '<button class="del-area-btn" onclick="removeArea(\'' + a.id + '\')">✕</button>';
+      edHtml += '<button onclick="setEditArea(\'' + a.id + '\')" class="' + (state.editArea === a.id ? 'active' : '') + '">' + a.name.toUpperCase() + '</button>'
+              + '<button class="del-area-btn" onclick="removeArea(\'' + a.id + '\')">✕</button>';
     });
     edHtml += '<button class="new-area-btn" onclick="addArea()">+ NEW</button>';
     areaEd.innerHTML = edHtml;
@@ -1090,173 +787,91 @@ function updateHUD() {
   editBtn.onclick = enterEditMode;
   toggle.style.display = 'none';
 
-  // ── GAME PHASES ────────────────────────────────────────
-  switch (state.phase) {
+  // ── NO GPS ──
+  if (state.phase === 'no_gps') {
+    statusEl.textContent = 'ACQUIRING GPS';
+    detailEl.textContent = 'Acquiring GPS lock…';
+    distEl.textContent   = '';
+    btn.className   = 'generate';
+    btn.textContent = 'WAITING FOR GPS';
+    btn.disabled    = true;
+    return;
+  }
 
-    case 'no_gps':
-      statusEl.textContent = 'ACQUIRING GPS';
-      detailEl.textContent = 'Acquiring GPS lock…';
-      distEl.textContent   = '';
-      btn.className   = 'generate';
-      btn.textContent = 'WAITING FOR GPS';
-      btn.disabled    = true;
-      break;
+  // ── ACTIVE ──
+  var carrying  = state.carrying.length;
+  var available = state.packages.filter(function(p) { return !p.picked; }).length;
+  var pickable  = nearestPickable();
+  var deliver   = nearestDeliverable();
 
-    case 'idle': {
-      var nearSpawns = state.userPos ? getFilteredSpawns().filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
-      var nearDrops  = state.userPos ? getFilteredDrops().filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }) : [];
-      var needAreaSel = state.areas.length >= 2;
-      var noAreaChosen = needAreaSel && state.activeAreas.length === 0;
-      var canGen     = nearSpawns.length > 0 && nearDrops.length > 0 && !noAreaChosen;
+  if (state.areas.length >= 2) {
+    areaSel.style.display = 'flex';
+    var selHtml = '';
+    state.areas.forEach(function(a) {
+      var on = state.activeAreas.includes(a.id);
+      selHtml += '<button onclick="toggleActiveArea(\'' + a.id + '\')" class="' + (on ? 'active' : '') + '">' + a.name.toUpperCase() + '</button>';
+    });
+    areaSel.innerHTML = selHtml;
+  }
 
-      // ── Area selector chips (shown when 2+ areas exist and not mid-run editing) ──
-      if (needAreaSel && !state.resumingRun) {
-        areaSel.style.display = 'flex';
-        var selHtml = '';
-        state.areas.forEach(function(a) {
-          var on = state.activeAreas.includes(a.id);
-          selHtml += '<button onclick="toggleActiveArea(\'' + a.id + '\')" class="' + (on ? 'active' : '') + '">'
-                   + a.name.toUpperCase() + '</button>';
+  statusEl.textContent = 'CARRYING ' + carrying;
+
+  if (deliver) {
+    var pkgsHere = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === deliver.id; });
+    var pts = pkgsHere.reduce(function(s, p) { return s + Math.round(p.dist); }, 0);
+    detailEl.textContent = 'Deliver ' + pkgsHere.length + ' pkg' + (pkgsHere.length > 1 ? 's' : '') + ' to Zone ' + deliver.label + ' for ' + pts + ' pts.';
+    distEl.textContent   = Math.round(haversine(state.userPos, deliver.loc)) + 'm to drop-off';
+    btn.className   = 'deliver ready';
+    btn.textContent = 'DELIVER TO ZONE ' + deliver.label;
+    btn.onclick     = attemptDeliver;
+  } else if (pickable) {
+    var dest2 = state.destinations.find(function(d) { return d.id === pickable.destId; });
+    detailEl.textContent = 'Pick up package → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + Math.round(pickable.dist) + ' pts.';
+    distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
+    btn.className   = 'pickup ready';
+    btn.textContent = 'PICK UP PACKAGE';
+    btn.onclick     = attemptPickup;
+  } else if (carrying > 0) {
+    var nearestDest = state.destinations
+      .filter(function(d) {
+        return state.carrying.some(function(id) {
+          var p = state.packages.find(function(p) { return p.id === id; });
+          return p && p.destId === d.id;
         });
-        areaSel.innerHTML = selHtml;
-      }
-
-      // ── MID-RUN EDIT MODE ──
-      if (state.resumingRun) {
-        var carriedCount  = state.carrying.length;
-        var remainingPlan = state.plan.length;
-        statusEl.textContent = 'EDITING ROUTE · ' + carriedCount + ' PKG' + (carriedCount > 1 ? 'S' : '') + ' HELD';
-        if (remainingPlan > 0) {
-          var dests2     = plannedDestOrder();
-          var destLabels2 = dests2.map(function(id) {
-            var d = state.destinations.find(function(d) { return d.id === id; });
-            return d ? 'Zone ' + d.label : '';
-          }).join(' → ');
-          detailEl.textContent = remainingPlan + ' pickup' + (remainingPlan > 1 ? 's' : '') + ' → ' + destLabels2 + '. Tap to reorder.';
-          distEl.textContent   = 'Held packages will be delivered after pickups';
-        } else {
-          detailEl.textContent = 'No more pickups planned — will go straight to delivery.';
-          distEl.textContent   = carriedCount + ' package' + (carriedCount > 1 ? 's' : '') + ' to deliver';
-        }
-        btn.className   = 'pickup ready';
-        btn.textContent = 'RESUME RUN';
-        btn.onclick     = startRun;
-
-        secBtn.style.display = 'block';
-        secBtn.textContent   = 'CANCEL EDIT';
-        secBtn.onclick       = cancelEdit;
-        break;
-      }
-
-      if (state.packages.length === 0) {
-        // ── No active orders ──
-        statusEl.textContent = 'STANDBY';
-        if (noAreaChosen) {
-          detailEl.textContent = 'Select one or more areas above to generate orders in that location.';
-          distEl.textContent   = state.areas.length + ' areas defined';
-          btn.className   = 'generate';
-          btn.textContent = 'SELECT AN AREA';
-          btn.disabled    = true;
-        } else if (!canGen) {
-          detailEl.textContent = (state.spawnPoints.length === 0 || state.dropPoints.length === 0)
-            ? 'No zones set. Tap ZONES to mark spawn points (📍) and drop zones (🎯).'
-            : 'No zones within 1 mile. Move closer or add nearby zones.';
-          distEl.textContent   = nearSpawns.length + ' spawns / ' + nearDrops.length + ' drops in range';
-          btn.className   = 'generate';
-          btn.textContent = 'EDIT ZONES';
-          btn.onclick     = enterEditMode;
-        } else {
-          detailEl.textContent = nearSpawns.length + ' spawn' + (nearSpawns.length > 1 ? 's' : '') + ' · ' + nearDrops.length + ' drop' + (nearDrops.length > 1 ? 's' : '') + ' in range. Ready to run.';
-          distEl.textContent   = state.deliveries + ' deliveries completed';
-          btn.className   = 'generate';
-          btn.textContent = 'GENERATE ORDERS';
-          btn.onclick     = generateRun;
-        }
-      } else if (state.plan.length === 0) {
-        // ── Orders on map, none selected ──
-        var avail = state.packages.filter(function(p) { return !p.picked; }).length;
-        statusEl.textContent = 'PLAN YOUR ROUTE';
-        detailEl.textContent = avail + ' package' + (avail > 1 ? 's' : '') + ' on map. Tap packages to add them to your route in order.';
-        distEl.textContent   = 'Blue markers = drop zones';
-        btn.className   = 'generate';
-        btn.textContent = 'REGENERATE';
-        btn.onclick     = generateRun;
-
-        secBtn.style.display = 'block';
-        secBtn.textContent   = 'CANCEL ORDERS';
-        secBtn.onclick       = cancelOrders;
-      } else {
-        // ── Route planned ──
-        var dests     = plannedDestOrder();
-        var totalPts  = state.plan.reduce(function(sum, pkgId) {
-          var pkg = state.packages.find(function(p) { return p.id === pkgId; });
-          return sum + (pkg ? Math.round(pkg.dist) : 0);
-        }, 0);
-        var destLabels = dests.map(function(id) {
-          var d = state.destinations.find(function(d) { return d.id === id; });
-          return d ? 'Zone ' + d.label : '';
-        }).join(' → ');
-
-        statusEl.textContent = 'ROUTE PLANNED';
-        detailEl.textContent = state.plan.length + ' pickup' + (state.plan.length > 1 ? 's' : '') + ' → ' + destLabels + '. Tap packages to adjust.';
-        distEl.textContent   = totalPts + ' pts available';
-        btn.className   = 'pickup ready';
-        btn.textContent = 'START RUN';
-        btn.onclick     = startRun;
-
-        secBtn.style.display = 'block';
-        secBtn.textContent   = 'CLEAR PLAN';
-        secBtn.onclick       = clearPlan;
-      }
-      break;
+      })
+      .reduce(function(best, d) {
+        if (!best) return d;
+        return haversine(state.userPos, d.loc) < haversine(state.userPos, best.loc) ? d : best;
+      }, null);
+    if (nearestDest) {
+      var dDest = Math.round(haversine(state.userPos, nearestDest.loc));
+      detailEl.textContent = 'Walk to Zone ' + nearestDest.label + ' to deliver ' + carrying + ' pkg' + (carrying > 1 ? 's' : '') + '.';
+      distEl.textContent   = dDest + 'm to Zone ' + nearestDest.label;
+    } else {
+      detailEl.textContent = 'Walk to a drop zone to deliver.';
+      distEl.textContent   = '';
     }
-
-    case 'moving_to_pickup': {
-      var targetPkgId = state.pickupQueue[0];
-      var targetPkg   = state.packages.find(function(p) { return p.id === targetPkgId; });
-      var dPickup     = (state.userPos && targetPkg) ? Math.round(haversine(state.userPos, targetPkg.pickupLoc)) : Infinity;
-      var pickedSoFar = state.carrying.length;
-      var totalPkgs   = state.carrying.length + state.pickupQueue.length;
-      var ready       = dPickup <= PROXIMITY_M;
-
-      statusEl.textContent = 'PICKUP ' + (pickedSoFar + 1) + ' OF ' + totalPkgs;
-      detailEl.textContent = ready ? 'Collect this package!' : 'Walk to the orange marker (stop ' + (pickedSoFar + 1) + ').';
-      distEl.textContent   = dPickup + 'm to pickup  ·  ' + (state.pickupQueue.length + state.destQueue.length - 1) + ' stops remaining';
-      btn.className   = 'pickup' + (ready ? ' ready' : '');
-      btn.disabled    = !ready;
-      btn.textContent = ready ? 'PICK UP PACKAGE' : 'PICK UP  (' + dPickup + 'm away)';
-      btn.onclick     = pickupNext;
-
-      midRunActions.style.display = 'flex';
-      skipBtn.disabled = state.pickupQueue.length === 0;
-      break;
+    btn.className   = 'deliver';
+    btn.textContent = 'DELIVER  (get closer)';
+    btn.disabled    = true;
+  } else {
+    if (available > 0) {
+      var nearestPkg = state.packages
+        .filter(function(p) { return !p.picked; })
+        .reduce(function(best, p) {
+          if (!best) return p;
+          return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, best.pickupLoc) ? p : best;
+        }, null);
+      var dPkg = nearestPkg ? Math.round(haversine(state.userPos, nearestPkg.pickupLoc)) : 0;
+      detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up.';
+      distEl.textContent   = dPkg + 'm to nearest package';
+    } else {
+      detailEl.textContent = 'No packages in range. Move closer to spawn points.';
+      distEl.textContent   = '';
     }
-
-    case 'delivering': {
-      var destId      = state.destQueue[0];
-      var dest        = state.destinations.find(function(d) { return d.id === destId; });
-      var dDest       = (state.userPos && dest) ? Math.round(haversine(state.userPos, dest.loc)) : Infinity;
-      var pkgsHere    = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === destId; });
-      var pts         = pkgsHere.reduce(function(s, p) { return s + Math.round(p.dist); }, 0);
-      var ready       = dDest <= PROXIMITY_M;
-      var zonesLeft   = state.destQueue.length;
-
-      statusEl.textContent = 'DELIVERING · ' + zonesLeft + ' ZONE' + (zonesLeft > 1 ? 'S' : '') + ' LEFT';
-      detailEl.textContent = ready
-        ? 'Deliver ' + pkgsHere.length + ' package' + (pkgsHere.length > 1 ? 's' : '') + ' to Zone ' + (dest ? dest.label : '') + '.'
-        : 'Walk to Zone ' + (dest ? dest.label : '') + ' (blue marker).' + (zonesLeft > 1 ? ' ' + (zonesLeft - 1) + ' more zone' + (zonesLeft > 2 ? 's' : '') + ' after.' : '');
-      distEl.textContent   = dDest + 'm to drop-off · ' + pts + ' pts';
-      btn.className   = 'deliver' + (ready ? ' ready' : '');
-      btn.disabled    = !ready;
-      btn.textContent = ready
-        ? 'DELIVER ' + pkgsHere.length + ' TO ZONE ' + (dest ? dest.label : '')
-        : 'DELIVER  (' + dDest + 'm away)';
-      btn.onclick     = deliverCurrent;
-
-      midRunActions.style.display = 'flex';
-      skipBtn.disabled = true;  // no pickups left to skip during delivery
-      break;
-    }
+    btn.className   = 'pickup';
+    btn.textContent = 'PICK UP  (get closer)';
+    btn.disabled    = true;
   }
 }
 
