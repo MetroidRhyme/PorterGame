@@ -16,12 +16,7 @@
       overflow: hidden;
     }
 
-    /* ── FULL-SCREEN MAP ── */
-    #map {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-    }
+    #map { position: fixed; inset: 0; z-index: 0; }
 
     /* ── TOP HUD ── */
     #hud-top {
@@ -43,7 +38,7 @@
     #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
-    /* ── GPS STATUS BADGE ── */
+    /* ── GPS STATUS ── */
     #gps-status {
       position: fixed; top: 74px; right: 12px; z-index: 1999;
       font-size: 10px; letter-spacing: 2px; padding: 4px 10px; border-radius: 2px;
@@ -52,7 +47,7 @@
     #gps-status.acquiring { background: rgba(80,40,0,0.9); color: #e8a030; }
     #gps-status.locked    { background: rgba(0,50,0,0.9);  color: #5ab05a; }
 
-    /* ── EDIT ZONES BUTTON ── */
+    /* ── ZONES BUTTON ── */
     #edit-zones-btn {
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
       padding: 10px 14px; border-radius: 4px; background: transparent;
@@ -60,7 +55,7 @@
       touch-action: manipulation; min-height: 44px; white-space: nowrap;
       -webkit-tap-highlight-color: transparent;
     }
-    #edit-zones-btn:active { color: #888; border-color: #4a4a5a; }
+    #edit-zones-btn:active { color: #bbb; border-color: #4a4a5a; }
     #edit-zones-btn.active { color: #5ab05a; border-color: #2a6030; background: rgba(5,20,10,0.95); }
 
     /* ── BOTTOM HUD ── */
@@ -75,75 +70,44 @@
       border-radius: 18px 18px 0 0;
       padding-bottom: max(18px, env(safe-area-inset-bottom));
     }
-
-    /* ── DRAG HANDLE ── */
     #hud-collapse-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      padding: 12px 0 6px;
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; padding: 12px 0 6px;
+      background: transparent; border: none; cursor: pointer;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     #hud-collapse-btn::before {
-      content: '';
-      display: block;
-      width: 44px; height: 4px;
-      background: #2e2e3e;
-      border-radius: 2px;
-      transition: background 0.15s;
+      content: ''; display: block; width: 44px; height: 4px;
+      background: #2e2e3e; border-radius: 2px; transition: background 0.15s;
     }
     #hud-collapse-btn:active::before { background: #4a4a5a; }
 
-    /* ── COLLAPSIBLE SECTION ── */
     #collapsible-hud {
-      overflow: hidden;
-      max-height: 800px;
-      opacity: 1;
+      overflow: hidden; max-height: 800px; opacity: 1;
       padding: 0 16px;
-      transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                  opacity   0.20s ease;
+      transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.20s ease;
     }
-    #hud-bottom.collapsed #collapsible-hud {
-      max-height: 0;
-      opacity: 0;
-    }
+    #hud-bottom.collapsed #collapsible-hud { max-height: 0; opacity: 0; }
 
-    /* ── HUD TEXT ── */
     #mission-status   { font-size: 10px; letter-spacing: 3px; color: #555; margin-bottom: 5px; }
     #mission-detail   { font-size: 14px; color: #a09888; line-height: 1.5; }
     #mission-distance { font-size: 11px; color: #4a7a4a; margin-top: 5px; min-height: 16px; }
 
-    /* ── ZONE TYPE TOGGLE (edit mode) ── */
-    #zone-toggle { display: none; gap: 8px; margin-top: 12px; }
-    #zone-toggle button {
-      flex: 1; padding: 14px; border-radius: 4px;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
-      cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
-      touch-action: manipulation; min-height: 48px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #zone-spawn-btn.active { border-color: #2a6030; background: #0a2010; color: #5ab05a; }
-    #zone-drop-btn.active  { border-color: #5030a0; background: #150a25; color: #8060d0; }
-
-    /* ── AREA CHIPS ── */
-    .area-chips { display: none; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    .area-chips button {
-      padding: 10px 16px; border-radius: 4px;
+    /* ── ZONE CHIPS ── */
+    #zone-chips { display: none; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    #zone-chips button {
+      padding: 10px 14px; border-radius: 4px;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
       cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
       white-space: nowrap; touch-action: manipulation; min-height: 44px;
       -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    .area-chips button.active  { border-color: #5030a0; background: #150a25; color: #8060d0; }
-    .area-chips .new-area-btn  { color: #4a7a4a; border-color: #1e3020; }
-    .area-chips .new-area-btn:active { color: #5ab05a; border-color: #2a6030; }
-    .area-chips .del-area-btn  { padding: 10px 12px; color: #3a3a3a; border-color: #2a2a3a; font-size: 14px; }
-    .area-chips .del-area-btn:active { color: #c04040; border-color: #602020; }
+    #zone-chips .del-zone-btn {
+      padding: 10px 12px; font-size: 14px;
+      color: #3a3a3a; border-color: #2a2a3a;
+    }
+    #zone-chips .del-zone-btn:active { color: #c04040; border-color: #602020; }
 
     /* ── SECONDARY ACTION ── */
     #secondary-btn {
@@ -162,18 +126,19 @@
       padding: 18px; border: none; border-radius: 6px;
       font-family: 'Courier New', monospace; font-size: 15px; font-weight: bold;
       letter-spacing: 4px; cursor: pointer; min-height: 58px;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
     #action-btn.generate { background: #111820; color: #4a7a4a; border: 1px solid #1e3020; }
+    #action-btn.draw     { background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; }
+    #action-btn.cancel   { background: #1a0808; color: #a04040; border: 1px solid #3a1010; }
     #action-btn.pickup   { background: #1a1000; color: #a06018; border: 1px solid #2e1e00; }
     #action-btn.pickup.ready  { background: #e8a030; color: #0a0a0f; border-color: #e8a030; }
     #action-btn.deliver  { background: #00101a; color: #2060a0; border: 1px solid #001e30; }
     #action-btn.deliver.ready { background: #3080c0; color: #0a0a0f; border-color: #3080c0; }
     #action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-    /* ── DELIVERY COMPLETE FLASH ── */
+    /* ── DELIVERY FLASH ── */
     #completion-overlay {
       display: none; position: fixed; inset: 0; z-index: 9999;
       background: rgba(20,60,120,0.18);
@@ -192,7 +157,6 @@
 </head>
 <body>
 
-<!-- TOP HUD -->
 <div id="hud-top">
   <div id="game-title">PORTER</div>
   <button id="edit-zones-btn" onclick="enterEditMode()">ZONES</button>
@@ -202,37 +166,22 @@
   </div>
 </div>
 
-<!-- MAP (full screen behind everything) -->
 <div id="map"></div>
 
-<!-- GPS STATUS BADGE -->
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
-<!-- BOTTOM HUD -->
 <div id="hud-bottom">
-
-  <!-- Drag handle -->
   <button id="hud-collapse-btn" onclick="toggleHUD()" aria-label="Toggle panel"></button>
-
-  <!-- Collapsible: status text, area chips, zone toggle, secondary actions -->
   <div id="collapsible-hud">
     <div id="mission-status">STANDBY</div>
     <div id="mission-detail">Acquiring GPS lock…</div>
     <div id="mission-distance"></div>
-    <div id="area-selector" class="area-chips"></div>
-    <div id="area-editor"   class="area-chips"></div>
-    <div id="zone-toggle">
-      <button id="zone-spawn-btn" onclick="setEditType('spawn')">SPAWN POINT</button>
-      <button id="zone-drop-btn"  onclick="setEditType('drop')">DROP ZONE</button>
-    </div>
+    <div id="zone-chips"></div>
     <button id="secondary-btn"></button>
   </div>
-
   <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
-
 </div>
 
-<!-- COMPLETION FLASH -->
 <div id="completion-overlay">
   <div class="completion-label">DELIVERY COMPLETE</div>
   <div class="completion-pts" id="completion-pts">+0</div>
@@ -244,8 +193,7 @@
 'use strict';
 
 // ═══════════════════════════════════════════════════════════
-//  STATE
-//  Phases: no_gps | active
+//  STATE   phases: no_gps | active
 // ═══════════════════════════════════════════════════════════
 
 const state = {
@@ -254,24 +202,26 @@ const state = {
   phase:      'no_gps',
   userPos:    null,
   editMode:   false,
-  editType:   'spawn',
+  sessionDist: parseFloat(localStorage.getItem('porter_session_dist') || '0'),
+  lastPos:    null,
 
-  spawnPoints:  JSON.parse(localStorage.getItem('porter_spawn_points')  || '[]'),
-  dropPoints:   JSON.parse(localStorage.getItem('porter_drop_points')   || '[]'),
-  areas:        JSON.parse(localStorage.getItem('porter_areas')         || '[]'),
-  activeAreas:  JSON.parse(localStorage.getItem('porter_active_areas')  || '[]'),
-  editArea:     null,
+  // Painted zones: [{ id, name, color, polygon:[{lat,lng},...], active }]
+  zones: JSON.parse(localStorage.getItem('porter_zones') || '[]'),
 
-  packages:     [],  // [{ id, pickupLoc, destId, dist, pts, weight, picked }]
-  destinations: [],  // [{ id, loc, label }]
-  carrying:     [],  // [pkgId, ...]
+  // Drawing a new zone
+  drawing:  false,
+  drawPath: [],
 
-  sessionDist:  parseFloat(localStorage.getItem('porter_session_dist') || '0'),
-  lastPos:      null,
+  // Game objects
+  packages:     [],
+  destinations: [],
+  carrying:     [],
 };
 
-const PROXIMITY_M = 20;
-const ONE_MILE_M  = 1609;
+const PROXIMITY_M    = 20;
+const ONE_MILE_M     = 1609;
+const MAX_GPS_DELTA  = 50;
+const ZONE_COLORS    = ['#e8a030', '#3080c0', '#5ab05a', '#c04040', '#8060d0', '#30a0a0'];
 
 const WEIGHT = {
   1: { label: 'LIGHT',    multiplier: 0.7, size: 36 },
@@ -279,12 +229,9 @@ const WEIGHT = {
   3: { label: 'HEAVY',    multiplier: 1.5, size: 60 },
 };
 
-const MAX_GPS_DELTA_M = 50;  // ignore jumps larger than this (GPS error)
-
-function vibrate(pattern) { if (navigator.vibrate) navigator.vibrate(pattern); }
-
-function getCapacity() { return Math.min(3 + Math.floor(state.score / 500), 12); }
-function currentLoad()  {
+function vibrate(pattern)   { if (navigator.vibrate) navigator.vibrate(pattern); }
+function getCapacity()      { return Math.min(3 + Math.floor(state.score / 500), 12); }
+function currentLoad() {
   return state.carrying.reduce(function(sum, id) {
     var p = state.packages.find(function(p) { return p.id === id; });
     return sum + (p ? p.weight : 0);
@@ -295,21 +242,15 @@ function currentLoad()  {
 //  HUD COLLAPSE
 // ═══════════════════════════════════════════════════════════
 
-function expandHUD() {
-  document.getElementById('hud-bottom').classList.remove('collapsed');
-}
-function toggleHUD() {
-  document.getElementById('hud-bottom').classList.toggle('collapsed');
-}
+function expandHUD() { document.getElementById('hud-bottom').classList.remove('collapsed'); }
+function toggleHUD() { document.getElementById('hud-bottom').classList.toggle('collapsed'); }
 
 // ═══════════════════════════════════════════════════════════
 //  MAP
 // ═══════════════════════════════════════════════════════════
 
 const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 13 });
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-  maxZoom: 19
-}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 map.setView([20, 0], 3);
 
 function makeIcon(bg, emoji, size) {
@@ -328,15 +269,12 @@ const icons = {
   dest:        makeIcon('#0c1e30', '🏠'),
   dest_next:   makeIcon('#3080c0', '🏠'),
   dest_queued: makeIcon('#164060', '🏠'),
-  spawn_dim:   makeIcon('#0a2010', '📍', 38),
-  spawn_edit:  makeIcon('#1a5020', '📍', 48),
-  drop_dim:    makeIcon('#1a0830', '🎯', 38),
-  drop_edit:   makeIcon('#40106a', '🎯', 48),
 };
 
 let userMarker   = null;
 let orderMarkers = [];
 let zoneMarkers  = [];
+let _liveLayer   = null;  // polygon preview while drawing
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
@@ -351,13 +289,13 @@ if (!navigator.geolocation) {
 }
 
 function onLocationUpdate(pos) {
-  var lat = pos.coords.latitude;
-  var lng = pos.coords.longitude;
+  var lat    = pos.coords.latitude;
+  var lng    = pos.coords.longitude;
   var newPos = { lat: lat, lng: lng };
 
   if (state.lastPos) {
     var delta = haversine(state.lastPos, newPos);
-    if (delta > 0 && delta <= MAX_GPS_DELTA_M) {
+    if (delta > 0 && delta <= MAX_GPS_DELTA) {
       state.sessionDist += delta;
       localStorage.setItem('porter_session_dist', state.sessionDist.toFixed(1));
     }
@@ -384,7 +322,7 @@ function onLocationError(err) {
 function onGpsLocked() {
   var badge = document.getElementById('gps-status');
   badge.textContent = 'GPS LOCKED';
-  badge.className = 'locked';
+  badge.className   = 'locked';
   setTimeout(function() { badge.style.display = 'none'; }, 3000);
   state.phase = 'active';
   vibrate(30);
@@ -395,147 +333,253 @@ function onGpsLocked() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  MAP CLICK — zone placement in edit mode
-// ═══════════════════════════════════════════════════════════
-
-map.on('click', function(e) {
-  if (!state.editMode) return;
-  if (state.editType === 'spawn') addSpawnPoint(e.latlng.lat, e.latlng.lng);
-  else                            addDropPoint(e.latlng.lat, e.latlng.lng);
-});
-
-// ═══════════════════════════════════════════════════════════
-//  ZONE MANAGEMENT
+//  ZONE STORAGE
 // ═══════════════════════════════════════════════════════════
 
 function saveZones() {
-  localStorage.setItem('porter_spawn_points', JSON.stringify(state.spawnPoints));
-  localStorage.setItem('porter_drop_points',  JSON.stringify(state.dropPoints));
-}
-function saveAreas() {
-  localStorage.setItem('porter_areas',        JSON.stringify(state.areas));
-  localStorage.setItem('porter_active_areas', JSON.stringify(state.activeAreas));
+  localStorage.setItem('porter_zones', JSON.stringify(state.zones));
 }
 
-function addSpawnPoint(lat, lng) {
-  var pt = { id: 'spawn_' + Date.now(), lat: lat, lng: lng };
-  if (state.editArea) pt.area = state.editArea;
-  state.spawnPoints.push(pt);
-  saveZones(); renderZoneMarkers(); updateHUD();
+function toggleZoneActive(id) {
+  var zone = state.zones.find(function(z) { return z.id === id; });
+  if (zone) zone.active = !zone.active;
+  saveZones();
+  renderZoneMarkers();
+  generateOrders();
+  updateHUD();
 }
-function removeSpawnPoint(id) {
-  state.spawnPoints = state.spawnPoints.filter(function(p) { return p.id !== id; });
-  saveZones(); renderZoneMarkers(); updateHUD();
+
+function deleteZone(id) {
+  var zone = state.zones.find(function(z) { return z.id === id; });
+  if (!zone) return;
+  if (!confirm('Delete zone "' + zone.name + '"?')) return;
+  state.zones = state.zones.filter(function(z) { return z.id !== id; });
+  saveZones();
+  renderZoneMarkers();
+  updateHUD();
 }
-function addDropPoint(lat, lng) {
-  var pt = { id: 'drop_' + Date.now(), lat: lat, lng: lng };
-  if (state.editArea) pt.area = state.editArea;
-  state.dropPoints.push(pt);
-  saveZones(); renderZoneMarkers(); updateHUD();
-}
-function removeDropPoint(id) {
-  state.dropPoints = state.dropPoints.filter(function(p) { return p.id !== id; });
-  saveZones(); renderZoneMarkers(); updateHUD();
-}
+
 function clearAllZones() {
-  state.spawnPoints = [];
-  state.dropPoints  = [];
-  saveZones(); renderZoneMarkers(); updateHUD();
-}
-
-function addArea() {
-  var name = prompt('Area name (leave blank to auto-name):');
-  if (name === null) return;
-  name = name.trim() || ('Area ' + (state.areas.length + 1));
-  var id = 'area_' + Date.now();
-  state.areas.push({ id: id, name: name });
-  state.editArea = id;
-  saveAreas(); renderZoneMarkers(); updateHUD();
-}
-
-function removeArea(id) {
-  var area = state.areas.find(function(a) { return a.id === id; });
-  if (!area) return;
-  if (!confirm('Remove area "' + area.name + '"? Its points become untagged.')) return;
-  state.spawnPoints.forEach(function(p) { if (p.area === id) delete p.area; });
-  state.dropPoints.forEach(function(p)  { if (p.area === id) delete p.area; });
-  state.areas       = state.areas.filter(function(a)       { return a.id !== id; });
-  state.activeAreas = state.activeAreas.filter(function(a) { return a !== id; });
-  if (state.editArea === id) state.editArea = null;
-  saveZones(); saveAreas(); renderZoneMarkers(); updateHUD();
-}
-
-function setEditArea(id) {
-  state.editArea = (state.editArea === id) ? null : id;
-  renderZoneMarkers(); updateHUD();
-}
-
-function toggleActiveArea(id) {
-  var idx = state.activeAreas.indexOf(id);
-  if (idx === -1) state.activeAreas.push(id);
-  else            state.activeAreas.splice(idx, 1);
-  saveAreas(); generateOrders(); updateHUD();
-}
-
-function getFilteredSpawns() {
-  if (state.areas.length < 2) return state.spawnPoints;
-  return state.spawnPoints.filter(function(p) {
-    return !p.area || state.activeAreas.includes(p.area);
-  });
-}
-function getFilteredDrops() {
-  if (state.areas.length < 2) return state.dropPoints;
-  return state.dropPoints.filter(function(p) {
-    return !p.area || state.activeAreas.includes(p.area);
-  });
-}
-
-function enterEditMode() {
-  state.editMode = true;
-  state.editType = 'spawn';
-  state.editArea = null;
-  expandHUD();
-  renderZoneMarkers(); updateHUD();
-}
-function exitEditMode() {
-  state.editMode = false;
-  state.editArea = null;
-  renderZoneMarkers(); updateHUD();
-}
-function setEditType(type) {
-  state.editType = type;
+  state.zones = [];
+  saveZones();
+  renderZoneMarkers();
   updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
-//  ZONE MARKERS
+//  EDIT MODE
+// ═══════════════════════════════════════════════════════════
+
+function enterEditMode() {
+  state.editMode = true;
+  expandHUD();
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function exitEditMode() {
+  if (state.drawing) cancelDraw();
+  state.editMode = false;
+  renderZoneMarkers();
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ZONE DRAWING
+// ═══════════════════════════════════════════════════════════
+
+function startDrawing() {
+  state.drawing  = true;
+  state.drawPath = [];
+  map.dragging.disable();
+  map.touchZoom.disable();
+  updateHUD();
+}
+
+function cancelDraw() {
+  state.drawing  = false;
+  state.drawPath = [];
+  if (_liveLayer) { map.removeLayer(_liveLayer); _liveLayer = null; }
+  map.dragging.enable();
+  map.touchZoom.enable();
+  updateHUD();
+}
+
+function finishDraw() {
+  if (!state.drawing) return;
+  state.drawing = false;
+  map.dragging.enable();
+  map.touchZoom.enable();
+
+  if (_liveLayer) { map.removeLayer(_liveLayer); _liveLayer = null; }
+
+  var simplified = simplifyPath(state.drawPath);
+  state.drawPath = [];
+
+  if (simplified.length < 3) { updateHUD(); return; }
+
+  var name = prompt('Zone name (leave blank to auto-name):');
+  if (name === null) { renderZoneMarkers(); updateHUD(); return; }
+  name = name.trim() || ('Zone ' + (state.zones.length + 1));
+
+  var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+  state.zones.push({ id: 'zone_' + Date.now(), name: name, color: color, polygon: simplified, active: true });
+  saveZones();
+  renderZoneMarkers();
+  updateHUD();
+}
+
+function updateLiveLayer() {
+  if (_liveLayer) { map.removeLayer(_liveLayer); _liveLayer = null; }
+  if (state.drawPath.length < 2) return;
+  var color   = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+  var latlngs = state.drawPath.map(function(p) { return [p.lat, p.lng]; });
+  _liveLayer  = L.polygon(latlngs, {
+    color: color, weight: 3, opacity: 1,
+    fillColor: color, fillOpacity: 0.15,
+    interactive: false
+  }).addTo(map);
+}
+
+function simplifyPath(path) {
+  if (path.length < 3) return path;
+  var THRESHOLD = 0.00008;
+  var result = [path[0]];
+  for (var i = 1; i < path.length - 1; i++) {
+    var last = result[result.length - 1];
+    var dlat = path[i].lat - last.lat;
+    var dlng = path[i].lng - last.lng;
+    if (Math.sqrt(dlat * dlat + dlng * dlng) >= THRESHOLD) result.push(path[i]);
+  }
+  result.push(path[path.length - 1]);
+  return result;
+}
+
+// ── Touch events (mobile drawing) ──
+var _mapEl = document.getElementById('map');
+
+_mapEl.addEventListener('touchstart', function(e) {
+  if (!state.drawing) return;
+  e.preventDefault();
+  var touch = e.touches[0];
+  var rect  = _mapEl.getBoundingClientRect();
+  var latlng = map.containerPointToLatLng(L.point(touch.clientX - rect.left, touch.clientY - rect.top));
+  state.drawPath = [{ lat: latlng.lat, lng: latlng.lng }];
+  updateLiveLayer();
+}, { passive: false });
+
+_mapEl.addEventListener('touchmove', function(e) {
+  if (!state.drawing || !state.drawPath.length) return;
+  e.preventDefault();
+  var touch  = e.touches[0];
+  var rect   = _mapEl.getBoundingClientRect();
+  var latlng = map.containerPointToLatLng(L.point(touch.clientX - rect.left, touch.clientY - rect.top));
+  var pt     = { lat: latlng.lat, lng: latlng.lng };
+  var last   = state.drawPath[state.drawPath.length - 1];
+  var dlat   = pt.lat - last.lat, dlng = pt.lng - last.lng;
+  if (Math.sqrt(dlat * dlat + dlng * dlng) > 0.00005) {
+    state.drawPath.push(pt);
+    updateLiveLayer();
+  }
+}, { passive: false });
+
+_mapEl.addEventListener('touchend', function(e) {
+  if (!state.drawing) return;
+  e.preventDefault();
+  finishDraw();
+}, { passive: false });
+
+// ── Mouse events (desktop drawing) ──
+var _mouseDown = false;
+
+map.on('mousedown', function(e) {
+  if (!state.drawing) return;
+  _mouseDown     = true;
+  state.drawPath = [{ lat: e.latlng.lat, lng: e.latlng.lng }];
+  updateLiveLayer();
+});
+
+map.on('mousemove', function(e) {
+  if (!state.drawing || !_mouseDown || !state.drawPath.length) return;
+  var pt   = { lat: e.latlng.lat, lng: e.latlng.lng };
+  var last = state.drawPath[state.drawPath.length - 1];
+  var dlat = pt.lat - last.lat, dlng = pt.lng - last.lng;
+  if (Math.sqrt(dlat * dlat + dlng * dlng) > 0.00005) {
+    state.drawPath.push(pt);
+    updateLiveLayer();
+  }
+});
+
+map.on('mouseup', function() {
+  if (!state.drawing || !_mouseDown) return;
+  _mouseDown = false;
+  finishDraw();
+});
+
+// ═══════════════════════════════════════════════════════════
+//  ZONE RENDERING
 // ═══════════════════════════════════════════════════════════
 
 function renderZoneMarkers() {
   zoneMarkers.forEach(function(m) { map.removeLayer(m); });
   zoneMarkers = [];
 
-  if (!state.editMode) return;
+  state.zones.forEach(function(zone) {
+    if (zone.polygon.length < 3) return;
+    if (!state.editMode && !zone.active) return;
 
-  state.spawnPoints.forEach(function(p) {
-    var areaName   = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
-    var isSelected = (p.area || null) === state.editArea;
-    var icon = isSelected ? icons.spawn_edit : makeIcon('#0d2810', '📍', 38);
-    var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
-    m.bindTooltip('SPAWN' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE');
-    m.on('click', function(e) { e.originalEvent.stopPropagation(); removeSpawnPoint(p.id); });
-    zoneMarkers.push(m);
-  });
+    var latlngs   = zone.polygon.map(function(p) { return [p.lat, p.lng]; });
+    var isActive  = zone.active;
+    var fillOp    = state.editMode ? (isActive ? 0.15 : 0.06) : 0.08;
+    var strokeOp  = state.editMode ? 1.0 : (isActive ? 0.65 : 0.2);
+    var strokeW   = state.editMode ? 3 : 2;
 
-  state.dropPoints.forEach(function(p) {
-    var areaName   = p.area ? (state.areas.find(function(a) { return a.id === p.area; }) || {}).name : null;
-    var isSelected = (p.area || null) === state.editArea;
-    var icon = isSelected ? icons.drop_edit : makeIcon('#1a0828', '🎯', 38);
-    var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
-    m.bindTooltip('DROP' + (areaName ? ' · ' + areaName.toUpperCase() : ' · UNTAGGED') + ' · TAP TO REMOVE');
-    m.on('click', function(e) { e.originalEvent.stopPropagation(); removeDropPoint(p.id); });
-    zoneMarkers.push(m);
+    var poly = L.polygon(latlngs, {
+      color:       zone.color,
+      weight:      strokeW,
+      opacity:     strokeOp,
+      fillColor:   zone.color,
+      fillOpacity: fillOp,
+      interactive: false,
+    }).addTo(map);
+
+    zoneMarkers.push(poly);
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GEOMETRY HELPERS
+// ═══════════════════════════════════════════════════════════
+
+function pointInPolygon(pt, polygon) {
+  var inside = false;
+  for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    var xi = polygon[i].lng, yi = polygon[i].lat;
+    var xj = polygon[j].lng, yj = polygon[j].lat;
+    if (((yi > pt.lat) !== (yj > pt.lat)) &&
+        (pt.lng < (xj - xi) * (pt.lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function randomPointInZone(zone) {
+  var poly    = zone.polygon;
+  var lats    = poly.map(function(p) { return p.lat; });
+  var lngs    = poly.map(function(p) { return p.lng; });
+  var minLat  = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
+  var minLng  = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
+  for (var i = 0; i < 200; i++) {
+    var lat = minLat + Math.random() * (maxLat - minLat);
+    var lng = minLng + Math.random() * (maxLng - minLng);
+    if (pointInPolygon({ lat: lat, lng: lng }, poly)) return { lat: lat, lng: lng };
+  }
+  // fallback: centroid
+  return {
+    lat: lats.reduce(function(a, b) { return a + b; }, 0) / lats.length,
+    lng: lngs.reduce(function(a, b) { return a + b; }, 0) / lngs.length,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -545,58 +589,58 @@ function renderZoneMarkers() {
 function shuffle(arr) { return arr.slice().sort(function() { return Math.random() - 0.5; }); }
 
 function generateOrders() {
-  if (!state.userPos) return;
+  var activeZones = state.zones.filter(function(z) { return z.active && z.polygon.length >= 3; });
+  if (!activeZones.length) { updateHUD(); return; }
 
-  var nearSpawns = getFilteredSpawns().filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; });
-  var nearDrops  = getFilteredDrops().filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; });
-  if (!nearSpawns.length || !nearDrops.length) { updateHUD(); return; }
-
-  // Preserve carried packages and their destinations; discard the rest
+  // Keep carried packages and their destinations; drop the rest
   var carriedDestIds = state.carrying.map(function(id) {
     var p = state.packages.find(function(p) { return p.id === id; });
     return p ? p.destId : null;
   }).filter(Boolean);
-
   state.packages     = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
   state.destinations = state.destinations.filter(function(d) { return carriedDestIds.includes(d.id); });
 
-  // New destinations
-  var numDests    = Math.min(2, nearDrops.length);
-  var selDrops    = shuffle(nearDrops).slice(0, numDests);
+  // Generate 2 new destinations at random points inside zones
   var labelOffset = state.destinations.length;
-  var newDests    = selDrops.map(function(drop, i) {
-    return {
-      id:    'dest_' + Date.now() + '_' + i,
-      loc:   { lat: drop.lat, lng: drop.lng },
-      label: String.fromCharCode(65 + (labelOffset + i) % 26)
-    };
-  });
+  var newDests    = [];
+  for (var i = 0; i < 2; i++) {
+    var zone = activeZones[Math.floor(Math.random() * activeZones.length)];
+    var pt   = randomPointInZone(zone);
+    if (pt) {
+      newDests.push({
+        id:    'dest_' + Date.now() + '_' + i,
+        loc:   pt,
+        label: String.fromCharCode(65 + (labelOffset + i) % 26)
+      });
+    }
+  }
   state.destinations = state.destinations.concat(newDests);
+  if (!newDests.length) { updateHUD(); return; }
 
-  // New packages distributed across new destinations
+  // Generate 3 packages at random points inside zones
   var weightPool = [1, 1, 2, 2, 3];
-  var numPkgs   = Math.min(3, nearSpawns.length);
-  var selSpawns = shuffle(nearSpawns).slice(0, numPkgs);
-  selSpawns.forEach(function(spawn, i) {
-    var dest   = newDests[i % newDests.length];
+  for (var j = 0; j < 3; j++) {
+    var zone2  = activeZones[Math.floor(Math.random() * activeZones.length)];
+    var pt2    = randomPointInZone(zone2);
+    if (!pt2) continue;
+    var dest   = newDests[j % newDests.length];
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
-    var dist   = haversine({ lat: spawn.lat, lng: spawn.lng }, dest.loc);
+    var dist   = haversine(pt2, dest.loc);
     state.packages.push({
-      id:        'pkg_' + Date.now() + '_' + i,
-      pickupLoc: { lat: spawn.lat, lng: spawn.lng },
+      id:        'pkg_' + Date.now() + '_' + j,
+      pickupLoc: pt2,
       destId:    dest.id,
       dist:      dist,
       pts:       Math.round(dist * WEIGHT[weight].multiplier),
       weight:    weight,
       picked:    false
     });
-  });
+  }
 
   renderOrderMarkers();
   updateHUD();
 }
 
-// Refresh when no pickable packages remain and hands are empty
 function checkRefresh() {
   var available = state.packages.filter(function(p) { return !p.picked; }).length;
   if (available === 0 && state.carrying.length === 0) generateOrders();
@@ -618,7 +662,6 @@ function nearestPickable() {
   });
 }
 
-// Packages in range that are too heavy to pick up right now
 function overweightInRange() {
   if (!state.userPos) return [];
   var remaining = getCapacity() - currentLoad();
@@ -661,9 +704,7 @@ function attemptDeliver() {
   var dest = nearestDeliverable();
   if (!dest) return;
 
-  var pkgsForDest  = state.packages.filter(function(p) {
-    return state.carrying.includes(p.id) && p.destId === dest.id;
-  });
+  var pkgsForDest  = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === dest.id; });
   var pts          = pkgsForDest.reduce(function(sum, p) { return sum + p.pts; }, 0);
   var count        = pkgsForDest.length;
   var deliveredIds = pkgsForDest.map(function(p) { return p.id; });
@@ -697,7 +738,7 @@ function showCompletion(pts, count, zoneLabel) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  MAP MARKERS
+//  ORDER MARKERS
 // ═══════════════════════════════════════════════════════════
 
 function clearMarkers() {
@@ -711,8 +752,8 @@ function renderOrderMarkers() {
 
   var pickable    = nearestPickable();
   var deliverable = nearestDeliverable();
+  var remaining   = getCapacity() - currentLoad();
 
-  var remaining = getCapacity() - currentLoad();
   state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
     var dest     = state.destinations.find(function(d) { return d.id === p.destId; });
     var isNext   = pickable && pickable.id === p.id;
@@ -721,7 +762,7 @@ function renderOrderMarkers() {
     var bg       = isNext ? '#e8a030' : (tooheavy ? '#2a1a1a' : '#2a1800');
     var icon     = makeIcon(bg, '📦', cfg.size);
     var label    = cfg.label + ' · → Zone ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts'
-                 + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + ' unit' + (p.weight > 1 ? 's' : '') + ')';
+                 + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + 'u)';
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icon }).addTo(map);
     m.bindTooltip(label, { permanent: false });
     orderMarkers.push(m);
@@ -746,16 +787,14 @@ function renderOrderMarkers() {
 // ═══════════════════════════════════════════════════════════
 
 function updateHUD() {
-  var statusEl = document.getElementById('mission-status');
-  var detailEl = document.getElementById('mission-detail');
-  var distEl   = document.getElementById('mission-distance');
-  var scoreEl  = document.getElementById('score-value');
-  var btn      = document.getElementById('action-btn');
-  var secBtn   = document.getElementById('secondary-btn');
-  var editBtn  = document.getElementById('edit-zones-btn');
-  var toggle   = document.getElementById('zone-toggle');
-  var areaSel  = document.getElementById('area-selector');
-  var areaEd   = document.getElementById('area-editor');
+  var statusEl  = document.getElementById('mission-status');
+  var detailEl  = document.getElementById('mission-detail');
+  var distEl    = document.getElementById('mission-distance');
+  var scoreEl   = document.getElementById('score-value');
+  var btn       = document.getElementById('action-btn');
+  var secBtn    = document.getElementById('secondary-btn');
+  var editBtn   = document.getElementById('edit-zones-btn');
+  var chipsEl   = document.getElementById('zone-chips');
 
   scoreEl.textContent   = state.score;
   btn.className         = '';
@@ -763,58 +802,70 @@ function updateHUD() {
   btn.disabled          = false;
   secBtn.style.display  = 'none';
   secBtn.onclick        = null;
-  areaSel.style.display = 'none';
-  areaEd.style.display  = 'none';
+  chipsEl.style.display = 'none';
+
+  // ── DRAWING MODE ──────────────────────────────────────────
+  if (state.editMode && state.drawing) {
+    editBtn.textContent = '✕ ZONES';
+    editBtn.classList.add('active');
+    editBtn.onclick = exitEditMode;
+
+    statusEl.textContent = 'DRAWING ZONE';
+    detailEl.textContent = 'Drag finger on the map to trace the boundary. Lift to finish.';
+    distEl.textContent   = state.drawPath.length + ' points traced';
+
+    btn.className   = 'cancel';
+    btn.textContent = 'CANCEL DRAW';
+    btn.onclick     = cancelDraw;
+    return;
+  }
 
   // ── EDIT MODE ──────────────────────────────────────────
   if (state.editMode) {
     editBtn.textContent = '✕ ZONES';
     editBtn.classList.add('active');
     editBtn.onclick = exitEditMode;
-    toggle.style.display = 'flex';
-    document.getElementById('zone-spawn-btn').className = state.editType === 'spawn' ? 'active' : '';
-    document.getElementById('zone-drop-btn').className  = state.editType === 'drop'  ? 'active' : '';
-
-    var nSpawns   = state.userPos ? state.spawnPoints.filter(function(p) { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
-    var nDrops    = state.userPos ? state.dropPoints.filter(function(p)  { return haversine(state.userPos, p) <= ONE_MILE_M; }).length : '?';
-    var areaLabel = state.editArea
-      ? (state.areas.find(function(a) { return a.id === state.editArea; }) || { name: '?' }).name
-      : 'untagged';
 
     statusEl.textContent = 'ZONE EDITOR';
-    detailEl.textContent = 'Placing ' + (state.editType === 'spawn' ? 'spawn 📍' : 'drop 🎯') + ' in ' + areaLabel + '. Tap map to place, tap marker to remove.';
-    distEl.textContent   = state.spawnPoints.length + ' spawns · ' + state.dropPoints.length + ' drops  ·  ' + nSpawns + ' / ' + nDrops + ' within 1 mile';
+    detailEl.textContent = state.zones.length
+      ? 'Tap a zone to toggle it on/off. Tap ✕ to delete. Draw a new zone below.'
+      : 'No zones yet. Draw your play area on the map.';
+    distEl.textContent   = state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + ' defined';
 
-    areaEd.style.display = 'flex';
-    var edHtml = '<button onclick="setEditArea(null)" class="' + (!state.editArea ? 'active' : '') + '">UNTAGGED</button>';
-    state.areas.forEach(function(a) {
-      edHtml += '<button onclick="setEditArea(\'' + a.id + '\')" class="' + (state.editArea === a.id ? 'active' : '') + '">' + a.name.toUpperCase() + '</button>'
-              + '<button class="del-area-btn" onclick="removeArea(\'' + a.id + '\')">✕</button>';
-    });
-    edHtml += '<button class="new-area-btn" onclick="addArea()">+ NEW</button>';
-    areaEd.innerHTML = edHtml;
+    // Zone chips
+    if (state.zones.length) {
+      chipsEl.style.display = 'flex';
+      var html = '';
+      state.zones.forEach(function(zone) {
+        var bg     = zone.active ? 'rgba(0,0,0,0.35)' : '#111';
+        var border = zone.active ? zone.color : '#2a2a3a';
+        var color  = zone.active ? zone.color : '#555';
+        html += '<button onclick="toggleZoneActive(\'' + zone.id + '\')" style="background:' + bg + ';border-color:' + border + ';color:' + color + '">'
+              + zone.name.toUpperCase() + '</button>'
+              + '<button class="del-zone-btn" onclick="deleteZone(\'' + zone.id + '\')">✕</button>';
+      });
+      chipsEl.innerHTML = html;
+    }
 
-    btn.className   = 'generate';
-    btn.textContent = 'DONE EDITING';
-    btn.onclick     = exitEditMode;
+    btn.className   = 'draw';
+    btn.textContent = 'DRAW NEW ZONE';
+    btn.onclick     = startDrawing;
 
-    var totalZones = state.spawnPoints.length + state.dropPoints.length;
-    if (totalZones > 0) {
+    if (state.zones.length > 0) {
       secBtn.style.display = 'block';
       secBtn.textContent   = 'CLEAR ALL ZONES';
       secBtn.onclick       = function() {
-        if (confirm('Remove all ' + totalZones + ' zone markers?')) clearAllZones();
+        if (confirm('Delete all ' + state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + '?')) clearAllZones();
       };
     }
     return;
   }
 
+  // ── NORMAL MODE ──────────────────────────────────────────
   editBtn.textContent = 'ZONES';
   editBtn.classList.remove('active');
   editBtn.onclick = enterEditMode;
-  toggle.style.display = 'none';
 
-  // ── NO GPS ──
   if (state.phase === 'no_gps') {
     statusEl.textContent = 'ACQUIRING GPS';
     detailEl.textContent = 'Acquiring GPS lock…';
@@ -825,26 +876,30 @@ function updateHUD() {
     return;
   }
 
-  // ── ACTIVE ──
-  var carrying  = state.carrying.length;
-  var available = state.packages.filter(function(p) { return !p.picked; }).length;
-  var pickable  = nearestPickable();
-  var deliver   = nearestDeliverable();
+  var activeZones = state.zones.filter(function(z) { return z.active; });
 
-  if (state.areas.length >= 2) {
-    areaSel.style.display = 'flex';
-    var selHtml = '';
-    state.areas.forEach(function(a) {
-      var on = state.activeAreas.includes(a.id);
-      selHtml += '<button onclick="toggleActiveArea(\'' + a.id + '\')" class="' + (on ? 'active' : '') + '">' + a.name.toUpperCase() + '</button>';
-    });
-    areaSel.innerHTML = selHtml;
+  if (!activeZones.length) {
+    statusEl.textContent = 'NO ZONES';
+    detailEl.textContent = state.zones.length
+      ? 'All zones inactive. Tap ZONES to enable some.'
+      : 'No zones defined. Tap ZONES to paint your play area.';
+    distEl.textContent   = '';
+    btn.className   = 'draw';
+    btn.textContent = 'ADD ZONE';
+    btn.onclick     = enterEditMode;
+    return;
   }
 
+  // Active play
   var load     = currentLoad();
   var capacity = getCapacity();
   var km       = (state.sessionDist / 1000).toFixed(2);
   statusEl.textContent = 'LOAD ' + load + ' / ' + capacity + '  ·  ' + km + 'km';
+
+  var carrying  = state.carrying.length;
+  var available = state.packages.filter(function(p) { return !p.picked; }).length;
+  var pickable  = nearestPickable();
+  var deliver   = nearestDeliverable();
 
   if (deliver) {
     var pkgsHere = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === deliver.id; });
@@ -857,13 +912,13 @@ function updateHUD() {
   } else if (pickable) {
     var dest2 = state.destinations.find(function(d) { return d.id === pickable.destId; });
     var wcfg  = WEIGHT[pickable.weight];
-    detailEl.textContent = wcfg.label + ' package → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts · ' + pickable.weight + ' unit' + (pickable.weight > 1 ? 's' : '') + '.';
+    detailEl.textContent = wcfg.label + ' package → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts · ' + pickable.weight + 'u.';
     distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
     btn.className   = 'pickup ready';
     btn.textContent = 'PICK UP PACKAGE';
     btn.onclick     = attemptPickup;
   } else if (load >= capacity && overweightInRange().length > 0) {
-    detailEl.textContent = 'At capacity — deliver packages first, or find a lighter box.';
+    detailEl.textContent = 'At capacity — deliver first, or find a lighter box.';
     distEl.textContent   = load + '/' + capacity + ' units used';
     btn.className   = 'pickup';
     btn.textContent = 'AT CAPACITY';
@@ -900,10 +955,10 @@ function updateHUD() {
           return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, best.pickupLoc) ? p : best;
         }, null);
       var dPkg = nearestPkg ? Math.round(haversine(state.userPos, nearestPkg.pickupLoc)) : 0;
-      detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up. (' + (capacity - load) + ' units free)';
+      detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up. (' + (capacity - load) + 'u free)';
       distEl.textContent   = dPkg + 'm to nearest package';
     } else {
-      detailEl.textContent = 'No packages in range. Move closer to spawn points.';
+      detailEl.textContent = 'No packages. Move around your zone to trigger a refresh.';
       distEl.textContent   = '';
     }
     btn.className   = 'pickup';
