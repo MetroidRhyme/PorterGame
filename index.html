@@ -644,7 +644,7 @@ function attemptDeliver() {
   var pkgsForDest  = state.packages.filter(function(p) {
     return state.carrying.includes(p.id) && p.destId === dest.id;
   });
-  var pts          = pkgsForDest.reduce(function(sum, p) { return sum + Math.round(p.dist); }, 0);
+  var pts          = pkgsForDest.reduce(function(sum, p) { return sum + p.pts; }, 0);
   var count        = pkgsForDest.length;
   var deliveredIds = pkgsForDest.map(function(p) { return p.id; });
 
@@ -690,11 +690,16 @@ function renderOrderMarkers() {
   var pickable    = nearestPickable();
   var deliverable = nearestDeliverable();
 
+  var remaining = getCapacity() - currentLoad();
   state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
-    var dest   = state.destinations.find(function(d) { return d.id === p.destId; });
-    var isNext = pickable && pickable.id === p.id;
-    var icon   = isNext ? icons.pickup_next : icons.pickup;
-    var label  = '→ Zone ' + (dest ? dest.label : '?') + ' · ' + Math.round(p.dist) + ' pts';
+    var dest     = state.destinations.find(function(d) { return d.id === p.destId; });
+    var isNext   = pickable && pickable.id === p.id;
+    var tooheavy = p.weight > remaining;
+    var cfg      = WEIGHT[p.weight];
+    var bg       = isNext ? '#e8a030' : (tooheavy ? '#2a1a1a' : '#2a1800');
+    var icon     = makeIcon(bg, '📦', cfg.size);
+    var label    = cfg.label + ' · → Zone ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts'
+                 + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + ' unit' + (p.weight > 1 ? 's' : '') + ')';
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: icon }).addTo(map);
     m.bindTooltip(label, { permanent: false });
     orderMarkers.push(m);
@@ -814,11 +819,13 @@ function updateHUD() {
     areaSel.innerHTML = selHtml;
   }
 
-  statusEl.textContent = 'CARRYING ' + carrying;
+  var load     = currentLoad();
+  var capacity = getCapacity();
+  statusEl.textContent = 'LOAD ' + load + ' / ' + capacity;
 
   if (deliver) {
     var pkgsHere = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === deliver.id; });
-    var pts = pkgsHere.reduce(function(s, p) { return s + Math.round(p.dist); }, 0);
+    var pts = pkgsHere.reduce(function(s, p) { return s + p.pts; }, 0);
     detailEl.textContent = 'Deliver ' + pkgsHere.length + ' pkg' + (pkgsHere.length > 1 ? 's' : '') + ' to Zone ' + deliver.label + ' for ' + pts + ' pts.';
     distEl.textContent   = Math.round(haversine(state.userPos, deliver.loc)) + 'm to drop-off';
     btn.className   = 'deliver ready';
@@ -826,11 +833,18 @@ function updateHUD() {
     btn.onclick     = attemptDeliver;
   } else if (pickable) {
     var dest2 = state.destinations.find(function(d) { return d.id === pickable.destId; });
-    detailEl.textContent = 'Pick up package → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + Math.round(pickable.dist) + ' pts.';
+    var wcfg  = WEIGHT[pickable.weight];
+    detailEl.textContent = wcfg.label + ' package → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts · ' + pickable.weight + ' unit' + (pickable.weight > 1 ? 's' : '') + '.';
     distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
     btn.className   = 'pickup ready';
     btn.textContent = 'PICK UP PACKAGE';
     btn.onclick     = attemptPickup;
+  } else if (load >= capacity && overweightInRange().length > 0) {
+    detailEl.textContent = 'At capacity — deliver packages first, or find a lighter box.';
+    distEl.textContent   = load + '/' + capacity + ' units used';
+    btn.className   = 'pickup';
+    btn.textContent = 'AT CAPACITY';
+    btn.disabled    = true;
   } else if (carrying > 0) {
     var nearestDest = state.destinations
       .filter(function(d) {
@@ -863,7 +877,7 @@ function updateHUD() {
           return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, best.pickupLoc) ? p : best;
         }, null);
       var dPkg = nearestPkg ? Math.round(haversine(state.userPos, nearestPkg.pickupLoc)) : 0;
-      detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up.';
+      detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up. (' + (capacity - load) + ' units free)';
       distEl.textContent   = dPkg + 'm to nearest package';
     } else {
       detailEl.textContent = 'No packages in range. Move closer to spawn points.';
