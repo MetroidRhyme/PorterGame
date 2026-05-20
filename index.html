@@ -91,6 +91,23 @@
     #zone-chips .del-zone-btn { padding: 10px 12px; font-size: 14px; }
     #zone-chips .del-zone-btn:active { color: #c04040; border-color: #602020; }
 
+    #inventory { display: none; margin-top: 10px; }
+    .inv-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 0; border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .inv-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .inv-label { font-size: 13px; color: #e0d8c8; letter-spacing: 1px; }
+    .inv-sub   { font-size: 10px; color: #666; letter-spacing: 2px; }
+    .inv-abandon {
+      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
+      padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
+      background: transparent; color: #5a2020; border: 1px solid #2a1010;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      white-space: nowrap; flex-shrink: 0; margin-left: 10px;
+    }
+    .inv-abandon:active { color: #c04040; border-color: #602020; background: rgba(60,10,10,0.4); }
+
     #secondary-btn {
       display: none; width: 100%; margin-top: 10px; padding: 14px;
       background: transparent; color: #555; border: 1px solid #2a2a3a; border-radius: 4px;
@@ -155,6 +172,7 @@
     <div id="mission-status">STANDBY</div>
     <div id="mission-detail">Acquiring GPS lock…</div>
     <div id="mission-distance"></div>
+    <div id="inventory"></div>
     <div id="zone-chips"></div>
     <button id="secondary-btn"></button>
   </div>
@@ -736,6 +754,18 @@ function attemptDeliver() {
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
+function abandonPackage(id) {
+  state.carrying    = state.carrying.filter(function(cid) { return cid !== id; });
+  state.packages    = state.packages.filter(function(p)   { return p.id  !== id; });
+  // Remove destinations that no longer have any package pointing to them
+  state.destinations = state.destinations.filter(function(d) {
+    return state.packages.some(function(p) { return p.destId === d.id; });
+  });
+  checkRefresh();
+  renderOrderMarkers();
+  updateHUD();
+}
+
 function showCompletion(pts, count, zoneLabel) {
   var el = document.getElementById('completion-overlay');
   var km = (state.sessionDist / 1000).toFixed(2);
@@ -800,6 +830,7 @@ function updateHUD() {
   btn.className         = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display  = 'none'; secBtn.onclick = null;
   chipsEl.style.display = 'none';
+  document.getElementById('inventory').style.display = 'none';
 
   // ── DRAWING ──────────────────────────────────────────────
   if (state.editMode && state.drawing) {
@@ -921,6 +952,28 @@ function updateHUD() {
       distEl.textContent   = '';
     }
     btn.className = 'pickup'; btn.textContent = 'PICK UP  (get closer)'; btn.disabled = true;
+  }
+
+  // ── INVENTORY ────────────────────────────────────────────
+  if (state.carrying.length > 0) {
+    var invEl  = document.getElementById('inventory');
+    var invHtml = '';
+    state.carrying.forEach(function(id) {
+      var p    = state.packages.find(function(p) { return p.id === id; });
+      if (!p) return;
+      var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+      var wcfg = WEIGHT[p.weight];
+      invHtml +=
+        '<div class="inv-row">' +
+          '<div class="inv-info">' +
+            '<div class="inv-label">' + wcfg.label + ' &rarr; ZONE ' + (dest ? dest.label : '?') + '</div>' +
+            '<div class="inv-sub">' + p.weight + 'u &nbsp;&middot;&nbsp; ' + p.pts + ' PTS</div>' +
+          '</div>' +
+          '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button>' +
+        '</div>';
+    });
+    invEl.innerHTML = invHtml;
+    invEl.style.display = 'block';
   }
 }
 
