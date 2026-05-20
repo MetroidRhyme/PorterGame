@@ -13,7 +13,7 @@
       height: 100dvh; overflow: hidden;
     }
 
-    #map        { position: fixed; inset: 0; z-index: 0; }
+    #map         { position: fixed; inset: 0; z-index: 0; }
     #draw-canvas { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
 
     /* ── TOP HUD ── */
@@ -30,6 +30,14 @@
     #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
+    #settings-btn {
+      font-size: 20px; line-height: 1; padding: 10px 14px; border-radius: 4px;
+      background: transparent; color: #999; border: 1px solid #2a2a3a; cursor: pointer;
+      touch-action: manipulation; min-height: 44px; min-width: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #settings-btn:active { color: #bbb; border-color: #4a4a5a; }
+
     #gps-status {
       position: fixed; top: 74px; right: 12px; z-index: 1999;
       font-size: 10px; letter-spacing: 2px; padding: 4px 10px; border-radius: 2px;
@@ -38,15 +46,74 @@
     #gps-status.acquiring { background: rgba(80,40,0,0.9);  color: #e8a030; }
     #gps-status.locked    { background: rgba(0,50,0,0.9);   color: #5ab05a; }
 
-    #edit-zones-btn {
+    /* ── SETTINGS DRAWER ── */
+    #settings-overlay {
+      display: none; position: fixed; inset: 0; z-index: 4000;
+      background: rgba(0,0,0,0.55);
+    }
+    #settings-overlay.open { display: block; }
+    #settings-drawer {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 4001;
+      background: #0d0d14; border-top: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px 18px 0 0; max-height: 82vh; overflow-y: auto;
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+      transform: translateY(100%);
+      transition: transform 0.28s cubic-bezier(0.32,0.72,0,1);
+    }
+    #settings-drawer.open { transform: translateY(0); }
+
+    .s-handle {
+      display: flex; justify-content: center; padding: 12px 0 4px; cursor: pointer;
+    }
+    .s-handle::before {
+      content: ''; display: block; width: 44px; height: 4px;
+      background: #2e2e3e; border-radius: 2px;
+    }
+    .s-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 20px 14px;
+    }
+    .s-title { font-size: 10px; letter-spacing: 4px; color: #555; }
+    .s-close {
+      font-family: 'Courier New', monospace; font-size: 14px; color: #555;
+      background: transparent; border: none; cursor: pointer; padding: 8px;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .s-close:active { color: #bbb; }
+
+    .s-section { padding: 0 20px 16px; border-top: 1px solid rgba(255,255,255,0.05); }
+    .s-section-label { font-size: 10px; letter-spacing: 3px; color: #555; padding: 14px 0 10px; }
+
+    .s-zone-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .s-zone-toggle {
+      flex: 1; padding: 10px 14px; border-radius: 4px; text-align: left;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
-      padding: 10px 14px; border-radius: 4px; background: transparent;
-      color: #999; border: 1px solid #2a2a3a; cursor: pointer;
-      touch-action: manipulation; min-height: 44px; white-space: nowrap;
+      cursor: pointer; border: 1px solid; background: rgba(0,0,0,0.3);
+      touch-action: manipulation; min-height: 44px;
       -webkit-tap-highlight-color: transparent;
     }
-    #edit-zones-btn:active { color: #bbb; border-color: #4a4a5a; }
-    #edit-zones-btn.active { color: #5ab05a; border-color: #2a6030; background: rgba(5,20,10,0.95); }
+    .s-zone-del {
+      font-size: 14px; color: #555; background: transparent;
+      border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
+      padding: 10px 12px; min-height: 44px;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .s-zone-del:active { color: #c04040; border-color: #602020; }
+    .s-empty { font-size: 12px; color: #3a3a4a; letter-spacing: 1px; padding: 6px 0 4px; }
+
+    .s-btn {
+      display: block; width: 100%; margin-top: 8px; padding: 14px;
+      border-radius: 4px; font-family: 'Courier New', monospace;
+      font-size: 11px; letter-spacing: 3px; cursor: pointer;
+      touch-action: manipulation; min-height: 48px; text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .s-btn-green  { background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; }
+    .s-btn-green:active  { background: #0e1828; }
+    .s-btn-dim    { background: transparent; color: #777; border: 1px solid #2a2a3a; }
+    .s-btn-dim:active    { color: #aaa; border-color: #4a4a5a; }
+    .s-btn-danger { background: transparent; color: #7a2020; border: 1px solid #2a1010; }
+    .s-btn-danger:active { color: #c04040; border-color: #602020; }
 
     /* ── BOTTOM HUD ── */
     #hud-bottom {
@@ -79,18 +146,6 @@
     #mission-detail   { font-size: 14px; color: #a09888; line-height: 1.5; }
     #mission-distance { font-size: 11px; color: #4a7a4a; margin-top: 5px; min-height: 16px; }
 
-    #zone-chips { display: none; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    #zone-chips button {
-      padding: 10px 14px; border-radius: 4px;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
-      cursor: pointer; border: 1px solid #2a2a3a; background: #111; color: #555;
-      white-space: nowrap; touch-action: manipulation; min-height: 44px;
-      -webkit-tap-highlight-color: transparent;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
-    }
-    #zone-chips .del-zone-btn { padding: 10px 12px; font-size: 14px; }
-    #zone-chips .del-zone-btn:active { color: #c04040; border-color: #602020; }
-
     #inventory { display: none; margin-top: 10px; }
     .inv-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -106,7 +161,7 @@
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
       white-space: nowrap; flex-shrink: 0; margin-left: 10px;
     }
-    .inv-abandon:active { color: #c04040; border-color: #602020; background: rgba(60,10,10,0.4); }
+    .inv-abandon:active { color: #e05050; border-color: #802020; background: rgba(60,10,10,0.4); }
 
     #secondary-btn {
       display: none; width: 100%; margin-top: 10px; padding: 14px;
@@ -127,7 +182,6 @@
     }
     #action-btn.generate { background: #111820; color: #4a7a4a; border: 1px solid #1e3020; }
     #action-btn.draw     { background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; }
-    #action-btn.cancel   { background: #1a0808; color: #a04040; border: 1px solid #3a1010; }
     #action-btn.pickup   { background: #1a1000; color: #a06018; border: 1px solid #2e1e00; }
     #action-btn.pickup.ready  { background: #e8a030; color: #0a0a0f; border-color: #e8a030; }
     #action-btn.deliver  { background: #00101a; color: #2060a0; border: 1px solid #001e30; }
@@ -154,7 +208,7 @@
 
 <div id="hud-top">
   <div id="game-title">PORTER</div>
-  <button id="edit-zones-btn" onclick="enterEditMode()">ZONES</button>
+  <button id="settings-btn" onclick="openSettings()">&#9776;</button>
   <div id="score-display">
     <div class="label">SCORE</div>
     <div class="value" id="score-value">0</div>
@@ -166,6 +220,32 @@
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
+<!-- ── SETTINGS DRAWER ── -->
+<div id="settings-overlay" onclick="closeSettings()"></div>
+<div id="settings-drawer">
+  <div class="s-handle" onclick="closeSettings()"></div>
+  <div class="s-header">
+    <span class="s-title">SETTINGS</span>
+    <button class="s-close" onclick="closeSettings()">&#10005;</button>
+  </div>
+
+  <div class="s-section">
+    <div class="s-section-label">ZONES</div>
+    <div id="s-zone-list"></div>
+    <button class="s-btn s-btn-green" onclick="settingsAddZone()">+ ADD ZONE</button>
+    <button class="s-btn s-btn-danger" id="s-clear-btn" style="display:none" onclick="settingsClearZones()">CLEAR ALL ZONES</button>
+  </div>
+
+  <div class="s-section">
+    <div class="s-section-label">DATA</div>
+    <button class="s-btn s-btn-dim" onclick="exportData()">EXPORT SAVE FILE</button>
+    <label class="s-btn s-btn-dim" style="cursor:pointer">
+      IMPORT SAVE FILE
+      <input id="import-input" type="file" accept=".json" style="display:none" onchange="importData(this)">
+    </label>
+  </div>
+</div>
+
 <div id="hud-bottom">
   <button id="hud-collapse-btn" onclick="toggleHUD()" aria-label="Toggle panel"></button>
   <div id="collapsible-hud">
@@ -173,7 +253,6 @@
     <div id="mission-detail">Acquiring GPS lock…</div>
     <div id="mission-distance"></div>
     <div id="inventory"></div>
-    <div id="zone-chips"></div>
     <button id="secondary-btn"></button>
   </div>
   <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
@@ -198,13 +277,12 @@ const state = {
   deliveries:  parseInt(localStorage.getItem('porter_deliveries')  || '0'),
   phase:       'no_gps',
   userPos:     null,
-  editMode:    false,
   sessionDist: parseFloat(localStorage.getItem('porter_session_dist') || '0'),
   lastPos:     null,
 
-  zones:      JSON.parse(localStorage.getItem('porter_zones') || '[]'),
-  drawing:    false,
-  gridCells:  null,   // Set of "gx,gy" strings while drawing
+  zones:     JSON.parse(localStorage.getItem('porter_zones')        || '[]'),
+  drawing:   false,
+  gridCells: null,
 
   packages:     JSON.parse(localStorage.getItem('porter_packages')     || '[]'),
   destinations: JSON.parse(localStorage.getItem('porter_destinations') || '[]'),
@@ -212,12 +290,9 @@ const state = {
 };
 
 const PROXIMITY_M   = 20;
-const ONE_MILE_M    = 1609;
 const MAX_GPS_DELTA = 50;
-const CELL_LAT_DEG = 20 / 111111;   // ~20 m per cell, latitude (fixed)
-// Longitude degree size is wider to compensate for Mercator compression at latitude.
-// Set to stored value on load; updated precisely when GPS locks.
-var   CELL_LNG_DEG = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
+const CELL_LAT_DEG  = 20 / 111111;
+var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 const ZONE_COLORS   = ['#e8a030', '#3080c0', '#5ab05a', '#c04040', '#8060d0', '#30a0a0'];
 
 const WEIGHT = {
@@ -262,7 +337,6 @@ function makeIcon(bg, emoji, size) {
 const icons = {
   user:        makeIcon('#1a3050', '🧍', 44),
   pickup:      makeIcon('#2a1800', '📦'),
-  pickup_next: makeIcon('#e8a030', '📦'),
   dest:        makeIcon('#0c1e30', '🏠'),
   dest_next:   makeIcon('#3080c0', '🏠'),
   dest_queued: makeIcon('#164060', '🏠'),
@@ -270,7 +344,7 @@ const icons = {
 
 let userMarker   = null;
 let orderMarkers = [];
-let zoneMarkers  = [];   // only used for legacy polygon zones
+let zoneMarkers  = [];
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
@@ -318,7 +392,6 @@ function onGpsLocked() {
   badge.className   = 'locked';
   setTimeout(function() { badge.style.display = 'none'; }, 3000);
   state.phase  = 'active';
-  // Fix cell longitude size for this latitude so cells appear square on screen
   CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
   localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
   vibrate(30);
@@ -329,19 +402,132 @@ function onGpsLocked() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  ZONE STORAGE
+//  PERSISTENCE
 // ═══════════════════════════════════════════════════════════
 
-function saveZones() { localStorage.setItem('porter_zones', JSON.stringify(state.zones)); }
-
+function saveZones()     { localStorage.setItem('porter_zones', JSON.stringify(state.zones)); }
 function saveGameState() {
   localStorage.setItem('porter_carrying',     JSON.stringify(state.carrying));
   localStorage.setItem('porter_packages',     JSON.stringify(state.packages));
   localStorage.setItem('porter_destinations', JSON.stringify(state.destinations));
 }
 
-// Removes all packages/destinations/carrying entries belonging to one zone.
-// Mutates state only — caller handles save + render.
+// ═══════════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════════
+
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('open');
+  document.getElementById('settings-drawer').classList.add('open');
+  renderSettingsPanel();
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open');
+  document.getElementById('settings-drawer').classList.remove('open');
+}
+
+function renderSettingsPanel() {
+  var listEl   = document.getElementById('s-zone-list');
+  var clearBtn = document.getElementById('s-clear-btn');
+
+  if (!state.zones.length) {
+    listEl.innerHTML = '<div class="s-empty">No zones defined yet.</div>';
+    clearBtn.style.display = 'none';
+  } else {
+    clearBtn.style.display = 'block';
+    listEl.innerHTML = state.zones.map(function(z) {
+      return '<div class="s-zone-row">' +
+        '<button class="s-zone-toggle" ' +
+        'style="color:' + (z.active ? z.color : '#555') + ';border-color:' + (z.active ? z.color : '#2a2a3a') + '" ' +
+        'onclick="settingsToggleZone(\'' + z.id + '\')">' + z.name.toUpperCase() + '</button>' +
+        '<button class="s-zone-del" onclick="settingsDeleteZone(\'' + z.id + '\')">&#10005;</button>' +
+        '</div>';
+    }).join('');
+  }
+}
+
+function settingsAddZone()   { closeSettings(); startDrawing(); }
+function settingsToggleZone(id) { toggleZoneActive(id); renderSettingsPanel(); }
+function settingsDeleteZone(id) { deleteZone(id);       renderSettingsPanel(); }
+function settingsClearZones() {
+  if (!confirm('Delete all ' + state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + '?')) return;
+  clearAllZones();
+  renderSettingsPanel();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EXPORT / IMPORT
+// ═══════════════════════════════════════════════════════════
+
+function exportData() {
+  var data = {
+    version:      1,
+    exported:     new Date().toISOString(),
+    score:        state.score,
+    deliveries:   state.deliveries,
+    sessionDist:  state.sessionDist,
+    zones:        state.zones,
+    packages:     state.packages,
+    destinations: state.destinations,
+    carrying:     state.carrying,
+    cellLngDeg:   CELL_LNG_DEG,
+  };
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url;
+  a.download = 'porter_' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = JSON.parse(e.target.result);
+      if (!data.version || !Array.isArray(data.zones)) throw new Error('Unrecognized file format.');
+      if (!confirm('Import will replace all current data. Continue?')) { input.value = ''; return; }
+
+      state.score        = data.score        || 0;
+      state.deliveries   = data.deliveries   || 0;
+      state.sessionDist  = data.sessionDist  || 0;
+      state.zones        = data.zones        || [];
+      state.packages     = data.packages     || [];
+      state.destinations = data.destinations || [];
+      state.carrying     = data.carrying     || [];
+      if (data.cellLngDeg) CELL_LNG_DEG = data.cellLngDeg;
+
+      localStorage.setItem('porter_score',        state.score);
+      localStorage.setItem('porter_deliveries',   state.deliveries);
+      localStorage.setItem('porter_session_dist', state.sessionDist);
+      if (data.cellLngDeg) localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
+      saveZones();
+      saveGameState();
+
+      renderZoneMarkers();
+      renderGridCanvas();
+      renderOrderMarkers();
+      renderSettingsPanel();
+      updateHUD();
+      input.value = '';
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+      input.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ZONE MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+
 function removeZoneOrders(zone) {
   if (!zone.cells || !zone.cells.length) return;
   var zoneKeys = new Set(zone.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
@@ -365,11 +551,8 @@ function removeZoneOrders(zone) {
   state.carrying = state.carrying.filter(function(cid) { return !removedIds.has(cid); });
 }
 
-// Adds new destinations + packages for one zone only, respecting existing occupied cells.
-// Mutates state only — caller handles save + render.
 function generateOrdersForZone(zone) {
   if (!zone.active) return;
-
   var occupied = new Set();
   state.packages.forEach(function(p) {
     var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
@@ -391,7 +574,7 @@ function generateOrdersForZone(zone) {
 
   var weightPool = [1, 1, 2, 2, 3];
   for (var j = 0; j < 3; j++) {
-    var pt2  = randomPointInZone(zone, occupied);
+    var pt2    = randomPointInZone(zone, occupied);
     if (!pt2) continue;
     var dest   = newDests[j % newDests.length];
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
@@ -407,21 +590,16 @@ function generateOrdersForZone(zone) {
 function toggleZoneActive(id) {
   var z = state.zones.find(function(z) { return z.id === id; });
   if (!z) return;
-
   if (z.active) {
-    // Warn if carried packages from this zone will be lost
     if (z.cells && z.cells.length) {
-      var zoneKeys = new Set(z.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
-      var carriedCount = state.carrying.filter(function(cid) {
+      var zk = new Set(z.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
+      var cc = state.carrying.filter(function(cid) {
         var p = state.packages.find(function(p) { return p.id === cid; });
         if (!p) return false;
         var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
-        return zoneKeys.has(cellKey(c.gx, c.gy));
+        return zk.has(cellKey(c.gx, c.gy));
       }).length;
-      if (carriedCount > 0 && !confirm(
-        carriedCount + ' carried package' + (carriedCount > 1 ? 's' : '') +
-        ' from this zone will be deleted. Disable zone?'
-      )) return;
+      if (cc > 0 && !confirm(cc + ' carried package' + (cc > 1 ? 's' : '') + ' from this zone will be deleted. Disable zone?')) return;
     }
     z.active = false;
     removeZoneOrders(z);
@@ -429,7 +607,6 @@ function toggleZoneActive(id) {
     z.active = true;
     if (state.phase === 'active') generateOrdersForZone(z);
   }
-
   saveZones(); saveGameState(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
 
@@ -447,21 +624,6 @@ function clearAllZones() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  EDIT MODE
-// ═══════════════════════════════════════════════════════════
-
-function enterEditMode() {
-  state.editMode = true;
-  expandHUD(); renderZoneMarkers(); updateHUD();
-}
-
-function exitEditMode() {
-  if (state.drawing) cancelDraw();
-  state.editMode = false;
-  renderZoneMarkers(); updateHUD();
-}
-
-// ═══════════════════════════════════════════════════════════
 //  CANVAS SETUP
 // ═══════════════════════════════════════════════════════════
 
@@ -471,18 +633,13 @@ function initDrawCanvas() {
   var dpr = window.devicePixelRatio || 1;
   var W   = window.innerWidth, H = window.innerHeight;
   drawCanvas = document.getElementById('draw-canvas');
-  drawCanvas.width  = W * dpr;
-  drawCanvas.height = H * dpr;
-  drawCanvas.style.width  = W + 'px';
-  drawCanvas.style.height = H + 'px';
+  drawCanvas.width  = W * dpr;  drawCanvas.height = H * dpr;
+  drawCanvas.style.width = W + 'px'; drawCanvas.style.height = H + 'px';
   drawCtx = drawCanvas.getContext('2d');
   drawCtx.scale(dpr, dpr);
 }
 
-window.addEventListener('resize', function() {
-  initDrawCanvas();
-  renderGridCanvas();
-});
+window.addEventListener('resize', function() { initDrawCanvas(); renderGridCanvas(); });
 
 // ═══════════════════════════════════════════════════════════
 //  GRID SYSTEM
@@ -491,14 +648,12 @@ window.addEventListener('resize', function() {
 function latLngToCell(lat, lng) {
   return { gx: Math.floor(lng / CELL_LNG_DEG), gy: Math.floor(lat / CELL_LAT_DEG) };
 }
-
 function cellBounds(gx, gy) {
   return {
     sw: { lat: gy * CELL_LAT_DEG,       lng: gx * CELL_LNG_DEG },
     ne: { lat: (gy + 1) * CELL_LAT_DEG, lng: (gx + 1) * CELL_LNG_DEG },
   };
 }
-
 function cellKey(gx, gy) { return gx + ',' + gy; }
 
 function toggleCell(latlng) {
@@ -510,34 +665,24 @@ function toggleCell(latlng) {
   updateHUD();
 }
 
-// BFS flood fill — 4-connected (shared edges only)
 function findConnectedComponents(cellSet) {
-  var visited = new Set();
-  var comps   = [];
-
+  var visited = new Set(), comps = [];
   cellSet.forEach(function(startKey) {
     if (visited.has(startKey)) return;
-    var comp  = new Set();
-    var queue = [startKey];
-    visited.add(startKey);
-    comp.add(startKey);
+    var comp = new Set(), queue = [startKey];
+    visited.add(startKey); comp.add(startKey);
     while (queue.length) {
-      var key   = queue.shift();
-      var parts = key.split(',');
+      var key = queue.shift(), parts = key.split(',');
       var gx = parseInt(parts[0]), gy = parseInt(parts[1]);
       [cellKey(gx+1,gy), cellKey(gx-1,gy), cellKey(gx,gy+1), cellKey(gx,gy-1)].forEach(function(nk) {
-        if (cellSet.has(nk) && !visited.has(nk)) {
-          visited.add(nk); comp.add(nk); queue.push(nk);
-        }
+        if (cellSet.has(nk) && !visited.has(nk)) { visited.add(nk); comp.add(nk); queue.push(nk); }
       });
     }
     comps.push(comp);
   });
-
   return comps;
 }
 
-// ── Returns screen rect for a cell, or null if fully off-screen ──
 function cellRect(gx, gy) {
   var b  = cellBounds(gx, gy);
   var sw = map.latLngToContainerPoint([b.sw.lat, b.sw.lng]);
@@ -548,14 +693,10 @@ function cellRect(gx, gy) {
   return { x: x, y: y, w: w, h: h };
 }
 
-// ── Render zone as solid merged fill + outer edge only (no internal grid lines) ──
 function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
   var cellSet = new Set(cells.map(function(c) { return cellKey(c.gx, c.gy); }));
-  drawCtx.fillStyle   = color;
-  drawCtx.strokeStyle = color;
-  drawCtx.lineWidth   = 2;
+  drawCtx.fillStyle = color; drawCtx.strokeStyle = color; drawCtx.lineWidth = 2;
 
-  // Pass 1: fill all cells, slightly expanded so adjacent cells merge seamlessly
   drawCtx.globalAlpha = fillOpacity;
   cells.forEach(function(c) {
     var r = cellRect(c.gx, c.gy);
@@ -563,22 +704,20 @@ function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
     drawCtx.fillRect(r.x - 0.5, r.y - 0.5, r.w + 1, r.h + 1);
   });
 
-  // Pass 2: draw only edges that have no neighbour (outer border only)
   drawCtx.globalAlpha = strokeOpacity;
   drawCtx.beginPath();
   cells.forEach(function(c) {
     var r = cellRect(c.gx, c.gy);
     if (!r) return;
-    if (!cellSet.has(cellKey(c.gx,     c.gy + 1))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x + r.w, r.y      ); }  // north
-    if (!cellSet.has(cellKey(c.gx,     c.gy - 1))) { drawCtx.moveTo(r.x,       r.y + r.h); drawCtx.lineTo(r.x + r.w, r.y + r.h); }  // south
-    if (!cellSet.has(cellKey(c.gx - 1, c.gy    ))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x,       r.y + r.h); }  // west
-    if (!cellSet.has(cellKey(c.gx + 1, c.gy    ))) { drawCtx.moveTo(r.x + r.w, r.y      ); drawCtx.lineTo(r.x + r.w, r.y + r.h); }  // east
+    if (!cellSet.has(cellKey(c.gx,     c.gy + 1))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x + r.w, r.y      ); }
+    if (!cellSet.has(cellKey(c.gx,     c.gy - 1))) { drawCtx.moveTo(r.x,       r.y + r.h); drawCtx.lineTo(r.x + r.w, r.y + r.h); }
+    if (!cellSet.has(cellKey(c.gx - 1, c.gy    ))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x,       r.y + r.h); }
+    if (!cellSet.has(cellKey(c.gx + 1, c.gy    ))) { drawCtx.moveTo(r.x + r.w, r.y      ); drawCtx.lineTo(r.x + r.w, r.y + r.h); }
   });
   drawCtx.stroke();
   drawCtx.globalAlpha = 1.0;
 }
 
-// ── Redraw all zones + current drawing session onto canvas ──
 var _rafPending = false;
 function scheduleGridRender() {
   if (_rafPending) return;
@@ -588,47 +727,47 @@ function scheduleGridRender() {
 
 function renderGridCanvas() {
   if (!drawCtx) return;
-  var W = window.innerWidth, H = window.innerHeight;
-  drawCtx.clearRect(0, 0, W, H);
+  drawCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-  // Saved zones (cell-based)
   state.zones.forEach(function(zone) {
     if (!zone.cells || !zone.cells.length) return;
-    if (!state.editMode && !zone.active) return;
-    var fillOp   = state.editMode ? (zone.active ? 0.2  : 0.07) : 0.1;
-    var strokeOp = state.editMode ? 0.9 : (zone.active ? 0.7 : 0.25);
-    renderZoneCells(zone.cells, zone.color, fillOp, strokeOp);
+    if (!zone.active) return;
+    renderZoneCells(zone.cells, zone.color, 0.1, 0.7);
   });
 
-  // Current drawing session
-  if (state.drawing && state.gridCells && state.gridCells.size) {
-    var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-    var cells  = Array.from(state.gridCells).map(function(key) {
-      var p = key.split(',');
-      return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
+  // Brighter while drawing so zone outlines are easy to read
+  if (state.drawing) {
+    state.zones.forEach(function(zone) {
+      if (!zone.cells || !zone.cells.length || !zone.active) return;
+      renderZoneCells(zone.cells, zone.color, 0.18, 0.9);
     });
-    renderZoneCells(cells, color, 0.25, 1.0);
+    if (state.gridCells && state.gridCells.size) {
+      var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+      var cells = Array.from(state.gridCells).map(function(key) {
+        var p = key.split(',');
+        return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
+      });
+      renderZoneCells(cells, color, 0.25, 1.0);
+    }
   }
 }
 
 map.on('move zoom', scheduleGridRender);
 
-// Map tap → toggle cell when drawing
 map.on('click', function(e) {
   if (!state.drawing) return;
   toggleCell(e.latlng);
 });
 
-// ── Drawing lifecycle ──
 function startDrawing() {
-  state.drawing  = true;
+  state.drawing   = true;
   state.gridCells = new Set();
   renderGridCanvas();
   updateHUD();
 }
 
 function cancelDraw() {
-  state.drawing  = false;
+  state.drawing   = false;
   state.gridCells = null;
   renderGridCanvas();
   updateHUD();
@@ -669,29 +808,22 @@ function finishDraw() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  ZONE RENDERING  (legacy polygon zones via Leaflet;
-//                   grid-cell zones via canvas above)
+//  ZONE RENDERING  (legacy polygon zones via Leaflet only)
 // ═══════════════════════════════════════════════════════════
 
 function renderZoneMarkers() {
   zoneMarkers.forEach(function(m) { map.removeLayer(m); });
   zoneMarkers = [];
-
   state.zones.forEach(function(zone) {
-    if (zone.cells) return;    // handled by renderGridCanvas
-    if (!zone.polygon || zone.polygon.length < 3) return;
-    if (!state.editMode && !zone.active) return;
-    var latlngs  = zone.polygon.map(function(p) { return [p.lat, p.lng]; });
-    var fillOp   = state.editMode ? (zone.active ? 0.15 : 0.06) : 0.08;
-    var strokeOp = state.editMode ? 1.0 : (zone.active ? 0.7 : 0.2);
-    var strokeW  = state.editMode ? 3   : 2;
+    if (zone.cells) return;
+    if (!zone.polygon || zone.polygon.length < 3 || !zone.active) return;
+    var latlngs = zone.polygon.map(function(p) { return [p.lat, p.lng]; });
     var poly = L.polygon(latlngs, {
-      color: zone.color, weight: strokeW, opacity: strokeOp,
-      fillColor: zone.color, fillOpacity: fillOp, interactive: false,
+      color: zone.color, weight: 2, opacity: 0.7,
+      fillColor: zone.color, fillOpacity: 0.08, interactive: false,
     }).addTo(map);
     zoneMarkers.push(poly);
   });
-
   renderGridCanvas();
 }
 
@@ -710,35 +842,26 @@ function pointInPolygon(pt, polygon) {
   return inside;
 }
 
-// occupied is a Set of cellKey strings; function adds the chosen cell to it before returning.
 function randomPointInZone(zone, occupied) {
   occupied = occupied || new Set();
-
   if (zone.cells && zone.cells.length) {
     var free = zone.cells.filter(function(c) { return !occupied.has(cellKey(c.gx, c.gy)); });
     if (!free.length) return null;
     var c = free[Math.floor(Math.random() * free.length)];
     var b = cellBounds(c.gx, c.gy);
     occupied.add(cellKey(c.gx, c.gy));
-    return {
-      lat: b.sw.lat + CELL_LAT_DEG * 0.5,
-      lng: b.sw.lng + CELL_LNG_DEG * 0.5,
-    };
+    return { lat: b.sw.lat + CELL_LAT_DEG * 0.5, lng: b.sw.lng + CELL_LNG_DEG * 0.5 };
   }
-
-  // Legacy polygon zones
   if (!zone.polygon || zone.polygon.length < 3) return null;
-  var poly   = zone.polygon;
-  var lats   = poly.map(function(p) { return p.lat; });
-  var lngs   = poly.map(function(p) { return p.lng; });
+  var poly = zone.polygon;
+  var lats = poly.map(function(p) { return p.lat; }), lngs = poly.map(function(p) { return p.lng; });
   var minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
   var minLng = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
   for (var i = 0; i < 200; i++) {
     var lat = minLat + Math.random() * (maxLat - minLat);
     var lng = minLng + Math.random() * (maxLng - minLng);
     if (pointInPolygon({ lat: lat, lng: lng }, poly)) {
-      var cl = latLngToCell(lat, lng);
-      var ck = cellKey(cl.gx, cl.gy);
+      var cl = latLngToCell(lat, lng), ck = cellKey(cl.gx, cl.gy);
       if (!occupied.has(ck)) {
         occupied.add(ck);
         var bc = cellBounds(cl.gx, cl.gy);
@@ -753,8 +876,6 @@ function randomPointInZone(zone, occupied) {
 //  ORDER GENERATION
 // ═══════════════════════════════════════════════════════════
 
-function shuffle(arr) { return arr.slice().sort(function() { return Math.random() - 0.5; }); }
-
 function generateOrders() {
   var active = state.zones.filter(function(z) {
     return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
@@ -768,7 +889,6 @@ function generateOrders() {
   state.packages     = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
   state.destinations = state.destinations.filter(function(d) { return carriedDestIds.includes(d.id); });
 
-  // Seed occupied set from already-placed packages and destinations so nothing shares a cell
   var occupied = new Set();
   state.packages.forEach(function(p) {
     var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
@@ -889,7 +1009,6 @@ function abandonPackage(id) {
   if (!confirm('Abandon ' + wcfg.label.toLowerCase() + ' package for Zone ' + (dest ? dest.label : '?') + ' (' + p.pts + ' pts)? It will not be reassigned.')) return;
   state.carrying    = state.carrying.filter(function(cid) { return cid !== id; });
   state.packages    = state.packages.filter(function(p)   { return p.id  !== id; });
-  // Remove destinations that no longer have any package pointing to them
   state.destinations = state.destinations.filter(function(d) {
     return state.packages.some(function(p) { return p.destId === d.id; });
   });
@@ -936,7 +1055,10 @@ function renderOrderMarkers() {
   });
 
   state.destinations.forEach(function(d) {
-    var n      = state.carrying.filter(function(id) { var p = state.packages.find(function(p) { return p.id === id; }); return p && p.destId === d.id; }).length;
+    var n      = state.carrying.filter(function(id) {
+      var p = state.packages.find(function(p) { return p.id === id; });
+      return p && p.destId === d.id;
+    }).length;
     var isNext = deliverable && deliverable.id === d.id;
     var icon   = isNext ? icons.dest_next : (n > 0 ? icons.dest_queued : icons.dest);
     var m = L.marker([d.loc.lat, d.loc.lng], { icon: icon }).addTo(map);
@@ -956,22 +1078,18 @@ function updateHUD() {
   var scoreEl  = document.getElementById('score-value');
   var btn      = document.getElementById('action-btn');
   var secBtn   = document.getElementById('secondary-btn');
-  var editBtn  = document.getElementById('edit-zones-btn');
-  var chipsEl  = document.getElementById('zone-chips');
 
-  scoreEl.textContent   = state.score;
-  btn.className         = ''; btn.onclick = null; btn.disabled = false;
-  secBtn.style.display  = 'none'; secBtn.onclick = null;
-  chipsEl.style.display = 'none';
+  scoreEl.textContent  = state.score;
+  btn.className        = ''; btn.onclick = null; btn.disabled = false;
+  secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
 
   // ── DRAWING ──────────────────────────────────────────────
-  if (state.editMode && state.drawing) {
-    editBtn.textContent = '✕ ZONES'; editBtn.classList.add('active'); editBtn.onclick = exitEditMode;
+  if (state.drawing) {
     statusEl.textContent = 'SELECT AREA';
-    detailEl.textContent = 'Tap squares on the map to select your zone. Tap again to deselect. Pan freely.';
+    detailEl.textContent = 'Tap squares to select your zone. Tap again to deselect. Pan freely.';
     var cellCount = state.gridCells ? state.gridCells.size : 0;
-    distEl.textContent = cellCount + ' cell' + (cellCount !== 1 ? 's' : '') + ' selected (~' + (cellCount * 20 * 20) + ' m²)';
+    distEl.textContent  = cellCount + ' cell' + (cellCount !== 1 ? 's' : '') + ' selected (~' + (cellCount * 400) + ' m²)';
 
     var hasCells = cellCount > 0;
     btn.className   = hasCells ? 'pickup ready' : 'generate';
@@ -985,43 +1103,7 @@ function updateHUD() {
     return;
   }
 
-  // ── EDIT (not drawing) ────────────────────────────────────
-  if (state.editMode) {
-    editBtn.textContent = '✕ ZONES'; editBtn.classList.add('active'); editBtn.onclick = exitEditMode;
-    statusEl.textContent = 'ZONE EDITOR';
-    detailEl.textContent = state.zones.length
-      ? 'Tap to toggle zones on/off. Tap ✕ to delete.'
-      : 'No zones yet. Tap below to select your play area.';
-    distEl.textContent = state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + ' defined';
-
-    if (state.zones.length) {
-      chipsEl.style.display = 'flex';
-      var html = '';
-      state.zones.forEach(function(z) {
-        var bg = z.active ? 'rgba(0,0,0,0.35)' : '#111';
-        html += '<button onclick="toggleZoneActive(\'' + z.id + '\')" style="background:' + bg + ';border-color:' + (z.active ? z.color : '#2a2a3a') + ';color:' + (z.active ? z.color : '#555') + '">' + z.name.toUpperCase() + '</button>'
-              + '<button class="del-zone-btn" onclick="deleteZone(\'' + z.id + '\')">✕</button>';
-      });
-      chipsEl.innerHTML = html;
-    }
-
-    btn.className   = 'draw';
-    btn.textContent = 'SELECT NEW ZONE';
-    btn.onclick     = startDrawing;
-
-    if (state.zones.length) {
-      secBtn.style.display = 'block';
-      secBtn.textContent   = 'CLEAR ALL ZONES';
-      secBtn.onclick       = function() {
-        if (confirm('Delete all ' + state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + '?')) clearAllZones();
-      };
-    }
-    return;
-  }
-
-  // ── NORMAL ────────────────────────────────────────────────
-  editBtn.textContent = 'ZONES'; editBtn.classList.remove('active'); editBtn.onclick = enterEditMode;
-
+  // ── NO GPS ───────────────────────────────────────────────
   if (state.phase === 'no_gps') {
     statusEl.textContent = 'ACQUIRING GPS';
     detailEl.textContent = 'Acquiring GPS lock…';
@@ -1030,14 +1112,18 @@ function updateHUD() {
     return;
   }
 
+  // ── NO ACTIVE ZONES ───────────────────────────────────────
   if (!state.zones.filter(function(z) { return z.active; }).length) {
     statusEl.textContent = 'NO ZONES';
-    detailEl.textContent = state.zones.length ? 'All zones inactive. Tap ZONES to enable some.' : 'No zones defined. Tap ZONES to select your play area.';
-    distEl.textContent   = '';
-    btn.className = 'draw'; btn.textContent = 'ADD ZONE'; btn.onclick = enterEditMode;
+    detailEl.textContent = state.zones.length
+      ? 'All zones inactive. Open settings to enable some.'
+      : 'No zones defined. Open settings to add your play area.';
+    distEl.textContent = '';
+    btn.className = 'draw'; btn.textContent = 'OPEN SETTINGS'; btn.onclick = openSettings;
     return;
   }
 
+  // ── ACTIVE GAMEPLAY ───────────────────────────────────────
   var load = currentLoad(), cap = getCapacity(), km = (state.sessionDist / 1000).toFixed(2);
   statusEl.textContent = 'LOAD ' + load + ' / ' + cap + '  ·  ' + km + 'km';
 
@@ -1089,23 +1175,20 @@ function updateHUD() {
 
   // ── INVENTORY ────────────────────────────────────────────
   if (state.carrying.length > 0) {
-    var invEl  = document.getElementById('inventory');
-    var invHtml = '';
-    state.carrying.forEach(function(id) {
+    var invEl = document.getElementById('inventory');
+    invEl.innerHTML = state.carrying.map(function(id) {
       var p    = state.packages.find(function(p) { return p.id === id; });
-      if (!p) return;
+      if (!p) return '';
       var dest = state.destinations.find(function(d) { return d.id === p.destId; });
       var wcfg = WEIGHT[p.weight];
-      invHtml +=
-        '<div class="inv-row">' +
-          '<div class="inv-info">' +
-            '<div class="inv-label">' + wcfg.label + ' &rarr; ZONE ' + (dest ? dest.label : '?') + '</div>' +
-            '<div class="inv-sub">' + p.weight + 'u &nbsp;&middot;&nbsp; ' + p.pts + ' PTS</div>' +
-          '</div>' +
-          '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button>' +
+      return '<div class="inv-row">' +
+        '<div class="inv-info">' +
+          '<div class="inv-label">' + wcfg.label + ' &rarr; ZONE ' + (dest ? dest.label : '?') + '</div>' +
+          '<div class="inv-sub">' + p.weight + 'u &nbsp;&middot;&nbsp; ' + p.pts + ' PTS</div>' +
+        '</div>' +
+        '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button>' +
         '</div>';
-    });
-    invEl.innerHTML = invHtml;
+    }).join('');
     invEl.style.display = 'block';
   }
 }
