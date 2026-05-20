@@ -608,16 +608,22 @@ function pointInPolygon(pt, polygon) {
   return inside;
 }
 
-function randomPointInZone(zone) {
-  // Grid-cell zones: pick a random cell, then a random point within it
+// occupied is a Set of cellKey strings; function adds the chosen cell to it before returning.
+function randomPointInZone(zone, occupied) {
+  occupied = occupied || new Set();
+
   if (zone.cells && zone.cells.length) {
-    var c = zone.cells[Math.floor(Math.random() * zone.cells.length)];
+    var free = zone.cells.filter(function(c) { return !occupied.has(cellKey(c.gx, c.gy)); });
+    if (!free.length) return null;
+    var c = free[Math.floor(Math.random() * free.length)];
     var b = cellBounds(c.gx, c.gy);
+    occupied.add(cellKey(c.gx, c.gy));
     return {
       lat: b.sw.lat + Math.random() * CELL_LAT_DEG,
       lng: b.sw.lng + Math.random() * CELL_LNG_DEG,
     };
   }
+
   // Legacy polygon zones
   if (!zone.polygon || zone.polygon.length < 3) return null;
   var poly   = zone.polygon;
@@ -628,12 +634,12 @@ function randomPointInZone(zone) {
   for (var i = 0; i < 200; i++) {
     var lat = minLat + Math.random() * (maxLat - minLat);
     var lng = minLng + Math.random() * (maxLng - minLng);
-    if (pointInPolygon({ lat: lat, lng: lng }, poly)) return { lat: lat, lng: lng };
+    if (pointInPolygon({ lat: lat, lng: lng }, poly)) {
+      var ck = cellKey(latLngToCell(lat, lng).gx, latLngToCell(lat, lng).gy);
+      if (!occupied.has(ck)) { occupied.add(ck); return { lat: lat, lng: lng }; }
+    }
   }
-  return {
-    lat: lats.reduce(function(a, b) { return a + b; }, 0) / lats.length,
-    lng: lngs.reduce(function(a, b) { return a + b; }, 0) / lngs.length,
-  };
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -655,11 +661,22 @@ function generateOrders() {
   state.packages     = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
   state.destinations = state.destinations.filter(function(d) { return carriedDestIds.includes(d.id); });
 
+  // Seed occupied set from already-placed packages and destinations so nothing shares a cell
+  var occupied = new Set();
+  state.packages.forEach(function(p) {
+    var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
+    occupied.add(cellKey(c.gx, c.gy));
+  });
+  state.destinations.forEach(function(d) {
+    var c = latLngToCell(d.loc.lat, d.loc.lng);
+    occupied.add(cellKey(c.gx, c.gy));
+  });
+
   var labelOffset = state.destinations.length;
   var newDests    = [];
   for (var i = 0; i < 2; i++) {
     var z  = active[Math.floor(Math.random() * active.length)];
-    var pt = randomPointInZone(z);
+    var pt = randomPointInZone(z, occupied);
     if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + i, loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
   }
   state.destinations = state.destinations.concat(newDests);
@@ -668,7 +685,7 @@ function generateOrders() {
   var weightPool = [1, 1, 2, 2, 3];
   for (var j = 0; j < 3; j++) {
     var z2     = active[Math.floor(Math.random() * active.length)];
-    var pt2    = randomPointInZone(z2);
+    var pt2    = randomPointInZone(z2, occupied);
     if (!pt2) continue;
     var dest   = newDests[j % newDests.length];
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
