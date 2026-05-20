@@ -792,6 +792,7 @@ map.on('click', function(e) {
 function startDrawing() {
   state.drawing   = true;
   state.gridCells = new Set();
+  renderOrderMarkers();
   renderGridCanvas();
   updateHUD();
 }
@@ -801,6 +802,7 @@ function cancelDraw() {
   state.gridCells     = null;
   state.editingZoneId = null;
   renderGridCanvas();
+  renderOrderMarkers();
   updateHUD();
 }
 
@@ -845,6 +847,7 @@ function startEditZone(id) {
   state.drawing       = true;
   state.editingZoneId = id;
   state.gridCells     = new Set(zone.cells ? zone.cells.map(function(c) { return cellKey(c.gx, c.gy); }) : []);
+  renderOrderMarkers();
   renderGridCanvas();
   updateHUD();
 }
@@ -1143,6 +1146,7 @@ function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m);
 
 function renderOrderMarkers() {
   clearMarkers();
+  if (state.drawing)           return;
   if (state.phase !== 'active') return;
   var pickable    = nearestPickable();
   var deliverable = nearestDeliverable();
