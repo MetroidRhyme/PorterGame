@@ -252,6 +252,7 @@
       IMPORT SAVE FILE
       <input id="import-input" type="file" accept=".json" style="display:none" onchange="importData(this)">
     </label>
+    <button class="s-btn s-btn-danger" onclick="resetProfile()">RESET PROFILE</button>
   </div>
 </div>
 
@@ -548,6 +549,31 @@ function importData(input) {
     }
   };
   reader.readAsText(file);
+}
+
+function resetProfile() {
+  if (!confirm('Reset all data? This will permanently delete your score, zones, and inventory.')) return;
+  if (!confirm('Are you sure? This cannot be undone.')) return;
+
+  ['porter_score','porter_deliveries','porter_session_dist',
+   'porter_zones','porter_packages','porter_destinations','porter_carrying','porter_cell_lng']
+    .forEach(function(k) { localStorage.removeItem(k); });
+
+  state.score        = 0;
+  state.deliveries   = 0;
+  state.sessionDist  = 0;
+  state.lastPos      = null;
+  state.zones        = [];
+  state.packages     = [];
+  state.destinations = [];
+  state.carrying     = [];
+  CELL_LNG_DEG       = CELL_LAT_DEG;
+
+  closeSettings();
+  renderZoneMarkers();
+  renderGridCanvas();
+  renderOrderMarkers();
+  updateHUD();
 }
 
 // ═══════════════════════════════════════════════════════════
