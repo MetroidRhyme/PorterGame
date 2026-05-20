@@ -566,8 +566,13 @@ function resetProfile() {
   state.zones        = [];
   state.packages     = [];
   state.destinations = [];
-  state.carrying     = [];
-  CELL_LNG_DEG       = CELL_LAT_DEG;
+  state.carrying = [];
+  if (state.userPos) {
+    CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
+    localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
+  } else {
+    CELL_LNG_DEG = CELL_LAT_DEG;
+  }
 
   closeSettings();
   renderZoneMarkers();
@@ -619,7 +624,7 @@ function generateOrdersForZone(zone) {
   var newDests = [];
   for (var i = 0; i < 2; i++) {
     var pt = randomPointInZone(zone, occupied);
-    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + i, loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
+    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
   }
   if (!newDests.length) return;
   state.destinations = state.destinations.concat(newDests);
@@ -632,7 +637,7 @@ function generateOrdersForZone(zone) {
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
     var dist   = haversine(pt2, dest.loc);
     state.packages.push({
-      id: 'pkg_' + Date.now() + '_' + j, pickupLoc: pt2, destId: dest.id,
+      id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), pickupLoc: pt2, destId: dest.id,
       dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
       weight: weight, picked: false
     });
@@ -777,29 +782,6 @@ function scheduleGridRender() {
   requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); });
 }
 
-function renderOrderLines() {
-  if (state.phase !== 'active') return;
-  drawCtx.save();
-  drawCtx.lineCap     = 'round';
-  drawCtx.lineWidth   = 1.5;
-  drawCtx.setLineDash([3, 7]);
-
-  state.packages.forEach(function(p) {
-    var dest = state.destinations.find(function(d) { return d.id === p.destId; });
-    if (!dest) return;
-    var origin   = p.picked && state.userPos ? state.userPos : p.pickupLoc;
-    var from     = map.latLngToContainerPoint([origin.lat,   origin.lng  ]);
-    var to       = map.latLngToContainerPoint([dest.loc.lat, dest.loc.lng]);
-    drawCtx.globalAlpha = p.picked ? 0.75 : 0.6;
-    drawCtx.strokeStyle = p.picked ? '#3080c0' : '#e8a030';
-    drawCtx.beginPath();
-    drawCtx.moveTo(from.x, from.y);
-    drawCtx.lineTo(to.x,   to.y);
-    drawCtx.stroke();
-  });
-
-  drawCtx.restore();
-}
 
 function renderGridCanvas() {
   if (!drawCtx) return;
@@ -825,7 +807,6 @@ function renderGridCanvas() {
     renderZoneCells(cells, color, 0.25, 1.0);
   }
 
-  if (!state.drawing) renderOrderLines();
 }
 
 map.on('move zoom', scheduleGridRender);
@@ -1194,15 +1175,29 @@ function showCompletion(pts, count, zoneLabel) {
 //  ORDER MARKERS
 // ═══════════════════════════════════════════════════════════
 
-function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; scheduleGridRender(); }
+function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; }
 
 function renderOrderMarkers() {
   clearMarkers();
-  if (state.drawing)           return;
+  if (state.drawing)            return;
   if (state.phase !== 'active') return;
   var pickable    = nearestPickable();
   var deliverable = nearestDeliverable();
   var rem         = getCapacity() - currentLoad();
+
+  // Connection lines — added first so they land in overlayPane (below markerPane)
+  state.packages.forEach(function(p) {
+    var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+    if (!dest) return;
+    var origin = p.picked && state.userPos ? state.userPos : p.pickupLoc;
+    var line = L.polyline(
+      [[origin.lat, origin.lng], [dest.loc.lat, dest.loc.lng]],
+      { color: p.picked ? '#3080c0' : '#e8a030', weight: 1.5,
+        opacity: p.picked ? 0.75 : 0.6, dashArray: '4 8',
+        lineCap: 'round', interactive: false }
+    ).addTo(map);
+    orderMarkers.push(line);
+  });
 
   state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
     var dest     = state.destinations.find(function(d) { return d.id === p.destId; });
