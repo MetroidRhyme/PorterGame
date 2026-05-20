@@ -787,10 +787,11 @@ function renderOrderLines() {
   state.packages.forEach(function(p) {
     var dest = state.destinations.find(function(d) { return d.id === p.destId; });
     if (!dest) return;
-    var from = map.latLngToContainerPoint([p.pickupLoc.lat, p.pickupLoc.lng]);
-    var to   = map.latLngToContainerPoint([dest.loc.lat,    dest.loc.lng   ]);
-    drawCtx.globalAlpha  = p.picked ? 0.45 : 0.35;
-    drawCtx.strokeStyle  = p.picked ? '#3080c0' : '#e8a030';
+    var origin   = p.picked && state.userPos ? state.userPos : p.pickupLoc;
+    var from     = map.latLngToContainerPoint([origin.lat,   origin.lng  ]);
+    var to       = map.latLngToContainerPoint([dest.loc.lat, dest.loc.lng]);
+    drawCtx.globalAlpha = p.picked ? 0.75 : 0.6;
+    drawCtx.strokeStyle = p.picked ? '#3080c0' : '#e8a030';
     drawCtx.beginPath();
     drawCtx.moveTo(from.x, from.y);
     drawCtx.lineTo(to.x,   to.y);
