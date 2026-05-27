@@ -210,6 +210,50 @@
     .completion-label { font-size: 14px; letter-spacing: 8px; color: #3080c0; }
     .completion-pts   { font-size: 56px; font-weight: bold; color: #e8a030; margin-top: 4px; }
     .completion-sub   { font-size: 11px; letter-spacing: 3px; color: #555; margin-top: 6px; }
+
+    #refresh-btn {
+      font-size: 18px; line-height: 1; padding: 10px 14px; border-radius: 4px;
+      background: transparent; color: #999; border: 1px solid #2a2a3a; cursor: pointer;
+      touch-action: manipulation; min-height: 44px; min-width: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #refresh-btn:active { color: #c04040; border-color: #602020; }
+
+    /* ── CONFIRM MODAL ── */
+    #confirm-overlay {
+      display: none; position: fixed; inset: 0; z-index: 8000;
+      background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
+    }
+    #confirm-overlay.open { display: flex; }
+    #confirm-modal {
+      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 28px 24px 20px; width: min(320px, calc(100vw - 48px));
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    #confirm-modal .cm-title {
+      font-size: 11px; letter-spacing: 4px; color: #c04040; text-align: center;
+    }
+    #confirm-modal .cm-body {
+      font-size: 13px; color: #888; text-align: center; line-height: 1.6;
+      letter-spacing: 1px;
+    }
+    #confirm-modal .cm-btns {
+      display: flex; gap: 10px; margin-top: 4px;
+    }
+    #confirm-modal .cm-cancel {
+      flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      background: transparent; color: #666; border: 1px solid #2a2a3a;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    #confirm-modal .cm-cancel:active { color: #aaa; border-color: #4a4a5a; }
+    #confirm-modal .cm-confirm {
+      flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      background: rgba(60,10,10,0.4); color: #c04040; border: 1px solid #602020;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    #confirm-modal .cm-confirm:active { color: #e05050; background: rgba(80,10,10,0.6); }
   </style>
 </head>
 <body>
@@ -217,6 +261,7 @@
 <div id="hud-top">
   <div id="game-title">PORTER</div>
   <button id="settings-btn" onclick="openSettings()">&#9776;</button>
+  <button id="refresh-btn" onclick="confirmRefresh()">&#x21BB;</button>
   <button id="follow-btn" onclick="toggleFollow()">&#9678;</button>
   <div id="score-display">
     <div class="label">SCORE</div>
@@ -272,6 +317,17 @@
   <div class="completion-label">DELIVERY COMPLETE</div>
   <div class="completion-pts" id="completion-pts">+0</div>
   <div class="completion-sub" id="completion-total">SCORE: 0</div>
+</div>
+
+<div id="confirm-overlay">
+  <div id="confirm-modal">
+    <div class="cm-title">REFRESH ORDERS</div>
+    <div class="cm-body">All packages and destinations will be removed,<br>including ones you are carrying.</div>
+    <div class="cm-btns">
+      <button class="cm-cancel" onclick="closeConfirmModal()">CANCEL</button>
+      <button class="cm-confirm" onclick="executeRefresh()">REFRESH</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -624,6 +680,9 @@ function removeZoneOrders(zone) {
 
 function generateOrdersForZone(zone) {
   if (!zone.active) return;
+  var activeZones = state.zones.filter(function(z) {
+    return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
+  });
   var occupied = new Set();
   state.packages.forEach(function(p) {
     var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
@@ -637,7 +696,8 @@ function generateOrdersForZone(zone) {
   var labelOffset = state.destinations.length;
   var newDests = [];
   for (var i = 0; i < 2; i++) {
-    var pt = randomPointInZone(zone, occupied);
+    var destZone = activeZones[Math.floor(Math.random() * activeZones.length)];
+    var pt = randomPointInZone(destZone, occupied);
     if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
   }
   if (!newDests.length) return;
@@ -645,7 +705,8 @@ function generateOrdersForZone(zone) {
 
   var weightPool = [1, 1, 2, 2, 3];
   for (var j = 0; j < 3; j++) {
-    var pt2    = randomPointInZone(zone, occupied);
+    var pickupZone = activeZones[Math.floor(Math.random() * activeZones.length)];
+    var pt2    = randomPointInZone(pickupZone, occupied);
     if (!pt2) continue;
     var dest   = newDests[j % newDests.length];
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
@@ -1172,6 +1233,25 @@ function abandonPackage(id) {
   checkRefresh();
   renderOrderMarkers();
   updateHUD();
+}
+
+function confirmRefresh() {
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+}
+
+function executeRefresh() {
+  closeConfirmModal();
+  state.packages     = [];
+  state.destinations = [];
+  state.carrying     = [];
+  saveGameState();
+  renderOrderMarkers();
+  updateHUD();
+  if (state.phase === 'active') generateOrders();
 }
 
 function showCompletion(pts, count, zoneLabel) {
