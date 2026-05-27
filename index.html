@@ -107,7 +107,22 @@
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-del:active { color: #c04040; border-color: #602020; }
+    .s-zone-share {
+      font-size: 14px; color: #555; background: transparent;
+      border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
+      padding: 10px 12px; min-height: 44px;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .s-zone-share:active { color: #5090d0; border-color: #1a3060; }
     .s-empty { font-size: 12px; color: #3a3a4a; letter-spacing: 1px; padding: 6px 0 4px; }
+    .s-name-input {
+      width: 100%; padding: 10px 14px; border-radius: 4px; margin-bottom: 8px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
+      background: rgba(0,0,0,0.3); color: #e0d8c8;
+      border: 1px solid #2a2a3a; outline: none; box-sizing: border-box;
+    }
+    .s-name-input::placeholder { color: #3a3a4a; }
+    .s-name-input:focus { border-color: #4a4a6a; }
 
     .s-btn {
       display: block; width: 100%; margin-top: 8px; padding: 14px;
@@ -291,11 +306,19 @@
   </div>
 
   <div class="s-section">
+    <div class="s-section-label">PROFILE</div>
+    <input class="s-name-input" id="s-player-name" type="text" maxlength="20"
+      placeholder="ENTER NAME…" autocomplete="off" autocorrect="off" spellcheck="false"
+      oninput="savePlayerName(this.value)">
+    <button class="s-btn s-btn-dim" onclick="shareProfile()">&#x2191; SHARE PROFILE</button>
+  </div>
+
+  <div class="s-section">
     <div class="s-section-label">DATA</div>
     <button class="s-btn s-btn-dim" onclick="exportData()">EXPORT SAVE FILE</button>
     <label class="s-btn s-btn-dim" style="cursor:pointer">
       IMPORT SAVE FILE
-      <input id="import-input" type="file" accept=".json" style="display:none" onchange="importData(this)">
+      <input id="import-input" type="file" accept=".json,.porter" style="display:none" onchange="importData(this)">
     </label>
     <button class="s-btn s-btn-danger" onclick="resetProfile()">RESET PROFILE</button>
   </div>
@@ -341,6 +364,7 @@
 const state = {
   score:       parseInt(localStorage.getItem('porter_score')       || '0'),
   deliveries:  parseInt(localStorage.getItem('porter_deliveries')  || '0'),
+  playerName:  localStorage.getItem('porter_name') || '',
   phase:       'no_gps',
   following:   false,
   userPos:     null,
@@ -527,6 +551,8 @@ function closeSettings() {
 function renderSettingsPanel() {
   var listEl   = document.getElementById('s-zone-list');
   var clearBtn = document.getElementById('s-clear-btn');
+  var nameEl   = document.getElementById('s-player-name');
+  if (nameEl) nameEl.value = state.playerName;
 
   if (!state.zones.length) {
     listEl.innerHTML = '<div class="s-empty">No zones defined yet.</div>';
@@ -538,6 +564,7 @@ function renderSettingsPanel() {
         '<button class="s-zone-toggle" ' +
         'style="color:' + (z.active ? z.color : '#555') + ';border-color:' + (z.active ? z.color : '#2a2a3a') + '" ' +
         'onclick="settingsToggleZone(\'' + z.id + '\')">' + z.name.toUpperCase() + '</button>' +
+        '<button class="s-zone-share" onclick="shareZone(\'' + z.id + '\')">&#x2191;</button>' +
         '<button class="s-zone-edit" onclick="settingsEditZone(\'' + z.id + '\')">&#9998;</button>' +
         '<button class="s-zone-del" onclick="settingsDeleteZone(\'' + z.id + '\')">&#10005;</button>' +
         '</div>';
@@ -553,6 +580,46 @@ function settingsClearZones() {
   if (!confirm('Delete all ' + state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + '?')) return;
   clearAllZones();
   renderSettingsPanel();
+}
+
+function savePlayerName(val) {
+  state.playerName = val.trim();
+  localStorage.setItem('porter_name', state.playerName);
+}
+
+function shareZone(id) {
+  var zone = state.zones.find(function(z) { return z.id === id; });
+  if (!zone) return;
+  var absCells = (zone.cells || []).map(function(c) { return hexCenter(c.q, c.r); });
+  var shareZoneData = { name: zone.name, color: zone.color, active: zone.active, cells: absCells };
+  var payload = JSON.stringify({ version: 1, type: 'zone', zone: shareZoneData }, null, 2);
+  var filename = zone.name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.porter';
+  if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+    var file = new File([payload], filename, { type: 'application/json' });
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Porter Zone: ' + zone.name }).catch(function() {});
+      return;
+    }
+  }
+  var blob = new Blob([payload], { type: 'application/json' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function shareProfile() {
+  var name = state.playerName || 'Anonymous';
+  var text = 'PORTER · ' + name.toUpperCase() + '\nScore: ' + state.score + ' pts';
+  if (typeof navigator.share === 'function') {
+    navigator.share({ title: 'Porter Score', text: text }).catch(function() {});
+    return;
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() { alert('Copied to clipboard!'); });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -590,6 +657,23 @@ function importData(input) {
   reader.onload = function(e) {
     try {
       var data = JSON.parse(e.target.result);
+
+      // Single-zone share file
+      if (data.version && data.type === 'zone' && data.zone) {
+        var z = data.zone;
+        var incoming = {
+          id:     'zone_' + Date.now() + '_0',
+          name:   z.name   || 'Shared Zone',
+          color:  z.color  || '#e87040',
+          active: z.active !== false,
+          cells:  (z.cells || []).map(function(c) { return latLngToHex(c.lat, c.lng); }),
+        };
+        state.zones.push(incoming);
+        saveZones();
+        renderZoneMarkers(); renderGridCanvas(); renderSettingsPanel(); updateHUD();
+        input.value = ''; return;
+      }
+
       if (!data.version || !Array.isArray(data.zones)) throw new Error('Unrecognized file format.');
       if (!confirm('Import will replace all current data. Continue?')) { input.value = ''; return; }
 
@@ -659,18 +743,18 @@ function resetProfile() {
 
 function removeZoneOrders(zone) {
   if (!zone.cells || !zone.cells.length) return;
-  var zoneKeys = new Set(zone.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
+  var zoneKeys = new Set(zone.cells.map(function(c) { return hexKey(c.q, c.r); }));
 
   var removedIds = new Set();
   state.packages = state.packages.filter(function(p) {
-    var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
-    if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedIds.add(p.id); return false; }
+    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+    if (zoneKeys.has(hexKey(h.q, h.r))) { removedIds.add(p.id); return false; }
     return true;
   });
   var removedDestIds = new Set();
   state.destinations = state.destinations.filter(function(d) {
-    var c = latLngToCell(d.loc.lat, d.loc.lng);
-    if (zoneKeys.has(cellKey(c.gx, c.gy))) { removedDestIds.add(d.id); return false; }
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    if (zoneKeys.has(hexKey(h.q, h.r))) { removedDestIds.add(d.id); return false; }
     return true;
   });
   state.packages = state.packages.filter(function(p) {
@@ -687,12 +771,12 @@ function generateOrdersForZone(zone) {
   });
   var occupied = new Set();
   state.packages.forEach(function(p) {
-    var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
-    occupied.add(cellKey(c.gx, c.gy));
+    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+    occupied.add(hexKey(h.q, h.r));
   });
   state.destinations.forEach(function(d) {
-    var c = latLngToCell(d.loc.lat, d.loc.lng);
-    occupied.add(cellKey(c.gx, c.gy));
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    occupied.add(hexKey(h.q, h.r));
   });
 
   var labelOffset = state.destinations.length;
@@ -726,12 +810,12 @@ function toggleZoneActive(id) {
   if (!z) return;
   if (z.active) {
     if (z.cells && z.cells.length) {
-      var zk = new Set(z.cells.map(function(c) { return cellKey(c.gx, c.gy); }));
+      var zk = new Set(z.cells.map(function(c) { return hexKey(c.q, c.r); }));
       var cc = state.carrying.filter(function(cid) {
         var p = state.packages.find(function(p) { return p.id === cid; });
         if (!p) return false;
-        var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
-        return zk.has(cellKey(c.gx, c.gy));
+        var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+        return zk.has(hexKey(h.q, h.r));
       }).length;
       if (cc > 0 && !confirm(cc + ' carried package' + (cc > 1 ? 's' : '') + ' from this zone will be deleted. Disable zone?')) return;
     }
@@ -776,23 +860,58 @@ function initDrawCanvas() {
 window.addEventListener('resize', function() { initDrawCanvas(); renderGridCanvas(); });
 
 // ═══════════════════════════════════════════════════════════
-//  GRID SYSTEM
+//  HEX GRID SYSTEM  (flat-top axial q,r coordinates)
 // ═══════════════════════════════════════════════════════════
+// Hex circumradius = CELL_LAT_DEG (~20 m). Flat-top means the
+// top/bottom edges are horizontal. Neighbor directions:
+//   NE(+1,0), N(0,+1), NW(-1,+1), SW(-1,0), S(0,-1), SE(+1,-1)
+// Edge i (vertex i → vertex i+1) is shared with HEX_NEIGHBORS[i].
 
-function latLngToCell(lat, lng) {
-  return { gx: Math.floor(lng / CELL_LNG_DEG), gy: Math.floor(lat / CELL_LAT_DEG) };
+var SQ3 = Math.sqrt(3);
+var HEX_NEIGHBORS = [[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]];
+
+function hexRound(qf, rf) {
+  var sf = -qf - rf;
+  var q = Math.round(qf), r = Math.round(rf), s = Math.round(sf);
+  var dq = Math.abs(q - qf), dr = Math.abs(r - rf), ds = Math.abs(s - sf);
+  if (dq > dr && dq > ds) q = -r - s;
+  else if (dr > ds) r = -q - s;
+  return { q: q, r: r };
 }
-function cellBounds(gx, gy) {
+
+function latLngToHex(lat, lng) {
+  var nx = lng / CELL_LNG_DEG, ny = lat / CELL_LAT_DEG;
+  return hexRound(2/3 * nx, -1/3 * nx + SQ3/3 * ny);
+}
+
+function hexCenter(q, r) {
   return {
-    sw: { lat: gy * CELL_LAT_DEG,       lng: gx * CELL_LNG_DEG },
-    ne: { lat: (gy + 1) * CELL_LAT_DEG, lng: (gx + 1) * CELL_LNG_DEG },
+    lat: (SQ3/2 * q + SQ3 * r) * CELL_LAT_DEG,
+    lng: (3/2 * q)              * CELL_LNG_DEG,
   };
 }
-function cellKey(gx, gy) { return gx + ',' + gy; }
+
+function hexKey(q, r) { return q + ',' + r; }
+
+function hexVerticesPx(q, r) {
+  var verts = [];
+  for (var i = 0; i < 6; i++) {
+    var angle = Math.PI / 3 * i;
+    var nx = 3/2 * q + Math.cos(angle);
+    var ny = SQ3/2 * q + SQ3 * r + Math.sin(angle);
+    verts.push(map.latLngToContainerPoint([ny * CELL_LAT_DEG, nx * CELL_LNG_DEG]));
+  }
+  return verts;
+}
+
+function hexOnScreen(verts) {
+  var W = window.innerWidth, H = window.innerHeight;
+  return verts.some(function(v) { return v.x >= -4 && v.x <= W + 4 && v.y >= -4 && v.y <= H + 4; });
+}
 
 function toggleCell(latlng) {
-  var c   = latLngToCell(latlng.lat, latlng.lng);
-  var key = cellKey(c.gx, c.gy);
+  var h   = latLngToHex(latlng.lat, latlng.lng);
+  var key = hexKey(h.q, h.r);
   if (state.gridCells.has(key)) state.gridCells.delete(key);
   else                           state.gridCells.add(key);
   renderGridCanvas();
@@ -807,8 +926,9 @@ function findConnectedComponents(cellSet) {
     visited.add(startKey); comp.add(startKey);
     while (queue.length) {
       var key = queue.shift(), parts = key.split(',');
-      var gx = parseInt(parts[0]), gy = parseInt(parts[1]);
-      [cellKey(gx+1,gy), cellKey(gx-1,gy), cellKey(gx,gy+1), cellKey(gx,gy-1)].forEach(function(nk) {
+      var q = parseInt(parts[0]), r = parseInt(parts[1]);
+      HEX_NEIGHBORS.forEach(function(d) {
+        var nk = hexKey(q + d[0], r + d[1]);
         if (cellSet.has(nk) && !visited.has(nk)) { visited.add(nk); comp.add(nk); queue.push(nk); }
       });
     }
@@ -817,36 +937,32 @@ function findConnectedComponents(cellSet) {
   return comps;
 }
 
-function cellRect(gx, gy) {
-  var b  = cellBounds(gx, gy);
-  var sw = map.latLngToContainerPoint([b.sw.lat, b.sw.lng]);
-  var ne = map.latLngToContainerPoint([b.ne.lat, b.ne.lng]);
-  var x  = Math.min(sw.x, ne.x), y = Math.min(sw.y, ne.y);
-  var w  = Math.abs(ne.x - sw.x), h = Math.abs(ne.y - sw.y);
-  if (x + w < -2 || x > window.innerWidth + 2 || y + h < -2 || y > window.innerHeight + 2) return null;
-  return { x: x, y: y, w: w, h: h };
-}
-
 function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
-  var cellSet = new Set(cells.map(function(c) { return cellKey(c.gx, c.gy); }));
-  drawCtx.fillStyle = color; drawCtx.strokeStyle = color; drawCtx.lineWidth = 2;
+  var cellSet = new Set(cells.map(function(c) { return hexKey(c.q, c.r); }));
+  drawCtx.fillStyle = color; drawCtx.strokeStyle = color; drawCtx.lineWidth = 1.5;
 
   drawCtx.globalAlpha = fillOpacity;
+  drawCtx.beginPath();
   cells.forEach(function(c) {
-    var r = cellRect(c.gx, c.gy);
-    if (!r) return;
-    drawCtx.fillRect(r.x - 0.5, r.y - 0.5, r.w + 1, r.h + 1);
+    var verts = hexVerticesPx(c.q, c.r);
+    if (!hexOnScreen(verts)) return;
+    drawCtx.moveTo(verts[0].x, verts[0].y);
+    for (var i = 1; i < 6; i++) drawCtx.lineTo(verts[i].x, verts[i].y);
+    drawCtx.closePath();
   });
+  drawCtx.fill();
 
   drawCtx.globalAlpha = strokeOpacity;
   drawCtx.beginPath();
   cells.forEach(function(c) {
-    var r = cellRect(c.gx, c.gy);
-    if (!r) return;
-    if (!cellSet.has(cellKey(c.gx,     c.gy + 1))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x + r.w, r.y      ); }
-    if (!cellSet.has(cellKey(c.gx,     c.gy - 1))) { drawCtx.moveTo(r.x,       r.y + r.h); drawCtx.lineTo(r.x + r.w, r.y + r.h); }
-    if (!cellSet.has(cellKey(c.gx - 1, c.gy    ))) { drawCtx.moveTo(r.x,       r.y      ); drawCtx.lineTo(r.x,       r.y + r.h); }
-    if (!cellSet.has(cellKey(c.gx + 1, c.gy    ))) { drawCtx.moveTo(r.x + r.w, r.y      ); drawCtx.lineTo(r.x + r.w, r.y + r.h); }
+    var verts = hexVerticesPx(c.q, c.r);
+    if (!hexOnScreen(verts)) return;
+    for (var e = 0; e < 6; e++) {
+      if (!cellSet.has(hexKey(c.q + HEX_NEIGHBORS[e][0], c.r + HEX_NEIGHBORS[e][1]))) {
+        drawCtx.moveTo(verts[e].x, verts[e].y);
+        drawCtx.lineTo(verts[(e + 1) % 6].x, verts[(e + 1) % 6].y);
+      }
+    }
   });
   drawCtx.stroke();
   drawCtx.globalAlpha = 1.0;
@@ -879,7 +995,7 @@ function renderGridCanvas() {
     var color    = editZone ? editZone.color : ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
     var cells    = Array.from(state.gridCells).map(function(key) {
       var p = key.split(',');
-      return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
+      return { q: parseInt(p[0]), r: parseInt(p[1]) };
     });
     renderZoneCells(cells, color, 0.25, 1.0);
   }
@@ -931,7 +1047,7 @@ function finishDraw() {
   comps.forEach(function(comp, idx) {
     var cells = Array.from(comp).map(function(key) {
       var p = key.split(',');
-      return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
+      return { q: parseInt(p[0]), r: parseInt(p[1]) };
     });
     var name  = baseName || ('Zone ' + (state.zones.length + 1));
     if (comps.length > 1) name += ' ' + (idx + 1);
@@ -957,7 +1073,7 @@ function startEditZone(id) {
   if (!zone) return;
   state.drawing       = true;
   state.editingZoneId = id;
-  state.gridCells     = new Set(zone.cells ? zone.cells.map(function(c) { return cellKey(c.gx, c.gy); }) : []);
+  state.gridCells     = new Set(zone.cells ? zone.cells.map(function(c) { return hexKey(c.q, c.r); }) : []);
   renderOrderMarkers();
   renderGridCanvas();
   updateHUD();
@@ -967,7 +1083,7 @@ function finishEdit() {
   var zone = state.zones.find(function(z) { return z.id === state.editingZoneId; });
   if (!zone || !state.gridCells || !state.gridCells.size) return;
 
-  var oldKeys = new Set(zone.cells ? zone.cells.map(function(c) { return cellKey(c.gx, c.gy); }) : []);
+  var oldKeys = new Set(zone.cells ? zone.cells.map(function(c) { return hexKey(c.q, c.r); }) : []);
   var newKeys = new Set(state.gridCells);
 
   // Remove orders on cells that are no longer in the zone
@@ -976,14 +1092,14 @@ function finishEdit() {
   if (removedKeys.size > 0) {
     var removedPkgIds = new Set();
     state.packages = state.packages.filter(function(p) {
-      var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
-      if (removedKeys.has(cellKey(c.gx, c.gy))) { removedPkgIds.add(p.id); return false; }
+      var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+      if (removedKeys.has(hexKey(h.q, h.r))) { removedPkgIds.add(p.id); return false; }
       return true;
     });
     var removedDestIds = new Set();
     state.destinations = state.destinations.filter(function(d) {
-      var c = latLngToCell(d.loc.lat, d.loc.lng);
-      if (removedKeys.has(cellKey(c.gx, c.gy))) { removedDestIds.add(d.id); return false; }
+      var h = latLngToHex(d.loc.lat, d.loc.lng);
+      if (removedKeys.has(hexKey(h.q, h.r))) { removedDestIds.add(d.id); return false; }
       return true;
     });
     state.packages = state.packages.filter(function(p) {
@@ -997,13 +1113,13 @@ function finishEdit() {
   var comps = findConnectedComponents(newKeys);
   zone.cells = Array.from(comps[0]).map(function(key) {
     var p = key.split(',');
-    return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
+    return { q: parseInt(p[0]), r: parseInt(p[1]) };
   });
   var splitZones = [];
   for (var i = 1; i < comps.length; i++) {
     var cells = Array.from(comps[i]).map(function(key) {
       var p = key.split(',');
-      return { gx: parseInt(p[0]), gy: parseInt(p[1]) };
+      return { q: parseInt(p[0]), r: parseInt(p[1]) };
     });
     var nz = { id: 'zone_' + Date.now() + '_' + i, name: zone.name + ' ' + (i + 1), color: zone.color, cells: cells, active: zone.active };
     state.zones.push(nz);
@@ -1064,12 +1180,11 @@ function pointInPolygon(pt, polygon) {
 function randomPointInZone(zone, occupied) {
   occupied = occupied || new Set();
   if (zone.cells && zone.cells.length) {
-    var free = zone.cells.filter(function(c) { return !occupied.has(cellKey(c.gx, c.gy)); });
+    var free = zone.cells.filter(function(c) { return !occupied.has(hexKey(c.q, c.r)); });
     if (!free.length) return null;
     var c = free[Math.floor(Math.random() * free.length)];
-    var b = cellBounds(c.gx, c.gy);
-    occupied.add(cellKey(c.gx, c.gy));
-    return { lat: b.sw.lat + CELL_LAT_DEG * 0.5, lng: b.sw.lng + CELL_LNG_DEG * 0.5 };
+    occupied.add(hexKey(c.q, c.r));
+    return hexCenter(c.q, c.r);
   }
   if (!zone.polygon || zone.polygon.length < 3) return null;
   var poly = zone.polygon;
@@ -1080,11 +1195,10 @@ function randomPointInZone(zone, occupied) {
     var lat = minLat + Math.random() * (maxLat - minLat);
     var lng = minLng + Math.random() * (maxLng - minLng);
     if (pointInPolygon({ lat: lat, lng: lng }, poly)) {
-      var cl = latLngToCell(lat, lng), ck = cellKey(cl.gx, cl.gy);
-      if (!occupied.has(ck)) {
-        occupied.add(ck);
-        var bc = cellBounds(cl.gx, cl.gy);
-        return { lat: bc.sw.lat + CELL_LAT_DEG * 0.5, lng: bc.sw.lng + CELL_LNG_DEG * 0.5 };
+      var h = latLngToHex(lat, lng), hk = hexKey(h.q, h.r);
+      if (!occupied.has(hk)) {
+        occupied.add(hk);
+        return hexCenter(h.q, h.r);
       }
     }
   }
@@ -1110,12 +1224,12 @@ function generateOrders() {
 
   var occupied = new Set();
   state.packages.forEach(function(p) {
-    var c = latLngToCell(p.pickupLoc.lat, p.pickupLoc.lng);
-    occupied.add(cellKey(c.gx, c.gy));
+    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+    occupied.add(hexKey(h.q, h.r));
   });
   state.destinations.forEach(function(d) {
-    var c = latLngToCell(d.loc.lat, d.loc.lng);
-    occupied.add(cellKey(c.gx, c.gy));
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    occupied.add(hexKey(h.q, h.r));
   });
 
   var labelOffset = state.destinations.length;
@@ -1463,6 +1577,23 @@ function haversine(a, b) {
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
+
+// Migrate any saved zones from square {gx,gy} format to hex {q,r}
+(function migrateZones() {
+  var changed = false;
+  state.zones.forEach(function(zone) {
+    if (!zone.cells || !zone.cells.length || 'q' in zone.cells[0]) return;
+    var seen = new Set();
+    zone.cells = zone.cells.reduce(function(acc, c) {
+      var lat = c.gy * CELL_LAT_DEG, lng = c.gx * CELL_LNG_DEG;
+      var h = latLngToHex(lat, lng), k = hexKey(h.q, h.r);
+      if (!seen.has(k)) { seen.add(k); acc.push(h); }
+      return acc;
+    }, []);
+    changed = true;
+  });
+  if (changed) saveZones();
+}());
 
 initDrawCanvas();
 updateHUD();
