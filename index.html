@@ -736,11 +736,11 @@ function makeDestIcon(bg, letter, size, level) {
 
 function makePackageIcon(weight, size, isNext, tooHeavy) {
   var bg = isNext ? '#e8a030' : (tooHeavy ? '#2a1a1a' : '#2a1800');
-  var fs = weight === 1 ? Math.round(size * 0.62) : Math.round(size * 0.38);
+  var fs = weight === 1 ? Math.round(size * 0.60) : weight === 2 ? Math.round(size * 0.29) : Math.round(size * 0.23);
   var inner = '';
   for (var i = 0; i < weight; i++) inner += '<span>📦</span>';
   return L.divIcon({
-    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;font-size:' + fs + 'px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + inner + '</div>',
+    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;align-content:center;font-size:' + fs + 'px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + inner + '</div>',
     iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
   });
 }
