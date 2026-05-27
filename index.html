@@ -735,12 +735,36 @@ function makeDestIcon(bg, letter, size, level) {
 }
 
 function makePackageIcon(weight, size, isNext, tooHeavy) {
-  var bg = isNext ? '#e8a030' : (tooHeavy ? '#2a1a1a' : '#2a1800');
-  var fs = weight === 1 ? Math.round(size * 0.60) : weight === 2 ? Math.round(size * 0.29) : Math.round(size * 0.23);
-  var inner = '';
-  for (var i = 0; i < weight; i++) inner += '<span>📦</span>';
+  var bg  = isNext ? '#e8a030' : (tooHeavy ? '#2a1a1a' : '#2a1800');
+  var bdr = '2px solid rgba(255,255,255,0.25)';
+  var shd = '0 2px 8px rgba(0,0,0,0.7)';
+
+  if (weight === 1) {
+    var fs1 = Math.round(size * 0.60);
+    return L.divIcon({
+      html: '<div style="background:' + bg + ';border:' + bdr + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs1 + 'px;box-shadow:' + shd + '">📦</div>',
+      iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
+    });
+  }
+
+  var sub  = Math.round(size * 0.44);
+  var fs   = Math.round(sub * 0.62);
+  var gap  = Math.max(2, Math.round(size * 0.05));
+  var gs   = 'gap:' + gap + 'px;';
+  var circ = '<div style="background:' + bg + ';border:' + bdr + ';border-radius:50%;width:' + sub + 'px;height:' + sub + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:' + shd + ';flex-shrink:0">📦</div>';
+
+  if (weight === 2) {
+    return L.divIcon({
+      html: '<div style="width:' + size + 'px;height:' + size + 'px;display:flex;' + gs + 'align-items:center;justify-content:center">' + circ + circ + '</div>',
+      iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
+    });
+  }
+
+  // weight 3 — two on top, one centred below
   return L.divIcon({
-    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;align-content:center;font-size:' + fs + 'px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + inner + '</div>',
+    html: '<div style="width:' + size + 'px;height:' + size + 'px;display:flex;flex-direction:column;' + gs + 'align-items:center;justify-content:center">' +
+      '<div style="display:flex;' + gs + '">' + circ + circ + '</div>' + circ +
+    '</div>',
     iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
   });
 }
