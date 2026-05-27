@@ -522,6 +522,12 @@ const WEIGHT = {
   3: { label: 'HEAVY',    multiplier: 1.5 },
 };
 
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function safeColor(c) { return /^#[0-9a-fA-F]{3,6}$/.test(c) ? c : '#e8a030'; }
+
 function vibrate(p)    { if (navigator.vibrate) navigator.vibrate(p); }
 function getCapacity() { return Math.min(3 + Math.floor(state.score / 500), 12); }
 function currentLoad() {
@@ -550,8 +556,8 @@ function toggleFollow() {
     '<button class="paint-zone-opt" style="color:#999" onclick="selectFollowZone(null)">NONE</button>' +
     '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:#444;border-bottom:1px solid rgba(255,255,255,0.05)">PAINT MODE</div>' +
     zones.map(function(z) {
-      return '<button class="paint-zone-opt" style="color:' + z.color + '" onclick="selectFollowZone(\'' + z.id + '\')">' +
-        z.name.toUpperCase() + '</button>';
+      return '<button class="paint-zone-opt" style="color:' + safeColor(z.color) + '" onclick="selectFollowZone(\'' + esc(z.id) + '\')">' +
+        esc(z.name.toUpperCase()) + '</button>';
     }).join('');
   picker.classList.add('open');
 }
@@ -720,13 +726,14 @@ function renderSettingsPanel() {
   } else {
     clearBtn.style.display = 'block';
     listEl.innerHTML = state.zones.map(function(z) {
+      var col = safeColor(z.color);
       return '<div class="s-zone-row">' +
         '<button class="s-zone-toggle" ' +
-        'style="color:' + (z.active ? z.color : '#555') + ';border-color:' + (z.active ? z.color : '#2a2a3a') + '" ' +
-        'onclick="settingsToggleZone(\'' + z.id + '\')">' + z.name.toUpperCase() + '</button>' +
-        '<button class="s-zone-share" onclick="shareZone(\'' + z.id + '\')">&#x2191;</button>' +
-        '<button class="s-zone-edit" onclick="settingsEditZone(\'' + z.id + '\')">&#9998;</button>' +
-        '<button class="s-zone-del" onclick="settingsDeleteZone(\'' + z.id + '\')">&#10005;</button>' +
+        'style="color:' + (z.active ? col : '#555') + ';border-color:' + (z.active ? col : '#2a2a3a') + '" ' +
+        'onclick="settingsToggleZone(\'' + esc(z.id) + '\')">' + esc(z.name.toUpperCase()) + '</button>' +
+        '<button class="s-zone-share" onclick="shareZone(\'' + esc(z.id) + '\')">&#x2191;</button>' +
+        '<button class="s-zone-edit" onclick="settingsEditZone(\'' + esc(z.id) + '\')">&#9998;</button>' +
+        '<button class="s-zone-del" onclick="settingsDeleteZone(\'' + esc(z.id) + '\')">&#10005;</button>' +
         '</div>';
     }).join('');
   }
@@ -882,8 +889,8 @@ function importData(input) {
         var z = data.zone;
         var incoming = {
           id:     'zone_' + Date.now() + '_0',
-          name:   z.name   || 'Shared Zone',
-          color:  z.color  || '#e87040',
+          name:   String(z.name  || 'Shared Zone').slice(0, 40),
+          color:  safeColor(z.color),
           active: z.active !== false,
           cells:  (z.cells || []).map(function(c) { return latLngToHex(c.lat, c.lng); }),
         };
