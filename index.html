@@ -548,6 +548,7 @@ function toggleFollow() {
   var optsEl = document.getElementById('paint-zone-opts');
   optsEl.innerHTML =
     '<button class="paint-zone-opt" style="color:#999" onclick="selectFollowZone(null)">NONE</button>' +
+    '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:#444;border-bottom:1px solid rgba(255,255,255,0.05)">PAINT MODE</div>' +
     zones.map(function(z) {
       return '<button class="paint-zone-opt" style="color:' + z.color + '" onclick="selectFollowZone(\'' + z.id + '\')">' +
         z.name.toUpperCase() + '</button>';
@@ -1809,7 +1810,7 @@ function renderOnboardingStep() {
   if (obStep === 0) {
     content =
       '<div class="ob-title">WELCOME TO PORTER</div>' +
-      '<div class="ob-body">A walking game played on your real neighborhood. Walk the streets, pick up packages, and deliver them across your zone to score points.</div>';
+      '<div class="ob-body">A walking game played in your real neighborhood. Walk the streets, pick up packages, and deliver them across your zone to score points.</div>';
   } else if (obStep === 1) {
     content =
       '<div class="ob-title">WHO ARE YOU?</div>' +
