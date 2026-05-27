@@ -328,6 +328,22 @@
     }
     #confirm-modal .cm-confirm:active { color: #e05050; background: rgba(80,10,10,0.6); }
 
+    /* ── DROP PANEL ── */
+    #drop-overlay {
+      display: none; position: fixed; inset: 0; z-index: 5000;
+      background: rgba(0,0,0,0.55);
+    }
+    #drop-overlay.open { display: block; }
+    #drop-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 5001;
+      background: #0d0d14; border-top: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px 18px 0 0;
+      padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+      transform: translateY(100%);
+      transition: transform 0.28s cubic-bezier(0.32,0.72,0,1);
+    }
+    #drop-panel.open { transform: translateY(0); }
+
     /* ── ONBOARDING ── */
     #onboarding-overlay {
       display: none; position: fixed; inset: 0; z-index: 8500;
@@ -466,12 +482,18 @@
 <div id="confirm-overlay">
   <div id="confirm-modal">
     <div class="cm-title">REFRESH ORDERS</div>
-    <div class="cm-body">All packages and destinations will be removed,<br>including ones you are carrying.</div>
+    <div class="cm-body">All packages will be removed, including ones you are carrying. Your drops will remain.</div>
     <div class="cm-btns">
       <button class="cm-cancel" onclick="closeConfirmModal()">CANCEL</button>
       <button class="cm-confirm" onclick="executeRefresh()">REFRESH</button>
     </div>
   </div>
+</div>
+
+<!-- ── DROP PANEL ── -->
+<div id="drop-overlay" onclick="closeDrop()"></div>
+<div id="drop-panel">
+  <div id="drop-panel-content"></div>
 </div>
 
 <!-- ── ONBOARDING OVERLAY ── -->
@@ -549,6 +571,41 @@ const PACKAGE_ITEMS = [
   'Handmade Pottery','Mystery Box','Holiday Decor','Fresh Produce',
   'Board Games','Leather Goods','Candles','Vinyl Collection',
 ];
+
+const DROP_FIRST_NAMES = [
+  'Alice','Marcus','Elena','James','Sofia','Omar','Priya','Leo',
+  'Naomi','Felix','Yuki','Carlos','Fatima','Soren','Mei','Ivan',
+  'Amara','Hugo','Leila','Tobias','Nadia','Ravi','Iris','Finn'
+];
+const DROP_LAST_NAMES = [
+  'Chen','Rivera','Kowalski','Osei','Nakamura','Dubois','Patel','Berg',
+  'Santos','Müller','Park','Okonkwo','Ferreira','Lindström','Abboud','Walsh',
+  'Moreau','Tanaka','Reyes','Fischer','Diallo','Nguyen','Eriksson','Yamamoto'
+];
+
+function randomDropName() {
+  var first = DROP_FIRST_NAMES[Math.floor(Math.random() * DROP_FIRST_NAMES.length)];
+  var last  = DROP_LAST_NAMES[Math.floor(Math.random() * DROP_LAST_NAMES.length)];
+  return first + ' ' + last;
+}
+
+function calcDropLevel(deliveries) {
+  return Math.min(100, Math.floor(Math.log(deliveries + 1) / Math.log(1.1)));
+}
+
+function deliveriesToNextLevel(deliveries, level) {
+  if (level >= 100) return 0;
+  return Math.max(0, Math.ceil(Math.pow(1.1, level + 1)) - 1 - deliveries);
+}
+
+function nextDropLabel() {
+  var taken = new Set(state.destinations.map(function(d) { return d.label; }));
+  for (var i = 0; i < 26; i++) {
+    var l = String.fromCharCode(65 + i);
+    if (!taken.has(l)) return l;
+  }
+  return String.fromCharCode(65 + (state.destinations.length % 26));
+}
 
 var refreshTimer = null;
 var toastTimer   = null;
@@ -1020,7 +1077,7 @@ function resetProfile() {
 //  ZONE MANAGEMENT
 // ═══════════════════════════════════════════════════════════
 
-function removeZoneOrders(zone) {
+function removeZoneOrders(zone, removeDrops) {
   if (!zone.cells || !zone.cells.length) return;
   var zoneKeys = new Set(zone.cells.map(function(c) { return hexKey(c.q, c.r); }));
 
@@ -1030,16 +1087,18 @@ function removeZoneOrders(zone) {
     if (zoneKeys.has(hexKey(h.q, h.r))) { removedIds.add(p.id); return false; }
     return true;
   });
-  var removedDestIds = new Set();
-  state.destinations = state.destinations.filter(function(d) {
-    var h = latLngToHex(d.loc.lat, d.loc.lng);
-    if (zoneKeys.has(hexKey(h.q, h.r))) { removedDestIds.add(d.id); return false; }
-    return true;
-  });
-  state.packages = state.packages.filter(function(p) {
-    if (removedDestIds.has(p.destId)) { removedIds.add(p.id); return false; }
-    return true;
-  });
+  if (removeDrops) {
+    var removedDestIds = new Set();
+    state.destinations = state.destinations.filter(function(d) {
+      var h = latLngToHex(d.loc.lat, d.loc.lng);
+      if (zoneKeys.has(hexKey(h.q, h.r))) { removedDestIds.add(d.id); return false; }
+      return true;
+    });
+    state.packages = state.packages.filter(function(p) {
+      if (removedDestIds.has(p.destId)) { removedIds.add(p.id); return false; }
+      return true;
+    });
+  }
   state.carrying = state.carrying.filter(function(cid) { return !removedIds.has(cid); });
 }
 
@@ -1082,7 +1141,7 @@ function toggleZoneActive(id) {
       if (cc > 0 && !confirm(cc + ' carried package' + (cc > 1 ? 's' : '') + ' from this zone will be deleted. Disable zone?')) return;
     }
     z.active = false;
-    removeZoneOrders(z);
+    removeZoneOrders(z, false);
   } else {
     z.active = true;
     if (state.phase === 'active') generateOrdersForZone(z);
@@ -1093,7 +1152,7 @@ function toggleZoneActive(id) {
 function deleteZone(id) {
   var z = state.zones.find(function(z) { return z.id === id; });
   if (!z || !confirm('Delete zone "' + z.name + '"?')) return;
-  removeZoneOrders(z);
+  removeZoneOrders(z, true);
   state.zones = state.zones.filter(function(z) { return z.id !== id; });
   saveZones(); saveGameState(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
@@ -1486,20 +1545,24 @@ function orderCounts(activeZones) {
 
 function spawnOrders(active, needDests, needPkgs, occupied) {
   var weightPool = [1, 1, 2, 2, 3];
-  var labelOffset = state.destinations.length;
-  var newDests = [];
   for (var i = 0; i < needDests; i++) {
-    var dz  = active[Math.floor(Math.random() * active.length)];
-    var pt  = randomPointInZone(dz, occupied);
-    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
+    var dz = active[Math.floor(Math.random() * active.length)];
+    var pt = randomPointInZone(dz, occupied);
+    if (!pt) continue;
+    var hd = latLngToHex(pt.lat, pt.lng);
+    occupied.add(hexKey(hd.q, hd.r));
+    state.destinations.push({
+      id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      loc: pt, label: nextDropLabel(),
+      deliveries: 0, level: 0, name: randomDropName()
+    });
   }
-  state.destinations = state.destinations.concat(newDests);
   if (!state.destinations.length) return false;
 
   var allDests = state.destinations;
   for (var j = 0; j < needPkgs; j++) {
-    var pz     = active[Math.floor(Math.random() * active.length)];
-    var pt2    = randomPointInZone(pz, occupied);
+    var pz  = active[Math.floor(Math.random() * active.length)];
+    var pt2 = randomPointInZone(pz, occupied);
     if (!pt2) continue;
     var dest   = allDests[j % allDests.length];
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
@@ -1520,12 +1583,16 @@ function generateOrders() {
   });
   if (!active.length) { updateHUD(); return; }
 
-  var carriedDestIds = state.carrying.map(function(id) {
-    var p = state.packages.find(function(p) { return p.id === id; });
-    return p ? p.destId : null;
-  }).filter(Boolean);
-  state.packages     = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
-  state.destinations = state.destinations.filter(function(d) { return carriedDestIds.includes(d.id); });
+  // Migrate existing destinations without drop data
+  state.destinations.forEach(function(d) {
+    if (d.deliveries == null) d.deliveries = 0;
+    if (d.level      == null) d.level      = 0;
+    if (!d.name)               d.name      = randomDropName();
+  });
+
+  // Keep carried packages; discard undelivered ones (they will respawn)
+  state.packages = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
+  // Drops (destinations) are permanent — never cleared here
 
   var occupied = new Set();
   state.packages.forEach(function(p) {
@@ -1607,16 +1674,58 @@ function attemptPickup() {
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
+function spawnPackagesForDrop(dest) {
+  var active = state.zones.filter(function(z) {
+    return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
+  });
+  if (!active.length) return;
+  var occupied = new Set();
+  state.packages.forEach(function(p) {
+    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+    occupied.add(hexKey(h.q, h.r));
+  });
+  state.destinations.forEach(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    occupied.add(hexKey(h.q, h.r));
+  });
+  var weightPool = [1, 1, 2, 2, 3];
+  var count = 1 + (Math.random() < 0.4 ? 1 : 0);
+  for (var i = 0; i < count; i++) {
+    var pz  = active[Math.floor(Math.random() * active.length)];
+    var pt  = randomPointInZone(pz, occupied);
+    if (!pt) continue;
+    var h = latLngToHex(pt.lat, pt.lng);
+    occupied.add(hexKey(h.q, h.r));
+    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
+    var dist   = haversine(pt, dest.loc);
+    state.packages.push({
+      id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      pickupLoc: pt, destId: dest.id,
+      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
+      weight: weight, picked: false,
+      item: PACKAGE_ITEMS[Math.floor(Math.random() * PACKAGE_ITEMS.length)]
+    });
+  }
+}
+
 function attemptDeliver() {
   var dest = nearestDeliverable();
   if (!dest) return;
-  var pkgs = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === dest.id; });
-  var pts  = pkgs.reduce(function(s, p) { return s + p.pts; }, 0);
-  var ids  = pkgs.map(function(p) { return p.id; });
+  var pkgs     = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === dest.id; });
+  var basePts  = pkgs.reduce(function(s, p) { return s + p.pts; }, 0);
+  var ids      = pkgs.map(function(p) { return p.id; });
   var capBefore = getCapacity();
-  state.carrying     = state.carrying.filter(function(id) { return !ids.includes(id); });
-  state.packages     = state.packages.filter(function(p)  { return !ids.includes(p.id); });
-  state.destinations = state.destinations.filter(function(d) { return d.id !== dest.id; });
+
+  var level    = dest.level || 0;
+  var bonusPts = Math.round(basePts * level / 100);
+  var pts      = basePts + bonusPts;
+
+  state.carrying = state.carrying.filter(function(id) { return !ids.includes(id); });
+  state.packages = state.packages.filter(function(p)  { return !ids.includes(p.id); });
+  // Drop stays — update its stats
+  dest.deliveries = (dest.deliveries || 0) + pkgs.length;
+  dest.level      = calcDropLevel(dest.deliveries);
+
   state.score      += pts;
   state.deliveries += pkgs.length;
   state.streak      = (state.streak || 0) + 1;
@@ -1624,9 +1733,10 @@ function attemptDeliver() {
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
   vibrate(capUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
+  spawnPackagesForDrop(dest);
   saveGameState();
-  showCompletion(pts, pkgs.length, dest.label, capUp, state.streak);
-  checkRefresh(); renderOrderMarkers(); updateHUD();
+  showCompletion(pts, pkgs.length, dest.label, capUp, state.streak, level, bonusPts);
+  renderOrderMarkers(); updateHUD();
 }
 
 function abandonPackage(id) {
@@ -1635,14 +1745,76 @@ function abandonPackage(id) {
   var dest = state.destinations.find(function(d) { return d.id === p.destId; });
   var wcfg = WEIGHT[p.weight];
   if (!confirm('Abandon ' + wcfg.label.toLowerCase() + ' package for Drop ' + (dest ? dest.label : '?') + ' (' + p.pts + ' pts)? It will not be reassigned.')) return;
-  state.carrying    = state.carrying.filter(function(cid) { return cid !== id; });
-  state.packages    = state.packages.filter(function(p)   { return p.id  !== id; });
-  state.destinations = state.destinations.filter(function(d) {
-    return state.packages.some(function(p) { return p.destId === d.id; });
-  });
+  state.carrying = state.carrying.filter(function(cid) { return cid !== id; });
+  state.packages = state.packages.filter(function(p)   { return p.id  !== id; });
+  // Drops are permanent — never removed on abandon
   state.streak = 0;
   saveGameState();
   checkRefresh();
+  renderOrderMarkers();
+  updateHUD();
+}
+
+var dropPanelDestId = null;
+
+function openDropPanel(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  dropPanelDestId = destId;
+  var level      = dest.level      || 0;
+  var deliveries = dest.deliveries || 0;
+  var toNext     = level < 100 ? deliveriesToNextLevel(deliveries, level) : 0;
+  var prevNeeded = level > 0 ? Math.ceil(Math.pow(1.1, level)) - 1 : 0;
+  var nextNeeded = level < 100 ? Math.ceil(Math.pow(1.1, level + 1)) - 1 : deliveries;
+  var pct = level >= 100 ? 100
+    : (nextNeeded === prevNeeded ? 100
+    : Math.round((deliveries - prevNeeded) / (nextNeeded - prevNeeded) * 100));
+  var pkgsWaiting = state.packages.filter(function(p) { return p.destId === destId && !p.picked; }).length;
+
+  document.getElementById('drop-panel-content').innerHTML =
+    '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">' +
+      '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.label) + '</div>' +
+      '<div>' +
+        '<div style="font-size:14px;letter-spacing:3px;color:#e0d8c8">DROP ' + esc(dest.label) + '</div>' +
+        '<div style="font-size:11px;color:#666;letter-spacing:2px;margin-top:3px">' + esc(dest.name || 'UNKNOWN') + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:24px;margin-bottom:14px">' +
+      '<div><div style="font-size:10px;color:#555;letter-spacing:2px">LEVEL</div><div style="font-size:24px;color:#e8a030">' + level + '</div></div>' +
+      '<div><div style="font-size:10px;color:#555;letter-spacing:2px">DELIVERIES</div><div style="font-size:24px;color:#e8a030">' + deliveries + '</div></div>' +
+      '<div><div style="font-size:10px;color:#555;letter-spacing:2px">BONUS</div><div style="font-size:24px;color:#5ab05a">+' + level + '%</div></div>' +
+    '</div>' +
+    (level < 100
+      ? '<div style="margin-bottom:14px">' +
+          '<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">LEVEL ' + (level + 1) + ' IN ' + toNext + ' DELIVERIES</div>' +
+          '<div style="height:4px;background:#1a1a2a;border-radius:2px"><div style="height:4px;background:#e8a030;border-radius:2px;width:' + Math.max(2, pct) + '%"></div></div>' +
+        '</div>'
+      : '<div style="font-size:11px;color:#5ab05a;letter-spacing:3px;margin-bottom:14px">MAX LEVEL</div>') +
+    '<div style="font-size:11px;color:#555;letter-spacing:2px;margin-bottom:16px">' +
+      pkgsWaiting + ' package' + (pkgsWaiting !== 1 ? 's' : '') + ' waiting' +
+    '</div>' +
+    '<button onclick="deleteDropConfirm()" style="width:100%;padding:14px;background:rgba(60,10,10,0.4);color:#c04040;border:1px solid #602020;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:3px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent">DELETE DROP</button>';
+
+  document.getElementById('drop-overlay').classList.add('open');
+  document.getElementById('drop-panel').classList.add('open');
+}
+
+function closeDrop() {
+  document.getElementById('drop-overlay').classList.remove('open');
+  document.getElementById('drop-panel').classList.remove('open');
+  dropPanelDestId = null;
+}
+
+function deleteDropConfirm() {
+  var dest = state.destinations.find(function(d) { return d.id === dropPanelDestId; });
+  if (!dest) { closeDrop(); return; }
+  if (!confirm('Delete Drop ' + dest.label + ' (' + esc(dest.name || '') + ') and erase all history? This cannot be undone.')) return;
+  var idsToRemove = new Set(state.packages.filter(function(p) { return p.destId === dropPanelDestId; }).map(function(p) { return p.id; }));
+  state.carrying     = state.carrying.filter(function(id) { return !idsToRemove.has(id); });
+  state.packages     = state.packages.filter(function(p)  { return p.destId !== dropPanelDestId; });
+  state.destinations = state.destinations.filter(function(d) { return d.id !== dropPanelDestId; });
+  closeDrop();
+  saveGameState();
   renderOrderMarkers();
   updateHUD();
 }
@@ -1657,22 +1829,23 @@ function closeConfirmModal() {
 
 function executeRefresh() {
   closeConfirmModal();
-  state.packages     = [];
-  state.destinations = [];
-  state.carrying     = [];
+  state.packages = [];
+  state.carrying = [];
+  // Drops (destinations) are permanent — not cleared on refresh
   saveGameState();
   renderOrderMarkers();
   updateHUD();
   if (state.phase === 'active') generateOrders();
 }
 
-function showCompletion(pts, count, zoneLabel, capUp, streak) {
+function showCompletion(pts, count, zoneLabel, capUp, streak, level, bonusPts) {
   var el = document.getElementById('completion-overlay');
   var km = (state.sessionDist / 1000).toFixed(2);
   document.getElementById('completion-pts').textContent   = '+' + pts;
   document.getElementById('completion-total').textContent =
     (count > 1 ? count + ' PKGS' : '1 PKG') +
-    (zoneLabel ? ' · ZONE ' + zoneLabel : '') +
+    (zoneLabel ? ' · DROP ' + zoneLabel : '') +
+    (bonusPts ? ' · +' + bonusPts + ' LVL' + (level || '') + ' BONUS' : '') +
     ' · SCORE: ' + state.score + ' · ' + km + 'km walked';
   var streakEl = document.getElementById('completion-streak');
   streakEl.style.display = streak > 1 ? 'block' : 'none';
@@ -1733,7 +1906,8 @@ function renderOrderMarkers() {
     var isNext = deliverable && deliverable.id === d.id;
     var destBg = isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30');
     var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.label, iconPx) }).addTo(map);
-    m.bindTooltip('Drop ' + d.label + (n > 0 ? ' · ' + n + ' to deliver' : ''));
+    m.bindTooltip('Drop ' + d.label + (n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : ''));
+    (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
   });
 }
