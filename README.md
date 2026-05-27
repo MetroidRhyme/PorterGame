@@ -13,7 +13,11 @@ A location-based walking game played in your real neighborhood. Walk the streets
 3. **Pick up packages** (📦) by walking within 20 m of them.
 4. **Deliver** them to drop zones (🏠) to score points.
 
-Packages are scored by `distance × weight multiplier`. Your carry capacity starts at 3 units and grows by 1 for every 500 points, up to a max of 12.
+Packages are scored by `distance × weight multiplier`. Each package carries a randomly assigned item name (Birthday Cake, Vintage Records, Medical Supplies, etc.) shown in the HUD and on the map.
+
+Your carry capacity starts at 3 units and grows by 1 for every 500 points, up to a max of 12. A **CAP X · Y TO ↑** indicator appears under the score so you always know how close the next upgrade is.
+
+**Delivery streaks** — consecutive deliveries without abandoning a package build a streak counter shown in the completion flash. Abandoning any package resets the streak to zero.
 
 ### Package weights
 
@@ -29,7 +33,7 @@ Packages are scored by `distance × weight multiplier`. Your carry capacity star
 
 Zones are made of hex grid cells (~20 m circumradius, ~400 m² each). You can define multiple named zones in different colors; packages and destinations only spawn in active zones.
 
-- **Draw mode** — tap cells to add/remove them. Disconnected selections become separate zones automatically.
+- **Draw mode** — tap cells to add/remove them. Disconnected selections become separate zones automatically. After saving your first zone a tip toast will point you to Paint mode.
 - **Paint mode** — enable follow + select a zone from the picker, then walk to paint cells as you move.
 - **Edit** an existing zone from Settings to resize or reshape it.
 - **Adjust zone position** — use the arrow pad to shift the hex grid alignment if cells don't line up with streets.
@@ -68,3 +72,4 @@ Zones are made of hex grid cells (~20 m circumradius, ~400 m² each). You can de
 - **Storage** — all state is in `localStorage` under `porter_*` keys. No backend.
 - **Hex grid** — flat-top axial coordinates (q, r). Cell size is ~20 m (~0.00018°) latitude; longitude is corrected for the player's latitude on first GPS lock.
 - **Proximity** — pickup and delivery both require being within 20 m (`PROXIMITY_M`). GPS jumps larger than 50 m (`MAX_GPS_DELTA`) are ignored for distance tracking.
+- **Auto-refresh** — if a zone is too small to fit new packages and destinations, the game schedules a 30-second retry rather than silently failing.
