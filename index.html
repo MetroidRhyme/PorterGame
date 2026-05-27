@@ -327,6 +327,48 @@
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     #confirm-modal .cm-confirm:active { color: #e05050; background: rgba(80,10,10,0.6); }
+
+    /* ── ONBOARDING ── */
+    #onboarding-overlay {
+      display: none; position: fixed; inset: 0; z-index: 8500;
+      background: rgba(0,0,0,0.9); align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #onboarding-overlay.open { display: flex; }
+    .ob-card {
+      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px; padding: 32px 24px 24px;
+      width: min(360px, 100%); display: flex; flex-direction: column; gap: 20px;
+    }
+    .ob-dots { display: flex; justify-content: center; gap: 8px; }
+    .ob-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #2a2a3a; transition: background 0.2s;
+    }
+    .ob-dot.active { background: #e8a030; }
+    .ob-title { font-size: 11px; letter-spacing: 5px; color: #e8a030; text-align: center; }
+    .ob-body { font-size: 13px; color: #888; line-height: 1.7; letter-spacing: 0.5px; text-align: center; }
+    .ob-bullets { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .ob-bullets li {
+      font-size: 12px; color: #888; line-height: 1.5; letter-spacing: 0.5px;
+      padding-left: 18px; position: relative;
+    }
+    .ob-bullets li::before { content: '·'; position: absolute; left: 0; color: #e8a030; font-size: 18px; line-height: 1.1; }
+    .ob-nav { display: flex; gap: 10px; margin-top: 4px; }
+    .ob-back {
+      flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      background: transparent; color: #555; border: 1px solid #2a2a3a;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .ob-back:active { color: #aaa; border-color: #4a4a5a; }
+    .ob-next {
+      flex: 2; padding: 14px; border-radius: 4px; cursor: pointer;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      background: #0a1020; color: #5ab05a; border: 1px solid #1e3020;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .ob-next:active { background: #0e1828; }
   </style>
 </head>
 <body>
@@ -412,6 +454,11 @@
       <button class="cm-confirm" onclick="executeRefresh()">REFRESH</button>
     </div>
   </div>
+</div>
+
+<!-- ── ONBOARDING OVERLAY ── -->
+<div id="onboarding-overlay">
+  <div class="ob-card" id="onboarding-card"></div>
 </div>
 
 <!-- ── ZONE ADJUST OVERLAY ── -->
@@ -1746,6 +1793,89 @@ function updateHUD() {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  ONBOARDING
+// ═══════════════════════════════════════════════════════════
+
+var obStep = 0;
+var OB_TOTAL = 4;
+
+function renderOnboardingStep() {
+  document.getElementById('onboarding-overlay').classList.add('open');
+  var dots = '';
+  for (var i = 0; i < OB_TOTAL; i++) {
+    dots += '<div class="ob-dot' + (i === obStep ? ' active' : '') + '"></div>';
+  }
+  var content = '';
+  if (obStep === 0) {
+    content =
+      '<div class="ob-title">WELCOME TO PORTER</div>' +
+      '<div class="ob-body">A walking game played on your real neighborhood. Walk the streets, pick up packages, and deliver them across your zone to score points.</div>';
+  } else if (obStep === 1) {
+    content =
+      '<div class="ob-title">WHO ARE YOU?</div>' +
+      '<input class="s-name-input" id="ob-name-input" type="text" maxlength="20" ' +
+        'placeholder="ENTER YOUR NAME…" autocomplete="off" autocorrect="off" spellcheck="false" ' +
+        'value="' + (state.playerName || '').replace(/"/g, '&quot;') + '">' +
+      '<div class="ob-body" style="font-size:11px;margin-top:-8px">Your name shows up on shared scores.</div>';
+  } else if (obStep === 2) {
+    content =
+      '<div class="ob-title">HOW IT WORKS</div>' +
+      '<ul class="ob-bullets">' +
+        '<li>Packages (📦) appear in your zone. Walk to them to pick up.</li>' +
+        '<li>Drop them at delivery zones (🏠) to score points.</li>' +
+        '<li>Heavier packages are worth more — but use more carry capacity.</li>' +
+        '<li>Your capacity grows as your score climbs.</li>' +
+      '</ul>';
+  } else {
+    content =
+      '<div class="ob-title">DRAW YOUR ZONE</div>' +
+      '<div class="ob-body">Step outside to get a GPS lock, then set up your play area.</div>' +
+      '<ul class="ob-bullets">' +
+        '<li>Tap ☰ to open Settings.</li>' +
+        '<li>Tap <strong style="color:#5ab05a">+ ADD ZONE</strong> and draw hexes on the map.</li>' +
+        '<li>Tap <strong style="color:#5ab05a">FINISH ZONE</strong> when done.</li>' +
+        '<li>Enable the ◎ follow button to stay centered as you walk.</li>' +
+      '</ul>';
+  }
+  var isLast  = obStep === OB_TOTAL - 1;
+  var showBack = obStep > 0;
+  document.getElementById('onboarding-card').innerHTML =
+    '<div class="ob-dots">' + dots + '</div>' +
+    content +
+    '<div class="ob-nav">' +
+    (showBack ? '<button class="ob-back" onclick="onboardingBack()">BACK</button>' : '') +
+    '<button class="ob-next" onclick="onboardingNext()" style="' + (!showBack ? 'flex:1' : '') + '">' +
+      (isLast ? 'GET STARTED' : 'NEXT') +
+    '</button>' +
+    '</div>';
+  if (obStep === 1) {
+    setTimeout(function() { var inp = document.getElementById('ob-name-input'); if (inp) inp.focus(); }, 80);
+  }
+}
+
+function onboardingNext() {
+  if (obStep === 1) {
+    var inp = document.getElementById('ob-name-input');
+    if (inp) {
+      savePlayerName(inp.value);
+      var nameEl = document.getElementById('s-player-name');
+      if (nameEl) nameEl.value = state.playerName;
+    }
+  }
+  if (obStep < OB_TOTAL - 1) { obStep++; renderOnboardingStep(); }
+  else { finishOnboarding(); }
+}
+
+function onboardingBack() {
+  if (obStep > 0) { obStep--; renderOnboardingStep(); }
+}
+
+function finishOnboarding() {
+  localStorage.setItem('porter_onboarded', '1');
+  document.getElementById('onboarding-overlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════
 //  UTILS
 // ═══════════════════════════════════════════════════════════
 
@@ -1778,6 +1908,7 @@ function haversine(a, b) {
 
 initDrawCanvas();
 updateHUD();
+if (!localStorage.getItem('porter_onboarded')) { obStep = 0; renderOnboardingStep(); }
 </script>
 </body>
 </html>
