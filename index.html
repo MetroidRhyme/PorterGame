@@ -369,6 +369,19 @@
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .ob-next:active { background: #0e1828; }
+
+    #cap-progress { font-size: 9px; color: #4a4a5a; letter-spacing: 1px; text-align: right; margin-top: 2px; }
+    .completion-streak { font-size: 13px; letter-spacing: 4px; color: #e85050; margin-top: 10px; }
+    .completion-level  { font-size: 11px; letter-spacing: 3px; color: #5ab05a; margin-top: 6px; }
+    #toast {
+      position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
+      background: rgba(13,13,20,0.95); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; padding: 10px 16px; font-size: 11px; letter-spacing: 1px;
+      color: #888; z-index: 5000; pointer-events: none;
+      max-width: calc(100vw - 48px); text-align: center;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    #toast.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -381,6 +394,7 @@
   <div id="score-display">
     <div class="label">SCORE</div>
     <div class="value" id="score-value">0</div>
+    <div id="cap-progress"></div>
   </div>
 </div>
 
@@ -443,7 +457,11 @@
   <div class="completion-label">DELIVERY COMPLETE</div>
   <div class="completion-pts" id="completion-pts">+0</div>
   <div class="completion-sub" id="completion-total">SCORE: 0</div>
+  <div class="completion-streak" id="completion-streak"></div>
+  <div class="completion-level"  id="completion-level"></div>
 </div>
+
+<div id="toast"></div>
 
 <div id="confirm-overlay">
   <div id="confirm-modal">
@@ -506,6 +524,7 @@ const state = {
   packages:     JSON.parse(localStorage.getItem('porter_packages')     || '[]'),
   destinations: JSON.parse(localStorage.getItem('porter_destinations') || '[]'),
   carrying:     JSON.parse(localStorage.getItem('porter_carrying')     || '[]'),
+  streak:       0,
 };
 
 const PROXIMITY_M   = 20;
@@ -522,6 +541,18 @@ const WEIGHT = {
   3: { label: 'HEAVY',    multiplier: 1.5 },
 };
 
+const PACKAGE_ITEMS = [
+  'Vintage Records','Birthday Cake','Fragile Glassware','Fresh Flowers',
+  'Electronics','Medical Supplies','Homemade Jam','Library Books',
+  'Art Supplies','Potted Plant','Sports Equipment','Baked Goods',
+  'Camera Gear','Musical Instrument','Craft Beer','Antique Clock',
+  'Handmade Pottery','Mystery Box','Holiday Decor','Fresh Produce',
+  'Board Games','Leather Goods','Candles','Vinyl Collection',
+];
+
+var refreshTimer = null;
+var toastTimer   = null;
+
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                   .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -529,6 +560,14 @@ function esc(s) {
 function safeColor(c) { return /^#[0-9a-fA-F]{3,6}$/.test(c) ? c : '#e8a030'; }
 
 function vibrate(p)    { if (navigator.vibrate) navigator.vibrate(p); }
+
+function showToast(msg, duration) {
+  var el = document.getElementById('toast');
+  if (toastTimer) clearTimeout(toastTimer);
+  el.textContent = msg;
+  el.classList.add('show');
+  toastTimer = setTimeout(function() { el.classList.remove('show'); toastTimer = null; }, duration || 3000);
+}
 function getCapacity() { return Math.min(3 + Math.floor(state.score / 500), 12); }
 function currentLoad() {
   return state.carrying.reduce(function(s, id) {
@@ -1281,6 +1320,9 @@ function finishDraw() {
     saveGameState();
     renderOrderMarkers();
   }
+  if (state.zones.length === newZones.length) {
+    showToast('Tip: Tap ◎ → choose a zone to paint it as you walk', 5000);
+  }
   updateHUD();
 }
 
@@ -1457,7 +1499,8 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
     state.packages.push({
       id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), pickupLoc: pt2, destId: dest.id,
       dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
-      weight: weight, picked: false
+      weight: weight, picked: false,
+      item: PACKAGE_ITEMS[Math.floor(Math.random() * PACKAGE_ITEMS.length)]
     });
   }
   return true;
@@ -1490,7 +1533,13 @@ function generateOrders() {
   var needDests = Math.max(0, counts.dests - state.destinations.length);
   var needPkgs  = Math.max(0, counts.pkgs  - state.packages.length);
 
-  if (!spawnOrders(active, needDests, needPkgs, occupied)) { updateHUD(); return; }
+  if (!spawnOrders(active, needDests, needPkgs, occupied)) {
+    if (!refreshTimer) {
+      refreshTimer = setTimeout(function() { refreshTimer = null; generateOrders(); }, 30000);
+    }
+    updateHUD(); return;
+  }
+  if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
   saveGameState();
   renderOrderMarkers();
   updateHUD();
@@ -1556,16 +1605,19 @@ function attemptDeliver() {
   var pkgs = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === dest.id; });
   var pts  = pkgs.reduce(function(s, p) { return s + p.pts; }, 0);
   var ids  = pkgs.map(function(p) { return p.id; });
+  var capBefore = getCapacity();
   state.carrying     = state.carrying.filter(function(id) { return !ids.includes(id); });
   state.packages     = state.packages.filter(function(p)  { return !ids.includes(p.id); });
   state.destinations = state.destinations.filter(function(d) { return d.id !== dest.id; });
   state.score      += pts;
   state.deliveries += pkgs.length;
+  state.streak      = (state.streak || 0) + 1;
+  var capUp = getCapacity() > capBefore;
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
-  vibrate([80, 40, 120]);
+  vibrate(capUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
   saveGameState();
-  showCompletion(pts, pkgs.length, dest.label);
+  showCompletion(pts, pkgs.length, dest.label, capUp, state.streak);
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
@@ -1580,6 +1632,7 @@ function abandonPackage(id) {
   state.destinations = state.destinations.filter(function(d) {
     return state.packages.some(function(p) { return p.destId === d.id; });
   });
+  state.streak = 0;
   saveGameState();
   checkRefresh();
   renderOrderMarkers();
@@ -1605,7 +1658,7 @@ function executeRefresh() {
   if (state.phase === 'active') generateOrders();
 }
 
-function showCompletion(pts, count, zoneLabel) {
+function showCompletion(pts, count, zoneLabel, capUp, streak) {
   var el = document.getElementById('completion-overlay');
   var km = (state.sessionDist / 1000).toFixed(2);
   document.getElementById('completion-pts').textContent   = '+' + pts;
@@ -1613,8 +1666,14 @@ function showCompletion(pts, count, zoneLabel) {
     (count > 1 ? count + ' PKGS' : '1 PKG') +
     (zoneLabel ? ' · ZONE ' + zoneLabel : '') +
     ' · SCORE: ' + state.score + ' · ' + km + 'km walked';
+  var streakEl = document.getElementById('completion-streak');
+  streakEl.style.display = streak > 1 ? 'block' : 'none';
+  if (streak > 1) streakEl.textContent = 'STREAK × ' + streak;
+  var levelEl = document.getElementById('completion-level');
+  levelEl.style.display = capUp ? 'block' : 'none';
+  if (capUp) levelEl.textContent = '⬆ CAPACITY UP TO ' + getCapacity() + 'U';
   el.classList.add('show');
-  setTimeout(function() { el.classList.remove('show'); }, 2800);
+  setTimeout(function() { el.classList.remove('show'); }, capUp ? 3500 : 2800);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1652,7 +1711,8 @@ function renderOrderMarkers() {
     var tooheavy = p.weight > rem;
     var cfg      = WEIGHT[p.weight];
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy) }).addTo(map);
-    m.bindTooltip(cfg.label + ' · → Zone ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts' + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + 'u)');
+    var tipLabel = p.item ? p.item + ' (' + cfg.label + ')' : cfg.label;
+    m.bindTooltip(tipLabel + ' · → Zone ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts' + (tooheavy ? ' · TOO HEAVY' : '') + ' (' + p.weight + 'u)');
     orderMarkers.push(m);
   });
 
@@ -1682,6 +1742,9 @@ function updateHUD() {
   var secBtn   = document.getElementById('secondary-btn');
 
   scoreEl.textContent  = state.score;
+  var capNow = getCapacity();
+  var capEl  = document.getElementById('cap-progress');
+  capEl.textContent = capNow < 12 ? 'CAP ' + capNow + ' · ' + (500 - state.score % 500) + ' TO ↑' : 'CAP MAX';
   btn.className        = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
@@ -1748,7 +1811,8 @@ function updateHUD() {
   } else if (pickable) {
     var dest2 = state.destinations.find(function(d) { return d.id === pickable.destId; });
     var wcfg  = WEIGHT[pickable.weight];
-    detailEl.textContent = wcfg.label + ' → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts · ' + pickable.weight + 'u.';
+    var iStr  = pickable.item ? pickable.item + ' · ' : '';
+    detailEl.textContent = iStr + wcfg.label + ' → Zone ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts · ' + pickable.weight + 'u.';
     distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
     btn.className = 'pickup ready'; btn.textContent = 'PICK UP PACKAGE'; btn.onclick = attemptPickup;
   } else if (load >= cap && overweightInRange().length > 0) {
@@ -1774,7 +1838,7 @@ function updateHUD() {
       detailEl.textContent = available + ' package' + (available > 1 ? 's' : '') + ' available. Walk to a 📦 to pick up. (' + (cap - load) + 'u free)';
       distEl.textContent   = dPkg + 'm to nearest package';
     } else {
-      detailEl.textContent = 'No packages. Move around your zone to trigger a refresh.';
+      detailEl.textContent = refreshTimer ? 'Zone is sparse. New orders arriving shortly…' : 'No packages. Walk your zone to find some.';
       distEl.textContent   = '';
     }
     btn.className = 'pickup'; btn.textContent = 'PICK UP  (get closer)'; btn.disabled = true;
@@ -1790,7 +1854,7 @@ function updateHUD() {
       var wcfg = WEIGHT[p.weight];
       return '<div class="inv-row">' +
         '<div class="inv-info">' +
-          '<div class="inv-label">' + wcfg.label + ' &rarr; ZONE ' + (dest ? dest.label : '?') + '</div>' +
+          '<div class="inv-label">' + (p.item ? esc(p.item) + ' · ' : '') + wcfg.label + ' &rarr; ZONE ' + (dest ? dest.label : '?') + '</div>' +
           '<div class="inv-sub">' + p.weight + 'u &nbsp;&middot;&nbsp; ' + p.pts + ' PTS</div>' +
         '</div>' +
         '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button>' +
