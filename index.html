@@ -855,6 +855,12 @@ function generateOrdersForZone(zone) {
   var activeZones = state.zones.filter(function(z) {
     return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
   });
+
+  var counts    = orderCounts(activeZones);
+  var needDests = Math.max(0, counts.dests - state.destinations.length);
+  var needPkgs  = Math.max(0, counts.pkgs  - state.packages.length);
+  if (needDests === 0 && needPkgs === 0) return;
+
   var occupied = new Set();
   state.packages.forEach(function(p) {
     var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
@@ -865,30 +871,7 @@ function generateOrdersForZone(zone) {
     occupied.add(hexKey(h.q, h.r));
   });
 
-  var labelOffset = state.destinations.length;
-  var newDests = [];
-  for (var i = 0; i < 2; i++) {
-    var destZone = activeZones[Math.floor(Math.random() * activeZones.length)];
-    var pt = randomPointInZone(destZone, occupied);
-    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
-  }
-  if (!newDests.length) return;
-  state.destinations = state.destinations.concat(newDests);
-
-  var weightPool = [1, 1, 2, 2, 3];
-  for (var j = 0; j < 3; j++) {
-    var pickupZone = activeZones[Math.floor(Math.random() * activeZones.length)];
-    var pt2    = randomPointInZone(pickupZone, occupied);
-    if (!pt2) continue;
-    var dest   = newDests[j % newDests.length];
-    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
-    var dist   = haversine(pt2, dest.loc);
-    state.packages.push({
-      id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), pickupLoc: pt2, destId: dest.id,
-      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
-      weight: weight, picked: false
-    });
-  }
+  spawnOrders(activeZones, needDests, needPkgs, occupied);
 }
 
 function toggleZoneActive(id) {
@@ -1295,6 +1278,44 @@ function randomPointInZone(zone, occupied) {
 //  ORDER GENERATION
 // ═══════════════════════════════════════════════════════════
 
+function orderCounts(activeZones) {
+  var totalHexes = activeZones.reduce(function(sum, z) {
+    return sum + (z.cells ? z.cells.length : 0);
+  }, 0);
+  var pkgs  = Math.max(2, Math.round(totalHexes / 7));
+  var dests = Math.max(2, Math.round(pkgs / 3));
+  return { pkgs: pkgs, dests: dests };
+}
+
+function spawnOrders(active, needDests, needPkgs, occupied) {
+  var weightPool = [1, 1, 2, 2, 3];
+  var labelOffset = state.destinations.length;
+  var newDests = [];
+  for (var i = 0; i < needDests; i++) {
+    var dz  = active[Math.floor(Math.random() * active.length)];
+    var pt  = randomPointInZone(dz, occupied);
+    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
+  }
+  state.destinations = state.destinations.concat(newDests);
+  if (!state.destinations.length) return false;
+
+  var allDests = state.destinations;
+  for (var j = 0; j < needPkgs; j++) {
+    var pz     = active[Math.floor(Math.random() * active.length)];
+    var pt2    = randomPointInZone(pz, occupied);
+    if (!pt2) continue;
+    var dest   = allDests[j % allDests.length];
+    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
+    var dist   = haversine(pt2, dest.loc);
+    state.packages.push({
+      id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), pickupLoc: pt2, destId: dest.id,
+      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
+      weight: weight, picked: false
+    });
+  }
+  return true;
+}
+
 function generateOrders() {
   var active = state.zones.filter(function(z) {
     return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
@@ -1318,30 +1339,11 @@ function generateOrders() {
     occupied.add(hexKey(h.q, h.r));
   });
 
-  var labelOffset = state.destinations.length;
-  var newDests    = [];
-  for (var i = 0; i < 2; i++) {
-    var z  = active[Math.floor(Math.random() * active.length)];
-    var pt = randomPointInZone(z, occupied);
-    if (pt) newDests.push({ id: 'dest_' + Date.now() + '_' + i, loc: pt, label: String.fromCharCode(65 + (labelOffset + i) % 26) });
-  }
-  state.destinations = state.destinations.concat(newDests);
-  if (!newDests.length) { updateHUD(); return; }
+  var counts    = orderCounts(active);
+  var needDests = Math.max(0, counts.dests - state.destinations.length);
+  var needPkgs  = Math.max(0, counts.pkgs  - state.packages.length);
 
-  var weightPool = [1, 1, 2, 2, 3];
-  for (var j = 0; j < 3; j++) {
-    var z2     = active[Math.floor(Math.random() * active.length)];
-    var pt2    = randomPointInZone(z2, occupied);
-    if (!pt2) continue;
-    var dest   = newDests[j % newDests.length];
-    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
-    var dist   = haversine(pt2, dest.loc);
-    state.packages.push({
-      id: 'pkg_' + Date.now() + '_' + j, pickupLoc: pt2, destId: dest.id,
-      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
-      weight: weight, picked: false
-    });
-  }
+  if (!spawnOrders(active, needDests, needPkgs, occupied)) { updateHUD(); return; }
   saveGameState();
   renderOrderMarkers();
   updateHUD();
