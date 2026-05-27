@@ -30,14 +30,33 @@
     #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
-    #settings-btn, #follow-btn {
+    #settings-btn, #follow-btn, #paint-btn {
       font-size: 20px; line-height: 1; padding: 10px 14px; border-radius: 4px;
       background: transparent; color: #999; border: 1px solid #2a2a3a; cursor: pointer;
       touch-action: manipulation; min-height: 44px; min-width: 44px;
       -webkit-tap-highlight-color: transparent;
     }
-    #settings-btn:active, #follow-btn:active { color: #bbb; border-color: #4a4a5a; }
+    #settings-btn:active, #follow-btn:active, #paint-btn:active { color: #bbb; border-color: #4a4a5a; }
     #follow-btn.active { color: #5ab05a; border-color: #1e4020; }
+    #paint-btn.active  { color: #e8a030; border-color: #4a2800; }
+    #paint-btn:disabled { color: #333; border-color: #1e1e28; cursor: default; }
+
+    #paint-picker {
+      position: fixed; top: 70px; right: 12px; z-index: 1998;
+      background: rgba(13,13,20,0.97); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px; min-width: 200px; max-height: 50vh; overflow-y: auto;
+      display: none;
+    }
+    #paint-picker.open { display: block; }
+    .paint-zone-opt {
+      display: block; width: 100%; padding: 12px 16px; text-align: left;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+      background: transparent; border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .paint-zone-opt:last-child { border-bottom: none; }
+    .paint-zone-opt:active { background: rgba(40,40,60,0.8); }
 
     #gps-status {
       position: fixed; top: 74px; right: 12px; z-index: 1999;
@@ -318,6 +337,7 @@
   <button id="settings-btn" onclick="openSettings()">&#9776;</button>
   <button id="refresh-btn" onclick="confirmRefresh()">&#x21BB;</button>
   <button id="follow-btn" onclick="toggleFollow()">&#9678;</button>
+  <button id="paint-btn" onclick="togglePaintPicker()" disabled>&#9999;</button>
   <div id="score-display">
     <div class="label">SCORE</div>
     <div class="value" id="score-value">0</div>
@@ -328,6 +348,8 @@
 <canvas id="draw-canvas"></canvas>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
+
+<div id="paint-picker"><div id="paint-zone-opts"></div></div>
 
 <!-- ── SETTINGS DRAWER ── -->
 <div id="settings-overlay" onclick="closeSettings()"></div>
@@ -433,6 +455,8 @@ const state = {
   drawing:       false,
   gridCells:     null,
   editingZoneId: null,
+  painting:      false,
+  paintZoneId:   null,
 
   packages:     JSON.parse(localStorage.getItem('porter_packages')     || '[]'),
   destinations: JSON.parse(localStorage.getItem('porter_destinations') || '[]'),
@@ -556,6 +580,10 @@ function onLocationUpdate(pos) {
     userMarker.setLatLng([lat, lng]);
     if (state.following) map.panTo([lat, lng], { animate: true, duration: 0.4 });
   }
+  if (state.painting && state.paintZoneId) {
+    var ph = latLngToHex(lat, lng), pk = hexKey(ph.q, ph.r);
+    if (pk !== lastPaintHexKey) { lastPaintHexKey = pk; paintHex(ph.q, ph.r); }
+  }
   renderOrderMarkers();
   updateHUD();
 }
@@ -658,6 +686,66 @@ function adjustGrid(dlng, dlat) {
   localStorage.setItem('porter_grid_lng', gridOffsetLng);
   renderGridCanvas();
   renderOrderMarkers();
+}
+
+// ── PAINT MODE ──────────────────────────────────────────────
+
+var lastPaintHexKey = null;
+
+function togglePaintPicker() {
+  if (state.painting) { stopPainting(); return; }
+  var picker = document.getElementById('paint-picker');
+  if (picker.classList.contains('open')) { picker.classList.remove('open'); return; }
+  var zones = state.zones.filter(function(z) { return z.active && z.cells && z.cells.length; });
+  var optsEl = document.getElementById('paint-zone-opts');
+  if (!zones.length) {
+    optsEl.innerHTML = '<div style="padding:12px 16px;font-size:11px;color:#555;letter-spacing:2px">NO ACTIVE ZONES</div>';
+  } else {
+    optsEl.innerHTML = zones.map(function(z) {
+      return '<button class="paint-zone-opt" style="color:' + z.color + '" onclick="startPainting(\'' + z.id + '\')">' +
+        z.name.toUpperCase() + '</button>';
+    }).join('');
+  }
+  picker.classList.add('open');
+}
+
+function startPainting(zoneId) {
+  document.getElementById('paint-picker').classList.remove('open');
+  var zone = state.zones.find(function(z) { return z.id === zoneId; });
+  if (!zone) return;
+  state.painting    = true;
+  state.paintZoneId = zoneId;
+  lastPaintHexKey   = null;
+  document.getElementById('paint-btn').classList.add('active');
+  if (state.userPos) {
+    var h = latLngToHex(state.userPos.lat, state.userPos.lng);
+    lastPaintHexKey = hexKey(h.q, h.r);
+    paintHex(h.q, h.r);
+  }
+}
+
+function stopPainting() {
+  if (!state.painting) return;
+  var zoneId = state.paintZoneId;
+  state.painting    = false;
+  state.paintZoneId = null;
+  lastPaintHexKey   = null;
+  document.getElementById('paint-btn').classList.remove('active');
+  if (state.phase === 'active') {
+    var zone = state.zones.find(function(z) { return z.id === zoneId; });
+    if (zone) { generateOrdersForZone(zone); saveGameState(); renderOrderMarkers(); }
+  }
+  updateHUD();
+}
+
+function paintHex(q, r) {
+  var zone = state.zones.find(function(z) { return z.id === state.paintZoneId; });
+  if (!zone) { stopPainting(); return; }
+  var k = hexKey(q, r);
+  if (zone.cells.some(function(c) { return hexKey(c.q, c.r) === k; })) return;
+  zone.cells.push({ q: q, r: r });
+  saveZones();
+  renderGridCanvas();
 }
 
 function savePlayerName(val) {
@@ -1086,6 +1174,7 @@ map.on('click', function(e) {
 });
 
 function startDrawing() {
+  stopPainting();
   state.drawing   = true;
   state.gridCells = new Set();
   renderOrderMarkers();
@@ -1538,6 +1627,9 @@ function updateHUD() {
   btn.className        = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
+  var paintBtn = document.getElementById('paint-btn');
+  var hasActiveZones = state.zones.some(function(z) { return z.active && z.cells && z.cells.length; });
+  paintBtn.disabled = state.phase !== 'active' || (!hasActiveZones && !state.painting);
 
   // ── DRAWING / EDITING ────────────────────────────────────
   if (state.drawing) {
