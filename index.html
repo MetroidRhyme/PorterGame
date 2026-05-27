@@ -447,6 +447,11 @@
   </div>
 
   <div class="s-section">
+    <div class="s-section-label">DROPS</div>
+    <button class="s-btn s-btn-dim" onclick="closeSettings();importDropFromClipboard()">&#x2193; IMPORT / SYNC DROP CODE</button>
+  </div>
+
+  <div class="s-section">
     <div class="s-section-label">DATA</div>
     <button class="s-btn s-btn-dim" onclick="exportData()">EXPORT SAVE FILE</button>
     <label class="s-btn s-btn-dim" style="cursor:pointer">
@@ -526,7 +531,17 @@
 //  STATE   phases: no_gps | active
 // ═══════════════════════════════════════════════════════════
 
+function getUserId() {
+  var uid = localStorage.getItem('porter_user_id');
+  if (!uid) {
+    uid = 'usr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+    localStorage.setItem('porter_user_id', uid);
+  }
+  return uid;
+}
+
 const state = {
+  userId:      getUserId(),
   score:       parseInt(localStorage.getItem('porter_score')       || '0'),
   deliveries:  parseInt(localStorage.getItem('porter_deliveries')  || '0'),
   playerName:  localStorage.getItem('porter_name') || '',
@@ -587,6 +602,13 @@ function randomDropName() {
   var first = DROP_FIRST_NAMES[Math.floor(Math.random() * DROP_FIRST_NAMES.length)];
   var last  = DROP_LAST_NAMES[Math.floor(Math.random() * DROP_LAST_NAMES.length)];
   return first + ' ' + last;
+}
+
+function getDropTotalDeliveries(dest) {
+  if (dest.contributions && dest.contributions.length) {
+    return dest.contributions.reduce(function(s, c) { return s + (c.deliveries || 0); }, 0);
+  }
+  return dest.deliveries || 0;
 }
 
 function calcDropLevel(deliveries) {
@@ -696,11 +718,19 @@ function makeIcon(bg, emoji, size) {
   });
 }
 
-function makeDestIcon(bg, letter, size) {
-  var fs = Math.round(size * 0.55);
+function makeDestIcon(bg, letter, size, level) {
+  var fs  = Math.round(size * 0.55);
+  var lfs = Math.round(size * 0.28);
+  var lvlHtml = level > 0
+    ? '<div style="font-size:' + lfs + 'px;color:#e8a030;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,1);margin-top:2px;letter-spacing:1px">LV' + level + '</div>'
+    : '';
+  var h = level > 0 ? size + lfs + 4 : size;
   return L.divIcon({
-    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;font-weight:bold;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.7);font-family:\'Courier New\',monospace">' + esc(letter) + '</div>',
-    iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
+    html: '<div style="display:flex;flex-direction:column;align-items:center;width:' + size + 'px">' +
+      '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;font-weight:bold;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.7);font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
+      lvlHtml +
+    '</div>',
+    iconSize: [size, h], iconAnchor: [size / 2, size / 2], className: ''
   });
 }
 
@@ -1554,7 +1584,8 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
     state.destinations.push({
       id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       loc: pt, label: nextDropLabel(),
-      deliveries: 0, level: 0, name: randomDropName()
+      deliveries: 0, level: 0, name: randomDropName(),
+      contributions: []
     });
   }
   if (!state.destinations.length) return false;
@@ -1588,6 +1619,11 @@ function generateOrders() {
     if (d.deliveries == null) d.deliveries = 0;
     if (d.level      == null) d.level      = 0;
     if (!d.name)               d.name      = randomDropName();
+    if (!d.contributions) {
+      d.contributions = d.deliveries > 0
+        ? [{ userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: d.deliveries }]
+        : [];
+    }
   });
 
   // Keep carried packages; discard undelivered ones (they will respawn)
@@ -1722,9 +1758,17 @@ function attemptDeliver() {
 
   state.carrying = state.carrying.filter(function(id) { return !ids.includes(id); });
   state.packages = state.packages.filter(function(p)  { return !ids.includes(p.id); });
-  // Drop stays — update its stats
+  // Drop stays — update per-user contribution and recalculate level from total
+  if (!dest.contributions) dest.contributions = [];
+  var myContrib = dest.contributions.find(function(c) { return c.userId === state.userId; });
+  if (!myContrib) {
+    myContrib = { userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: 0 };
+    dest.contributions.push(myContrib);
+  }
+  myContrib.deliveries += pkgs.length;
+  myContrib.userName = state.playerName || 'Anonymous';
   dest.deliveries = (dest.deliveries || 0) + pkgs.length;
-  dest.level      = calcDropLevel(dest.deliveries);
+  dest.level = calcDropLevel(getDropTotalDeliveries(dest));
 
   state.score      += pts;
   state.deliveries += pkgs.length;
@@ -1755,21 +1799,140 @@ function abandonPackage(id) {
   updateHUD();
 }
 
+function shareDrop(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  var data = {
+    v: 1,
+    dropId: dest.id,
+    loc: dest.loc,
+    name: dest.name,
+    contributions: dest.contributions && dest.contributions.length
+      ? dest.contributions
+      : (dest.deliveries > 0 ? [{ userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: dest.deliveries }] : [])
+  };
+  var code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  var text = 'PORTER DROP\n' + code;
+  if (navigator.share) {
+    navigator.share({ title: 'Porter Drop ' + dest.label, text: text }).catch(function() {
+      navigator.clipboard.writeText(code).then(function() { showToast('Drop code copied!'); });
+    });
+  } else {
+    navigator.clipboard.writeText(code).then(function() {
+      showToast('Drop code copied to clipboard!');
+    }).catch(function() {
+      prompt('Copy this drop code:', code);
+    });
+  }
+}
+
+function mergeDropContributions(dest, incoming) {
+  if (!dest.contributions) dest.contributions = [];
+  (incoming || []).forEach(function(c) {
+    if (!c.userId) return;
+    var local = dest.contributions.find(function(x) { return x.userId === c.userId; });
+    if (local) {
+      local.deliveries = Math.max(local.deliveries || 0, c.deliveries || 0);
+      if (c.userName) local.userName = c.userName;
+    } else {
+      dest.contributions.push({ userId: c.userId, userName: c.userName || 'Anonymous', deliveries: c.deliveries || 0 });
+    }
+  });
+  dest.level = calcDropLevel(getDropTotalDeliveries(dest));
+}
+
+function importDropCode(code) {
+  try {
+    code = code.trim();
+    if (code.indexOf('PORTER DROP\n') === 0) code = code.slice('PORTER DROP\n'.length);
+    var data = JSON.parse(decodeURIComponent(escape(atob(code))));
+    if (!data.v || !data.dropId || !data.loc) throw new Error('bad format');
+
+    // Same drop already present → sync contributions
+    var existing = state.destinations.find(function(d) { return d.id === data.dropId; });
+    if (existing) {
+      mergeDropContributions(existing, data.contributions);
+      saveGameState();
+      renderOrderMarkers();
+      showToast('Drop synced! Level ' + existing.level);
+      return;
+    }
+
+    // Different drop on same hex → reject
+    var ih = latLngToHex(data.loc.lat, data.loc.lng);
+    var ik = hexKey(ih.q, ih.r);
+    if (state.destinations.some(function(d) {
+      var h = latLngToHex(d.loc.lat, d.loc.lng);
+      return hexKey(h.q, h.r) === ik;
+    })) {
+      showToast('A drop already exists at that location.', 4000);
+      return;
+    }
+
+    // New drop
+    var newDrop = {
+      id: data.dropId, loc: data.loc,
+      label: nextDropLabel(), name: data.name || 'Unknown',
+      contributions: [], deliveries: 0, level: 0
+    };
+    mergeDropContributions(newDrop, data.contributions);
+    state.destinations.push(newDrop);
+    spawnPackagesForDrop(newDrop);
+    saveGameState();
+    renderOrderMarkers();
+    updateHUD();
+    showToast('Drop ' + newDrop.label + ' added! Level ' + newDrop.level);
+  } catch (e) {
+    showToast('Invalid drop code.', 4000);
+  }
+}
+
+function importDropFromClipboard() {
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(function(text) {
+      importDropCode(text);
+    }).catch(function() {
+      var code = prompt('Paste drop code:');
+      if (code) importDropCode(code);
+    });
+  } else {
+    var code = prompt('Paste drop code:');
+    if (code) importDropCode(code);
+  }
+}
+
 var dropPanelDestId = null;
 
 function openDropPanel(destId) {
   var dest = state.destinations.find(function(d) { return d.id === destId; });
   if (!dest) return;
   dropPanelDestId = destId;
-  var level      = dest.level      || 0;
-  var deliveries = dest.deliveries || 0;
-  var toNext     = level < 100 ? deliveriesToNextLevel(deliveries, level) : 0;
+
+  var level      = dest.level || 0;
+  var totalDel   = getDropTotalDeliveries(dest);
+  var toNext     = level < 100 ? deliveriesToNextLevel(totalDel, level) : 0;
   var prevNeeded = level > 0 ? Math.ceil(Math.pow(1.1, level)) - 1 : 0;
-  var nextNeeded = level < 100 ? Math.ceil(Math.pow(1.1, level + 1)) - 1 : deliveries;
+  var nextNeeded = level < 100 ? Math.ceil(Math.pow(1.1, level + 1)) - 1 : totalDel;
   var pct = level >= 100 ? 100
-    : (nextNeeded === prevNeeded ? 100
-    : Math.round((deliveries - prevNeeded) / (nextNeeded - prevNeeded) * 100));
+    : (nextNeeded <= prevNeeded ? 100
+    : Math.round((totalDel - prevNeeded) / (nextNeeded - prevNeeded) * 100));
   var pkgsWaiting = state.packages.filter(function(p) { return p.destId === destId && !p.picked; }).length;
+
+  var contribHtml = '';
+  if (dest.contributions && dest.contributions.length > 1) {
+    contribHtml = '<div style="margin-bottom:14px">' +
+      '<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:8px">CONTRIBUTORS</div>' +
+      dest.contributions.slice().sort(function(a, b) { return (b.deliveries || 0) - (a.deliveries || 0); }).map(function(c) {
+        var isMe = c.userId === state.userId;
+        return '<div style="display:flex;justify-content:space-between;font-size:11px;color:' + (isMe ? '#e0d8c8' : '#777') + ';letter-spacing:1px;margin-bottom:4px">' +
+          '<span>' + esc(c.userName || 'Anonymous') + (isMe ? ' (you)' : '') + '</span>' +
+          '<span>' + (c.deliveries || 0) + '</span>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  var btnStyle = 'padding:13px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid';
 
   document.getElementById('drop-panel-content').innerHTML =
     '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">' +
@@ -1781,7 +1944,7 @@ function openDropPanel(destId) {
     '</div>' +
     '<div style="display:flex;gap:24px;margin-bottom:14px">' +
       '<div><div style="font-size:10px;color:#555;letter-spacing:2px">LEVEL</div><div style="font-size:24px;color:#e8a030">' + level + '</div></div>' +
-      '<div><div style="font-size:10px;color:#555;letter-spacing:2px">DELIVERIES</div><div style="font-size:24px;color:#e8a030">' + deliveries + '</div></div>' +
+      '<div><div style="font-size:10px;color:#555;letter-spacing:2px">TOTAL DEL.</div><div style="font-size:24px;color:#e8a030">' + totalDel + '</div></div>' +
       '<div><div style="font-size:10px;color:#555;letter-spacing:2px">BONUS</div><div style="font-size:24px;color:#5ab05a">+' + level + '%</div></div>' +
     '</div>' +
     (level < 100
@@ -1790,10 +1953,15 @@ function openDropPanel(destId) {
           '<div style="height:4px;background:#1a1a2a;border-radius:2px"><div style="height:4px;background:#e8a030;border-radius:2px;width:' + Math.max(2, pct) + '%"></div></div>' +
         '</div>'
       : '<div style="font-size:11px;color:#5ab05a;letter-spacing:3px;margin-bottom:14px">MAX LEVEL</div>') +
+    contribHtml +
     '<div style="font-size:11px;color:#555;letter-spacing:2px;margin-bottom:16px">' +
       pkgsWaiting + ' package' + (pkgsWaiting !== 1 ? 's' : '') + ' waiting' +
     '</div>' +
-    '<button onclick="deleteDropConfirm()" style="width:100%;padding:14px;background:rgba(60,10,10,0.4);color:#c04040;border:1px solid #602020;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:3px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent">DELETE DROP</button>';
+    '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+      '<button onclick="shareDrop(\'' + destId + '\')" style="flex:1;' + btnStyle + ' #2a3a20;background:rgba(20,40,10,0.4);color:#5ab05a">&#x2191; SHARE</button>' +
+      '<button onclick="importDropFromClipboard()" style="flex:1;' + btnStyle + ' #1a2a3a;background:rgba(10,20,40,0.4);color:#3080c0">&#x2193; SYNC</button>' +
+    '</div>' +
+    '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>';
 
   document.getElementById('drop-overlay').classList.add('open');
   document.getElementById('drop-panel').classList.add('open');
@@ -1905,7 +2073,7 @@ function renderOrderMarkers() {
     }).length;
     var isNext = deliverable && deliverable.id === d.id;
     var destBg = isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30');
-    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.label, iconPx) }).addTo(map);
+    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.label, iconPx, d.level || 0) }).addTo(map);
     m.bindTooltip('Drop ' + d.label + (n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : ''));
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
