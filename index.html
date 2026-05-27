@@ -487,8 +487,10 @@ function onGpsLocked() {
   badge.className   = 'locked';
   setTimeout(function() { badge.style.display = 'none'; }, 3000);
   state.phase  = 'active';
-  CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
-  localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
+  if (!state.zones.length) {
+    CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
+    localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
+  }
   vibrate(30);
   renderZoneMarkers();
   generateOrders();
