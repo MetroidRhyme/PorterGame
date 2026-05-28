@@ -151,6 +151,26 @@
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-share:active { color: #5090d0; border-color: #1a3060; }
+    .s-zone-merge {
+      font-size: 14px; color: #999; background: transparent;
+      border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
+      padding: 10px 12px; min-height: 44px;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .s-zone-merge:active { color: #e8a030; border-color: #604010; }
+
+    /* ── MERGE MODAL ── */
+    #merge-overlay {
+      display: none; position: fixed; inset: 0; z-index: 7000;
+      background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
+    }
+    #merge-overlay.open { display: flex; }
+    #merge-modal {
+      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 24px 20px 18px; width: min(340px, calc(100vw - 40px));
+      display: flex; flex-direction: column; gap: 10px; max-height: 80vh; overflow-y: auto;
+    }
+
     .s-empty { font-size: 12px; color: #777; letter-spacing: 1px; padding: 6px 0 4px; }
     .s-name-input {
       width: 100%; padding: 10px 14px; border-radius: 4px; margin-bottom: 8px;
@@ -517,6 +537,13 @@
       <button class="cm-cancel" onclick="closeConfirmModal()">CANCEL</button>
       <button class="cm-confirm" onclick="executeRefresh()">REFRESH</button>
     </div>
+  </div>
+</div>
+
+<!-- ── MERGE MODAL ── -->
+<div id="merge-overlay" onclick="closeMergeModal()">
+  <div id="merge-modal" onclick="event.stopPropagation()">
+    <div id="merge-modal-content"></div>
   </div>
 </div>
 
@@ -949,6 +976,7 @@ function renderSettingsPanel() {
         'style="color:' + (z.active ? col : '#555') + ';border-color:' + (z.active ? col : '#2a2a3a') + '" ' +
         'onclick="settingsToggleZone(\'' + esc(z.id) + '\')">' + esc(z.name.toUpperCase()) + '</button>' +
         '<button class="s-zone-share" title="Share zone file" onclick="shareZone(\'' + esc(z.id) + '\')">&#x2191;</button>' +
+        '<button class="s-zone-merge" title="Merge into another zone" onclick="openMergeModal(\'' + esc(z.id) + '\')">&#x2295;</button>' +
         '<button class="s-zone-edit" onclick="settingsEditZone(\'' + esc(z.id) + '\')">&#9998;</button>' +
         '<button class="s-zone-del" onclick="settingsDeleteZone(\'' + esc(z.id) + '\')">&#10005;</button>' +
         '</div>';
@@ -960,6 +988,70 @@ function settingsAddZone()      { closeSettings(); startDrawing(); }
 function settingsEditZone(id)   { closeSettings(); startEditZone(id); }
 function settingsToggleZone(id) { toggleZoneActive(id); renderSettingsPanel(); }
 function settingsDeleteZone(id) { deleteZone(id);       renderSettingsPanel(); }
+
+function openMergeModal(sourceId) {
+  var source  = state.zones.find(function(z) { return z.id === sourceId; });
+  if (!source) return;
+  var others  = state.zones.filter(function(z) { return z.id !== sourceId; });
+  var btnStyle = 'width:100%;padding:13px 14px;border-radius:4px;text-align:left;' +
+    'font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;' +
+    'touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin-bottom:8px;';
+  var listHtml = others.length
+    ? others.map(function(z) {
+        var col = safeColor(z.color);
+        return '<button style="' + btnStyle + 'color:' + col + ';border:1px solid ' + col + ';background:rgba(0,0,0,0.3)"' +
+          ' onclick="confirmMergeZone(\'' + esc(sourceId) + '\',\'' + esc(z.id) + '\')">' +
+          esc(z.name.toUpperCase()) + '</button>';
+      }).join('')
+    : '<div style="font-size:12px;color:#555;letter-spacing:1px">No other zones to merge into.</div>';
+  document.getElementById('merge-modal-content').innerHTML =
+    '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:12px">MERGE ZONE</div>' +
+    '<div style="font-size:12px;color:#888;letter-spacing:1px;line-height:1.6;margin-bottom:16px">' +
+      'Select a zone to absorb <strong style="color:#e0d8c8">' + esc(source.name.toUpperCase()) + '</strong> into.' +
+    '</div>' +
+    listHtml +
+    '<button onclick="closeMergeModal()" style="' + btnStyle + 'color:#555;border:1px solid #2a2a3a;background:transparent;margin-top:4px">CANCEL</button>';
+  document.getElementById('merge-overlay').classList.add('open');
+}
+
+function closeMergeModal() {
+  document.getElementById('merge-overlay').classList.remove('open');
+}
+
+function confirmMergeZone(sourceId, targetId) {
+  var source = state.zones.find(function(z) { return z.id === sourceId; });
+  var target = state.zones.find(function(z) { return z.id === targetId; });
+  if (!source || !target) { closeMergeModal(); return; }
+  var srcCells  = (source.cells || []).length;
+  var dropCount = state.destinations.filter(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng), k = hexKey(h.q, h.r);
+    return (source.cells || []).some(function(c) { return hexKey(c.q, c.r) === k; });
+  }).length;
+  var msg =
+    'Merge "' + source.name + '" into "' + target.name + '"?\n\n' +
+    '• All ' + srcCells + ' cell' + (srcCells !== 1 ? 's' : '') + ' from "' + source.name + '" will be added to "' + target.name + '"\n' +
+    '• "' + source.name + '" will be deleted\n' +
+    (dropCount ? '• ' + dropCount + ' drop' + (dropCount !== 1 ? 's' : '') + ' in "' + source.name + '" will move to "' + target.name + '"\n' : '') +
+    '\nThis cannot be undone.';
+  if (!confirm(msg)) return;
+  mergeZones(sourceId, targetId);
+}
+
+function mergeZones(sourceId, targetId) {
+  var source = state.zones.find(function(z) { return z.id === sourceId; });
+  var target = state.zones.find(function(z) { return z.id === targetId; });
+  if (!source || !target) return;
+  var existingKeys = new Set((target.cells || []).map(function(c) { return hexKey(c.q, c.r); }));
+  (source.cells || []).forEach(function(c) {
+    if (!existingKeys.has(hexKey(c.q, c.r))) { target.cells = target.cells || []; target.cells.push(c); }
+  });
+  removeZoneOrders(source, false);
+  state.zones = state.zones.filter(function(z) { return z.id !== sourceId; });
+  if (target.active && state.phase === 'active') generateOrdersForZone(target);
+  saveZones(); saveGameState(); renderZoneMarkers(); renderGridCanvas(); renderOrderMarkers(); updateHUD();
+  closeMergeModal();
+  renderSettingsPanel();
+}
 function settingsClearZones() {
   if (!confirm('Delete all ' + state.zones.length + ' zone' + (state.zones.length !== 1 ? 's' : '') + '?')) return;
   clearAllZones();
@@ -1290,6 +1382,16 @@ function generateOrdersForZone(zone) {
     occupied.add(hexKey(h.q, h.r));
   });
 
+  // Adopt any dormant drops now covered by this zone and give them initial packages
+  var zoneKeys = new Set((zone.cells || []).map(function(c) { return hexKey(c.q, c.r); }));
+  state.destinations.forEach(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    if (zoneKeys.has(hexKey(h.q, h.r))) {
+      var hasPkgs = state.packages.some(function(p) { return p.destId === d.id; });
+      if (!hasPkgs) spawnPackagesForDrop(d);
+    }
+  });
+
   ensureMinDestPerZone(activeZones, occupied);
 
   var counts    = orderCounts(activeZones);
@@ -1325,8 +1427,16 @@ function toggleZoneActive(id) {
 
 function deleteZone(id) {
   var z = state.zones.find(function(z) { return z.id === id; });
-  if (!z || !confirm('Delete zone "' + z.name + '"?')) return;
-  removeZoneOrders(z, true);
+  if (!z) return;
+  var dropCount = state.destinations.filter(function(d) {
+    if (!z.cells) return false;
+    var h = latLngToHex(d.loc.lat, d.loc.lng), k = hexKey(h.q, h.r);
+    return z.cells.some(function(c) { return hexKey(c.q, c.r) === k; });
+  }).length;
+  var msg = 'Delete zone "' + z.name + '"?' +
+    (dropCount ? '\n\n' + dropCount + ' drop' + (dropCount !== 1 ? 's' : '') + ' in this zone will become dormant — they stay on the map and keep their stats, but won\'t generate orders until a new zone covers them.' : '');
+  if (!confirm(msg)) return;
+  removeZoneOrders(z, false);
   state.zones = state.zones.filter(function(z) { return z.id !== id; });
   saveZones(); saveGameState(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
@@ -1722,7 +1832,8 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
   }
   if (!state.destinations.length) return false;
 
-  var allDests = state.destinations;
+  var allDests = state.destinations.filter(function(d) { return !isDropOrphaned(d); });
+  if (!allDests.length) return false;
   for (var j = 0; j < needPkgs; j++) {
     var dest = allDests[j % allDests.length];
     var dh   = latLngToHex(dest.loc.lat, dest.loc.lng);
@@ -1872,7 +1983,15 @@ function attemptPickup() {
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
+function isDropOrphaned(dest) {
+  var h = latLngToHex(dest.loc.lat, dest.loc.lng), k = hexKey(h.q, h.r);
+  return !state.zones.some(function(z) {
+    return z.active && (z.cells || []).some(function(c) { return hexKey(c.q, c.r) === k; });
+  });
+}
+
 function spawnPackagesForDrop(dest) {
+  if (isDropOrphaned(dest)) return;
   var active = state.zones.filter(function(z) {
     return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
   });
@@ -2248,14 +2367,16 @@ function renderOrderMarkers() {
   });
 
   state.destinations.filter(function(d) { return visibleDestIds.has(d.id); }).forEach(function(d) {
-    var n      = state.carrying.filter(function(id) {
+    var orphaned = isDropOrphaned(d);
+    var n      = orphaned ? 0 : state.carrying.filter(function(id) {
       var p = state.packages.find(function(p) { return p.id === id; });
       return p && p.destId === d.id;
     }).length;
-    var isNext = deliverable && deliverable.id === d.id;
-    var destBg = isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30');
-    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.label, iconPx, d.level || 0) }).addTo(map);
-    m.bindTooltip('Drop ' + d.label + (n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : ''));
+    var isNext = !orphaned && deliverable && deliverable.id === d.id;
+    var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
+    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.label, iconPx, orphaned ? 0 : (d.level || 0)) }).addTo(map);
+    var tip = 'Drop ' + d.label + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
+    m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
   });
