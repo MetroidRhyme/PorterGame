@@ -30,13 +30,14 @@
     #score-display { text-align: left; flex-shrink: 0; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
-    #top-menu-btn {
-      font-size: 22px; line-height: 1; padding: 10px 14px; border-radius: 4px;
+    #top-menu-btn, #paint-btn {
+      font-size: 20px; line-height: 1; padding: 10px 14px; border-radius: 4px;
       background: transparent; color: #ccc; border: 1px solid #2a2a3a; cursor: pointer;
       touch-action: manipulation; min-height: 44px; min-width: 44px; flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
     }
-    #top-menu-btn:active { color: #fff; border-color: #4a4a5a; }
+    #top-menu-btn:active, #paint-btn:active { color: #fff; border-color: #4a4a5a; }
+    #paint-btn.active { color: #e8a030; border-color: #4a2800; }
 
     #top-menu {
       position: fixed; top: 70px; right: 12px; z-index: 2500;
@@ -54,8 +55,7 @@
     }
     .top-menu-item:last-child { border-bottom: none; }
     .top-menu-item:active { background: rgba(40,40,60,0.8); color: #fff; }
-    #follow-btn.active       { color: #5ab05a; }
-    #follow-btn.paint-active { color: #e8a030; }
+    #follow-btn.active { color: #5ab05a; }
 
     #paint-picker {
       position: fixed; top: 70px; right: 12px; z-index: 1998;
@@ -421,6 +421,7 @@
       <div id="cap-progress"></div>
     </div>
   </div>
+  <button id="paint-btn" onclick="togglePaint()">&#9998;</button>
   <button id="top-menu-btn" onclick="toggleTopMenu()">&#8942;</button>
 </div>
 
@@ -689,38 +690,50 @@ function closeTopMenu() {
 
 function toggleFollow() {
   closeTopMenu();
+  state.following = !state.following;
   if (state.following) {
-    state.following = false;
+    map.dragging.disable();
+    if (state.userPos) map.panTo([state.userPos.lat, state.userPos.lng], { animate: true, duration: 0.4 });
+  } else {
+    map.dragging.enable();
+  }
+  updateFollowBtn();
+}
+
+function togglePaint() {
+  var picker = document.getElementById('paint-picker');
+  if (state.painting) {
+    picker.classList.remove('open');
     stopPainting();
-    updateFollowBtn();
+    updatePaintBtn();
     return;
   }
-  var picker = document.getElementById('paint-picker');
   if (picker.classList.contains('open')) { picker.classList.remove('open'); return; }
   var zones  = state.zones.filter(function(z) { return z.active && z.cells && z.cells.length; });
   var optsEl = document.getElementById('paint-zone-opts');
   optsEl.innerHTML =
-    '<button class="paint-zone-opt" style="color:#999" onclick="selectFollowZone(null)">NONE</button>' +
-    '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:#888;border-bottom:1px solid rgba(255,255,255,0.05)">PAINT MODE</div>' +
+    '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:#888;border-bottom:1px solid rgba(255,255,255,0.05)">SELECT ZONE TO PAINT</div>' +
     zones.map(function(z) {
-      return '<button class="paint-zone-opt" style="color:' + safeColor(z.color) + '" onclick="selectFollowZone(\'' + esc(z.id) + '\')">' +
+      return '<button class="paint-zone-opt" style="color:' + safeColor(z.color) + '" onclick="selectPaintZone(\'' + esc(z.id) + '\')">' +
         esc(z.name.toUpperCase()) + '</button>';
     }).join('');
+  if (!zones.length) optsEl.innerHTML += '<div style="padding:12px 16px;font-size:11px;letter-spacing:1px;color:#999">No active zones</div>';
   picker.classList.add('open');
 }
 
-function selectFollowZone(zoneId) {
+function selectPaintZone(zoneId) {
   document.getElementById('paint-picker').classList.remove('open');
-  state.following = true;
-  if (state.userPos) map.panTo([state.userPos.lat, state.userPos.lng], { animate: true, duration: 0.4 });
-  if (zoneId) startPainting(zoneId); else stopPainting();
-  updateFollowBtn();
+  startPainting(zoneId);
+  updatePaintBtn();
 }
 
 function updateFollowBtn() {
-  var btn = document.getElementById('follow-btn');
-  btn.classList.toggle('paint-active', state.following && state.painting);
-  btn.classList.toggle('active',       state.following && !state.painting);
+  document.getElementById('follow-btn').classList.toggle('active', state.following);
+}
+
+function updatePaintBtn() {
+  var btn = document.getElementById('paint-btn');
+  if (btn) btn.classList.toggle('active', state.painting);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -976,6 +989,7 @@ function stopPainting() {
   state.painting    = false;
   state.paintZoneId = null;
   lastPaintHexKey   = null;
+  updatePaintBtn();
   if (state.phase === 'active') {
     var zone = state.zones.find(function(z) { return z.id === zoneId; });
     if (zone) { generateOrdersForZone(zone); saveGameState(); renderOrderMarkers(); }
@@ -1473,12 +1487,6 @@ function renderGridCanvas() {
 
 map.on('move zoom', scheduleGridRender);
 map.on('zoomend',  renderOrderMarkers);
-map.on('dragstart', function() {
-  if (state.following) {
-    state.following = false;
-    document.getElementById('follow-btn').classList.remove('active');
-  }
-});
 
 map.on('click', function(e) {
   if (!state.drawing) return;
@@ -2247,6 +2255,7 @@ function updateHUD() {
   secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
   updateFollowBtn();
+  updatePaintBtn();
 
   // ── DRAWING / EDITING ────────────────────────────────────
   if (state.drawing) {
