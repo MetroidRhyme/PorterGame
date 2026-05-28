@@ -2084,7 +2084,7 @@ function openDropPanel(destId) {
   var pkgsWaiting = state.packages.filter(function(p) { return p.destId === destId && !p.picked; }).length;
 
   var contribHtml = '';
-  if (dest.contributions && dest.contributions.length > 1) {
+  if (dest.contributions && dest.contributions.length > 0) {
     contribHtml = '<div style="margin-bottom:14px">' +
       '<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:8px">CONTRIBUTORS</div>' +
       dest.contributions.slice().sort(function(a, b) { return (b.points || 0) - (a.points || 0); }).map(function(c) {
