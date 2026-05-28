@@ -1838,13 +1838,13 @@ function shareDrop(destId) {
   var text = 'PORTER DROP\n' + code;
   if (navigator.share) {
     navigator.share({ title: 'Porter Drop ' + dest.label, text: text }).catch(function() {
-      navigator.clipboard.writeText(code).then(function() { showToast('Drop code copied!'); });
+      navigator.clipboard.writeText(code).then(function() { showToast('Drop code copied! Send it to a friend — they tap ↓ SYNC to add this drop.'); });
     });
   } else {
     navigator.clipboard.writeText(code).then(function() {
-      showToast('Drop code copied to clipboard!');
+      showToast('Drop code copied! Send it to a friend — they tap ↓ SYNC to add this drop.');
     }).catch(function() {
-      prompt('Copy this drop code:', code);
+      prompt('Copy this drop code and send it to a friend. They tap ↓ SYNC to import it:', code);
     });
   }
 }
@@ -1980,10 +1980,11 @@ function openDropPanel(destId) {
     '<div style="font-size:11px;color:#555;letter-spacing:2px;margin-bottom:16px">' +
       pkgsWaiting + ' package' + (pkgsWaiting !== 1 ? 's' : '') + ' waiting' +
     '</div>' +
-    '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+    '<div style="display:flex;gap:8px;margin-bottom:4px">' +
       '<button onclick="shareDrop(\'' + destId + '\')" style="flex:1;' + btnStyle + ' #2a3a20;background:rgba(20,40,10,0.4);color:#5ab05a">&#x2191; SHARE</button>' +
       '<button onclick="importDropFromClipboard()" style="flex:1;' + btnStyle + ' #1a2a3a;background:rgba(10,20,40,0.4);color:#3080c0">&#x2193; SYNC</button>' +
     '</div>' +
+    '<div style="font-size:10px;color:#556;letter-spacing:1px;margin-bottom:10px;text-align:center">SHARE sends a code · recipient taps SYNC to import</div>' +
     '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>';
 
   document.getElementById('drop-overlay').classList.add('open');
