@@ -33,6 +33,8 @@ Your carry capacity starts at 3 units and grows by 1 for every 500 points, up to
 
 Zones are made of hex grid cells (~20 m circumradius, ~400 m² each). You can define multiple named zones in different colors; packages and destinations only spawn in active zones.
 
+You can paint your entire accessible area, or place just a handful of hexes in specific spots — orders only spawn on painted cells, giving you full control over where the action is. For zones with fewer total hexes the order count scales more generously per hex to keep play density reasonable.
+
 - **Draw mode** — tap cells to add/remove them. Disconnected selections become separate zones automatically. After saving your first zone a tip toast will point you to Paint mode.
 - **Paint mode** — enable follow + select a zone from the picker, then walk to paint cells as you move.
 - **Edit** an existing zone from Settings to resize or reshape it.
