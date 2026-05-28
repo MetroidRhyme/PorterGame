@@ -195,6 +195,7 @@
     .s-btn-dim:active    { color: #aaa; border-color: #4a4a5a; }
     .s-btn-danger { background: transparent; color: #7a2020; border: 1px solid #2a1010; }
     .s-btn-danger:active { color: #c04040; border-color: #602020; }
+    .s-hint { font-size: 10px; color: #445; letter-spacing: 1px; margin-top: 6px; line-height: 1.6; }
 
     /* ── BOTTOM HUD ── */
     #hud-bottom {
@@ -433,6 +434,7 @@
   <div class="s-section">
     <div class="s-section-label">ZONES</div>
     <div id="s-zone-list"></div>
+    <div class="s-hint">Tap &#x2191; next to a zone to share it as a file. Friends import it with IMPORT SAVE FILE.</div>
     <button class="s-btn s-btn-green" onclick="settingsAddZone()">+ ADD ZONE</button>
     <button class="s-btn s-btn-dim" onclick="openAdjust()">ADJUST ZONE POSITION</button>
     <button class="s-btn s-btn-danger" id="s-clear-btn" style="display:none" onclick="settingsClearZones()">CLEAR ALL ZONES</button>
@@ -444,20 +446,24 @@
       placeholder="ENTER NAME…" autocomplete="off" autocorrect="off" spellcheck="false"
       oninput="savePlayerName(this.value)">
     <button class="s-btn s-btn-dim" onclick="shareProfile()">&#x2191; SHARE PROFILE</button>
+    <div class="s-hint">Sends your name and score as a text message.</div>
   </div>
 
   <div class="s-section">
     <div class="s-section-label">DROPS</div>
-    <button class="s-btn s-btn-dim" onclick="closeSettings();importDropFromClipboard()">&#x2193; IMPORT / SYNC DROP CODE</button>
+    <button class="s-btn s-btn-dim" onclick="closeSettings();importDropFromClipboard()">&#x2193; IMPORT DROP CODE</button>
+    <div class="s-hint">Paste a drop code from a friend to add their drop to your map.</div>
   </div>
 
   <div class="s-section">
     <div class="s-section-label">DATA</div>
     <button class="s-btn s-btn-dim" onclick="exportData()">EXPORT SAVE FILE</button>
-    <label class="s-btn s-btn-dim" style="cursor:pointer">
+    <div class="s-hint">Download a full backup of your game data.</div>
+    <label class="s-btn s-btn-dim" style="cursor:pointer;margin-top:12px">
       IMPORT SAVE FILE
       <input id="import-input" type="file" accept=".json,.porter" style="display:none" onchange="importData(this)">
     </label>
+    <div class="s-hint">Restore a backup (.json) or import a shared zone (.porter). Warning: restoring a backup replaces all your current data.</div>
     <button class="s-btn s-btn-danger" onclick="resetProfile()">RESET PROFILE</button>
   </div>
 </div>
@@ -888,7 +894,7 @@ function renderSettingsPanel() {
         '<button class="s-zone-toggle" ' +
         'style="color:' + (z.active ? col : '#555') + ';border-color:' + (z.active ? col : '#2a2a3a') + '" ' +
         'onclick="settingsToggleZone(\'' + esc(z.id) + '\')">' + esc(z.name.toUpperCase()) + '</button>' +
-        '<button class="s-zone-share" onclick="shareZone(\'' + esc(z.id) + '\')">&#x2191;</button>' +
+        '<button class="s-zone-share" title="Share zone file" onclick="shareZone(\'' + esc(z.id) + '\')">&#x2191;</button>' +
         '<button class="s-zone-edit" onclick="settingsEditZone(\'' + esc(z.id) + '\')">&#9998;</button>' +
         '<button class="s-zone-del" onclick="settingsDeleteZone(\'' + esc(z.id) + '\')">&#10005;</button>' +
         '</div>';
@@ -989,6 +995,7 @@ function shareZone(id) {
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  showToast('Zone file downloaded! Send it to a friend — they import it with IMPORT SAVE FILE.');
 }
 
 function shareProfile() {
@@ -998,9 +1005,15 @@ function shareProfile() {
     navigator.share({ title: 'Porter Score', text: text }).catch(function() {});
     return;
   }
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function() { alert('Copied to clipboard!'); });
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('Score copied to clipboard!');
+    }).catch(function() {
+      prompt('Copy your score:', text);
+    });
+    return;
   }
+  prompt('Copy your score:', text);
 }
 
 // ═══════════════════════════════════════════════════════════
