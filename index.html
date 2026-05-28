@@ -57,6 +57,8 @@
     .top-menu-item:active { background: rgba(40,40,60,0.8); color: #fff; }
     #follow-btn.active { color: #5ab05a; }
 
+    #paint-picker-backdrop { display: none; position: fixed; inset: 0; z-index: 1997; }
+    #paint-picker-backdrop.open { display: block; }
     #paint-picker {
       position: fixed; top: 70px; right: 12px; z-index: 1998;
       background: rgba(13,13,20,0.97); border: 1px solid rgba(255,255,255,0.08);
@@ -436,6 +438,7 @@
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
+<div id="paint-picker-backdrop" onclick="closePaintPicker()"></div>
 <div id="paint-picker"><div id="paint-zone-opts"></div></div>
 
 <!-- ── SETTINGS DRAWER ── -->
@@ -700,16 +703,21 @@ function toggleFollow() {
   updateFollowBtn();
 }
 
+function closePaintPicker() {
+  document.getElementById('paint-picker').classList.remove('open');
+  document.getElementById('paint-picker-backdrop').classList.remove('open');
+}
+
 function togglePaint() {
   closeTopMenu();
   var picker = document.getElementById('paint-picker');
   if (state.painting) {
-    picker.classList.remove('open');
+    closePaintPicker();
     stopPainting();
     updatePaintBtn();
     return;
   }
-  if (picker.classList.contains('open')) { picker.classList.remove('open'); return; }
+  if (picker.classList.contains('open')) { closePaintPicker(); return; }
   var zones  = state.zones.filter(function(z) { return z.active && z.cells && z.cells.length; });
   var optsEl = document.getElementById('paint-zone-opts');
   optsEl.innerHTML =
@@ -720,10 +728,11 @@ function togglePaint() {
     }).join('');
   if (!zones.length) optsEl.innerHTML += '<div style="padding:12px 16px;font-size:11px;letter-spacing:1px;color:#999">No active zones</div>';
   picker.classList.add('open');
+  document.getElementById('paint-picker-backdrop').classList.add('open');
 }
 
 function selectPaintZone(zoneId) {
-  document.getElementById('paint-picker').classList.remove('open');
+  closePaintPicker();
   startPainting(zoneId);
   updatePaintBtn();
 }
