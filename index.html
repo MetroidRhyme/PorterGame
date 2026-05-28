@@ -25,20 +25,37 @@
       padding: max(12px, env(safe-area-inset-top)) 16px 12px;
       display: flex; justify-content: space-between; align-items: center; gap: 12px;
     }
-    #game-title { font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; flex-shrink: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
-    #score-display { text-align: right; flex-shrink: 0; }
-    #score-display .label { font-size: 10px; color: #555; letter-spacing: 2px; }
+    #hud-top-left { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 0; }
+    #game-title { font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; white-space: nowrap; flex-shrink: 0; padding-top: 3px; }
+    #score-display { text-align: left; flex-shrink: 0; }
     #score-display .value { font-size: 22px; color: #e8a030; }
 
-    #settings-btn, #follow-btn {
-      font-size: 20px; line-height: 1; padding: 10px 14px; border-radius: 4px;
-      background: transparent; color: #999; border: 1px solid #2a2a3a; cursor: pointer;
-      touch-action: manipulation; min-height: 44px; min-width: 44px;
+    #top-menu-btn {
+      font-size: 22px; line-height: 1; padding: 10px 14px; border-radius: 4px;
+      background: transparent; color: #ccc; border: 1px solid #2a2a3a; cursor: pointer;
+      touch-action: manipulation; min-height: 44px; min-width: 44px; flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
     }
-    #settings-btn:active, #follow-btn:active { color: #bbb; border-color: #4a4a5a; }
-    #follow-btn.active       { color: #5ab05a; border-color: #1e4020; }
-    #follow-btn.paint-active { color: #e8a030; border-color: #4a2800; }
+    #top-menu-btn:active { color: #fff; border-color: #4a4a5a; }
+
+    #top-menu {
+      position: fixed; top: 70px; right: 12px; z-index: 2500;
+      background: rgba(13,13,20,0.97); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; min-width: 180px; display: none;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    }
+    #top-menu.open { display: block; }
+    .top-menu-item {
+      display: block; width: 100%; padding: 14px 18px; text-align: left;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
+      background: transparent; border: none; color: #ccc;
+      border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent; box-sizing: border-box;
+    }
+    .top-menu-item:last-child { border-bottom: none; }
+    .top-menu-item:active { background: rgba(40,40,60,0.8); color: #fff; }
+    #follow-btn.active       { color: #5ab05a; }
+    #follow-btn.paint-active { color: #e8a030; }
 
     #paint-picker {
       position: fixed; top: 70px; right: 12px; z-index: 1998;
@@ -92,16 +109,16 @@
       display: flex; justify-content: space-between; align-items: center;
       padding: 4px 20px 14px;
     }
-    .s-title { font-size: 10px; letter-spacing: 4px; color: #555; }
+    .s-title { font-size: 10px; letter-spacing: 4px; color: #999; }
     .s-close {
-      font-family: 'Courier New', monospace; font-size: 14px; color: #555;
+      font-family: 'Courier New', monospace; font-size: 14px; color: #999;
       background: transparent; border: none; cursor: pointer; padding: 8px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
-    .s-close:active { color: #bbb; }
+    .s-close:active { color: #fff; }
 
     .s-section { padding: 0 20px 16px; border-top: 1px solid rgba(255,255,255,0.05); }
-    .s-section-label { font-size: 10px; letter-spacing: 3px; color: #555; padding: 14px 0 10px; }
+    .s-section-label { font-size: 10px; letter-spacing: 3px; color: #999; padding: 14px 0 10px; }
 
     .s-zone-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .s-zone-toggle {
@@ -112,27 +129,27 @@
       -webkit-tap-highlight-color: transparent;
     }
     .s-zone-edit {
-      font-size: 14px; color: #555; background: transparent;
+      font-size: 14px; color: #999; background: transparent;
       border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
       padding: 10px 12px; min-height: 44px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-edit:active { color: #5ab05a; border-color: #1e4020; }
     .s-zone-del {
-      font-size: 14px; color: #555; background: transparent;
+      font-size: 14px; color: #999; background: transparent;
       border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
       padding: 10px 12px; min-height: 44px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-del:active { color: #c04040; border-color: #602020; }
     .s-zone-share {
-      font-size: 14px; color: #555; background: transparent;
+      font-size: 14px; color: #999; background: transparent;
       border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
       padding: 10px 12px; min-height: 44px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-share:active { color: #5090d0; border-color: #1a3060; }
-    .s-empty { font-size: 12px; color: #3a3a4a; letter-spacing: 1px; padding: 6px 0 4px; }
+    .s-empty { font-size: 12px; color: #777; letter-spacing: 1px; padding: 6px 0 4px; }
     .s-name-input {
       width: 100%; padding: 10px 14px; border-radius: 4px; margin-bottom: 8px;
       font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
@@ -191,11 +208,11 @@
     }
     .s-btn-green  { background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; }
     .s-btn-green:active  { background: #0e1828; }
-    .s-btn-dim    { background: transparent; color: #777; border: 1px solid #2a2a3a; }
-    .s-btn-dim:active    { color: #aaa; border-color: #4a4a5a; }
-    .s-btn-danger { background: transparent; color: #7a2020; border: 1px solid #2a1010; }
-    .s-btn-danger:active { color: #c04040; border-color: #602020; }
-    .s-hint { font-size: 10px; color: #445; letter-spacing: 1px; margin-top: 6px; line-height: 1.6; }
+    .s-btn-dim    { background: transparent; color: #aaa; border: 1px solid #2a2a3a; }
+    .s-btn-dim:active    { color: #fff; border-color: #4a4a5a; }
+    .s-btn-danger { background: transparent; color: #c04040; border: 1px solid #602020; }
+    .s-btn-danger:active { color: #e05050; border-color: #802020; }
+    .s-hint { font-size: 10px; color: #889; letter-spacing: 1px; margin-top: 6px; line-height: 1.6; }
 
     /* ── BOTTOM HUD ── */
     #hud-bottom {
@@ -224,9 +241,9 @@
     }
     #hud-bottom.collapsed #collapsible-hud { max-height: 0; opacity: 0; }
 
-    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #888; margin-bottom: 5px; }
-    #mission-detail   { font-size: 14px; color: #a09888; line-height: 1.5; }
-    #mission-distance { font-size: 11px; color: #4a7a4a; margin-top: 5px; min-height: 16px; }
+    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #bbb; margin-bottom: 5px; }
+    #mission-detail   { font-size: 14px; color: #c8b8a0; line-height: 1.5; }
+    #mission-distance { font-size: 11px; color: #6ab06a; margin-top: 5px; min-height: 16px; }
 
     #inventory { display: none; margin-top: 10px; }
     .inv-row {
@@ -235,7 +252,7 @@
     }
     .inv-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
     .inv-label { font-size: 13px; color: #e0d8c8; letter-spacing: 1px; }
-    .inv-sub   { font-size: 10px; color: #666; letter-spacing: 2px; }
+    .inv-sub   { font-size: 10px; color: #999; letter-spacing: 2px; }
     .inv-abandon {
       font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
       padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
@@ -247,7 +264,7 @@
 
     #secondary-btn {
       display: none; width: 100%; margin-top: 10px; padding: 14px;
-      background: transparent; color: #555; border: 1px solid #2a2a3a; border-radius: 4px;
+      background: transparent; color: #aaa; border: 1px solid #2a2a3a; border-radius: 4px;
       font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
       cursor: pointer; touch-action: manipulation; min-height: 48px;
       -webkit-tap-highlight-color: transparent;
@@ -262,11 +279,11 @@
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    #action-btn.generate { background: #111820; color: #4a7a4a; border: 1px solid #1e3020; }
+    #action-btn.generate { background: #111820; color: #6aaa6a; border: 1px solid #1e3020; }
     #action-btn.draw     { background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; }
-    #action-btn.pickup   { background: #1a1000; color: #a06018; border: 1px solid #2e1e00; }
+    #action-btn.pickup   { background: #1a1000; color: #c07820; border: 1px solid #2e1e00; }
     #action-btn.pickup.ready  { background: #e8a030; color: #0a0a0f; border-color: #e8a030; }
-    #action-btn.deliver  { background: #00101a; color: #2060a0; border: 1px solid #001e30; }
+    #action-btn.deliver  { background: #00101a; color: #4090c0; border: 1px solid #001e30; }
     #action-btn.deliver.ready { background: #3080c0; color: #0a0a0f; border-color: #3080c0; }
     #action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
@@ -283,15 +300,8 @@
     }
     .completion-label { font-size: 14px; letter-spacing: 8px; color: #3080c0; }
     .completion-pts   { font-size: 56px; font-weight: bold; color: #e8a030; margin-top: 4px; }
-    .completion-sub   { font-size: 11px; letter-spacing: 3px; color: #555; margin-top: 6px; }
+    .completion-sub   { font-size: 11px; letter-spacing: 3px; color: #999; margin-top: 6px; }
 
-    #refresh-btn {
-      font-size: 18px; line-height: 1; padding: 10px 14px; border-radius: 4px;
-      background: transparent; color: #999; border: 1px solid #2a2a3a; cursor: pointer;
-      touch-action: manipulation; min-height: 44px; min-width: 44px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #refresh-btn:active { color: #c04040; border-color: #602020; }
 
     /* ── CONFIRM MODAL ── */
     #confirm-overlay {
@@ -387,7 +397,7 @@
     }
     .ob-next:active { background: #0e1828; }
 
-    #cap-progress { font-size: 9px; color: #4a4a5a; letter-spacing: 1px; text-align: right; margin-top: 2px; }
+    #cap-progress { font-size: 9px; color: #9090a8; letter-spacing: 1px; text-align: left; margin-top: 2px; }
     .completion-streak { font-size: 13px; letter-spacing: 4px; color: #e85050; margin-top: 10px; }
     .completion-level  { font-size: 11px; letter-spacing: 3px; color: #5ab05a; margin-top: 6px; }
     #toast {
@@ -404,15 +414,20 @@
 <body>
 
 <div id="hud-top">
-  <div id="game-title">PORTER</div>
-  <button id="settings-btn" onclick="openSettings()">&#9776;</button>
-  <button id="refresh-btn" onclick="confirmRefresh()">&#x21BB;</button>
-  <button id="follow-btn" onclick="toggleFollow()">&#9678;</button>
-  <div id="score-display">
-    <div class="label">SCORE</div>
-    <div class="value" id="score-value">0</div>
-    <div id="cap-progress"></div>
+  <div id="hud-top-left">
+    <div id="game-title">PORTER</div>
+    <div id="score-display">
+      <div class="value" id="score-value">0</div>
+      <div id="cap-progress"></div>
+    </div>
   </div>
+  <button id="top-menu-btn" onclick="toggleTopMenu()">&#8942;</button>
+</div>
+
+<div id="top-menu">
+  <button class="top-menu-item" id="follow-btn" onclick="toggleFollow()">&#9678; FOLLOW</button>
+  <button class="top-menu-item" onclick="closeTopMenu();confirmRefresh()">&#x21BB; REFRESH</button>
+  <button class="top-menu-item" onclick="closeTopMenu();openSettings()">&#9776; SETTINGS</button>
 </div>
 
 <div id="map"></div>
@@ -665,7 +680,15 @@ function currentLoad() {
 //  FOLLOW MODE
 // ═══════════════════════════════════════════════════════════
 
+function toggleTopMenu() {
+  document.getElementById('top-menu').classList.toggle('open');
+}
+function closeTopMenu() {
+  document.getElementById('top-menu').classList.remove('open');
+}
+
 function toggleFollow() {
+  closeTopMenu();
   if (state.following) {
     state.following = false;
     stopPainting();
@@ -678,7 +701,7 @@ function toggleFollow() {
   var optsEl = document.getElementById('paint-zone-opts');
   optsEl.innerHTML =
     '<button class="paint-zone-opt" style="color:#999" onclick="selectFollowZone(null)">NONE</button>' +
-    '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:#444;border-bottom:1px solid rgba(255,255,255,0.05)">PAINT MODE</div>' +
+    '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:#888;border-bottom:1px solid rgba(255,255,255,0.05)">PAINT MODE</div>' +
     zones.map(function(z) {
       return '<button class="paint-zone-opt" style="color:' + safeColor(z.color) + '" onclick="selectFollowZone(\'' + esc(z.id) + '\')">' +
         esc(z.name.toUpperCase()) + '</button>';
