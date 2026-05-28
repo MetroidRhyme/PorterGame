@@ -1382,24 +1382,6 @@ function toggleCell(latlng) {
   updateHUD();
 }
 
-function findConnectedComponents(cellSet) {
-  var visited = new Set(), comps = [];
-  cellSet.forEach(function(startKey) {
-    if (visited.has(startKey)) return;
-    var comp = new Set(), queue = [startKey];
-    visited.add(startKey); comp.add(startKey);
-    while (queue.length) {
-      var key = queue.shift(), parts = key.split(',');
-      var q = parseInt(parts[0]), r = parseInt(parts[1]);
-      HEX_NEIGHBORS.forEach(function(d) {
-        var nk = hexKey(q + d[0], r + d[1]);
-        if (cellSet.has(nk) && !visited.has(nk)) { visited.add(nk); comp.add(nk); queue.push(nk); }
-      });
-    }
-    comps.push(comp);
-  });
-  return comps;
-}
 
 function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
   var cellSet = new Set(cells.map(function(c) { return hexKey(c.q, c.r); }));
@@ -1503,34 +1485,28 @@ function finishDraw() {
   if (state.editingZoneId) { finishEdit(); return; }
   state.drawing = false;
 
-  var comps    = findConnectedComponents(state.gridCells);
   var baseName = prompt('Zone name (leave blank to auto-name):');
   if (baseName === null) { state.gridCells = null; renderGridCanvas(); updateHUD(); return; }
   baseName = baseName.trim();
 
-  var newZones = [];
-  comps.forEach(function(comp, idx) {
-    var cells = Array.from(comp).map(function(key) {
-      var p = key.split(',');
-      return { q: parseInt(p[0]), r: parseInt(p[1]) };
-    });
-    var name  = baseName || ('Zone ' + (state.zones.length + 1));
-    if (comps.length > 1) name += ' ' + (idx + 1);
-    var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
-    var z = { id: 'zone_' + Date.now() + '_' + idx, name: name, color: color, cells: cells, active: true };
-    state.zones.push(z);
-    newZones.push(z);
+  var cells = Array.from(state.gridCells).map(function(key) {
+    var p = key.split(',');
+    return { q: parseInt(p[0]), r: parseInt(p[1]) };
   });
+  var name  = baseName || ('Zone ' + (state.zones.length + 1));
+  var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+  var z = { id: 'zone_' + Date.now(), name: name, color: color, cells: cells, active: true };
+  state.zones.push(z);
 
   state.gridCells = null;
   saveZones();
   renderGridCanvas();
   if (state.phase === 'active') {
-    newZones.forEach(function(z) { generateOrdersForZone(z); });
+    generateOrdersForZone(z);
     saveGameState();
     renderOrderMarkers();
   }
-  if (state.zones.length === newZones.length) {
+  if (state.zones.length === 1) {
     showToast('Tip: Tap ◎ → choose a zone to paint it as you walk', 5000);
   }
   updateHUD();
@@ -1577,22 +1553,10 @@ function finishEdit() {
     state.carrying = state.carrying.filter(function(id) { return !removedPkgIds.has(id); });
   }
 
-  // Handle disconnected components: first updates the edited zone, rest become new zones
-  var comps = findConnectedComponents(newKeys);
-  zone.cells = Array.from(comps[0]).map(function(key) {
+  zone.cells = Array.from(newKeys).map(function(key) {
     var p = key.split(',');
     return { q: parseInt(p[0]), r: parseInt(p[1]) };
   });
-  var splitZones = [];
-  for (var i = 1; i < comps.length; i++) {
-    var cells = Array.from(comps[i]).map(function(key) {
-      var p = key.split(',');
-      return { q: parseInt(p[0]), r: parseInt(p[1]) };
-    });
-    var nz = { id: 'zone_' + Date.now() + '_' + i, name: zone.name + ' ' + (i + 1), color: zone.color, cells: cells, active: zone.active };
-    state.zones.push(nz);
-    splitZones.push(nz);
-  }
 
   state.editingZoneId = null;
   state.drawing       = false;
@@ -1601,7 +1565,6 @@ function finishEdit() {
   saveZones();
   if (state.phase === 'active' && zone.active) {
     generateOrdersForZone(zone);
-    splitZones.forEach(function(nz) { generateOrdersForZone(nz); });
     saveGameState();
   }
   renderGridCanvas();
@@ -2216,7 +2179,7 @@ function renderOrderMarkers() {
     orderMarkers.push(line);
   });
 
-  state.packages.filter(function(p) { return !p.picked; }).forEach(function(p) {
+  state.packages.filter(function(p) { return !p.picked && visibleDestIds.has(p.destId); }).forEach(function(p) {
     var dest     = state.destinations.find(function(d) { return d.id === p.destId; });
     var isNext   = pickable && pickable.id === p.id;
     var tooheavy = p.weight > rem;
