@@ -1199,23 +1199,22 @@ function removeZoneOrders(zone, removeDrops) {
   if (!zone.cells || !zone.cells.length) return;
   var zoneKeys = new Set(zone.cells.map(function(c) { return hexKey(c.q, c.r); }));
 
+  var zoneDestIds = new Set();
+  state.destinations.forEach(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    if (zoneKeys.has(hexKey(h.q, h.r))) zoneDestIds.add(d.id);
+  });
+
   var removedIds = new Set();
   state.packages = state.packages.filter(function(p) {
     var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
-    if (zoneKeys.has(hexKey(h.q, h.r))) { removedIds.add(p.id); return false; }
+    if (zoneKeys.has(hexKey(h.q, h.r)) || zoneDestIds.has(p.destId)) {
+      removedIds.add(p.id); return false;
+    }
     return true;
   });
   if (removeDrops) {
-    var removedDestIds = new Set();
-    state.destinations = state.destinations.filter(function(d) {
-      var h = latLngToHex(d.loc.lat, d.loc.lng);
-      if (zoneKeys.has(hexKey(h.q, h.r))) { removedDestIds.add(d.id); return false; }
-      return true;
-    });
-    state.packages = state.packages.filter(function(p) {
-      if (removedDestIds.has(p.destId)) { removedIds.add(p.id); return false; }
-      return true;
-    });
+    state.destinations = state.destinations.filter(function(d) { return !zoneDestIds.has(d.id); });
   }
   state.carrying = state.carrying.filter(function(cid) { return !removedIds.has(cid); });
 }
@@ -1226,11 +1225,6 @@ function generateOrdersForZone(zone) {
     return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
   });
 
-  var counts    = orderCounts(activeZones);
-  var needDests = Math.max(0, counts.dests - state.destinations.length);
-  var needPkgs  = Math.max(0, counts.pkgs  - state.packages.length);
-  if (needDests === 0 && needPkgs === 0) return;
-
   var occupied = new Set();
   state.packages.forEach(function(p) {
     var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
@@ -1240,6 +1234,13 @@ function generateOrdersForZone(zone) {
     var h = latLngToHex(d.loc.lat, d.loc.lng);
     occupied.add(hexKey(h.q, h.r));
   });
+
+  ensureMinDestPerZone(activeZones, occupied);
+
+  var counts    = orderCounts(activeZones);
+  var needDests = Math.max(0, counts.dests - state.destinations.length);
+  var needPkgs  = Math.max(0, counts.pkgs  - state.packages.length);
+  if (needDests === 0 && needPkgs === 0) return;
 
   spawnOrders(activeZones, needDests, needPkgs, occupied);
 }
@@ -1696,6 +1697,28 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
   return true;
 }
 
+function ensureMinDestPerZone(active, occupied) {
+  active.forEach(function(zone) {
+    if (!zone.cells || !zone.cells.length) return;
+    var zoneKeys = new Set(zone.cells.map(function(c) { return hexKey(c.q, c.r); }));
+    var hasDest = state.destinations.some(function(d) {
+      var h = latLngToHex(d.loc.lat, d.loc.lng);
+      return zoneKeys.has(hexKey(h.q, h.r));
+    });
+    if (hasDest) return;
+    var pt = randomPointInZone(zone, occupied);
+    if (!pt) return;
+    var hd = latLngToHex(pt.lat, pt.lng);
+    occupied.add(hexKey(hd.q, hd.r));
+    state.destinations.push({
+      id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      loc: pt, label: nextDropLabel(),
+      deliveries: 0, level: 0, name: randomDropName(),
+      contributions: []
+    });
+  });
+}
+
 function generateOrders() {
   var active = state.zones.filter(function(z) {
     return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
@@ -1727,6 +1750,8 @@ function generateOrders() {
     var h = latLngToHex(d.loc.lat, d.loc.lng);
     occupied.add(hexKey(h.q, h.r));
   });
+
+  ensureMinDestPerZone(active, occupied);
 
   var counts    = orderCounts(active);
   var needDests = Math.max(0, counts.dests - state.destinations.length);
@@ -2130,10 +2155,25 @@ function renderOrderMarkers() {
   var iconPx      = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
   if (userMarker) userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx));
 
+  var activeZoneCells = new Set();
+  var allZoneCells    = new Set();
+  state.zones.forEach(function(z) {
+    (z.cells || []).forEach(function(c) {
+      var k = hexKey(c.q, c.r);
+      allZoneCells.add(k);
+      if (z.active) activeZoneCells.add(k);
+    });
+  });
+  var visibleDestIds = new Set(state.destinations.filter(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    var k = hexKey(h.q, h.r);
+    return activeZoneCells.has(k) || !allZoneCells.has(k);
+  }).map(function(d) { return d.id; }));
+
   // Connection lines — added first so they land in overlayPane (below markerPane)
   state.packages.forEach(function(p) {
     var dest = state.destinations.find(function(d) { return d.id === p.destId; });
-    if (!dest) return;
+    if (!dest || !visibleDestIds.has(dest.id)) return;
     var origin = p.picked && state.userPos ? state.userPos : p.pickupLoc;
     var line = L.polyline(
       [[origin.lat, origin.lng], [dest.loc.lat, dest.loc.lng]],
@@ -2155,7 +2195,7 @@ function renderOrderMarkers() {
     orderMarkers.push(m);
   });
 
-  state.destinations.forEach(function(d) {
+  state.destinations.filter(function(d) { return visibleDestIds.has(d.id); }).forEach(function(d) {
     var n      = state.carrying.filter(function(id) {
       var p = state.packages.find(function(p) { return p.id === id; });
       return p && p.destId === d.id;
