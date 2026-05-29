@@ -643,11 +643,12 @@ const state = {
   painting:      false,
   paintZoneId:   null,
 
-  packages:     JSON.parse(localStorage.getItem('porter_packages')     || '[]'),
-  destinations: JSON.parse(localStorage.getItem('porter_destinations') || '[]'),
-  carrying:     JSON.parse(localStorage.getItem('porter_carrying')     || '[]'),
-  streak:       0,
-  movingDestId: null,
+  packages:      JSON.parse(localStorage.getItem('porter_packages')      || '[]'),
+  destinations:  JSON.parse(localStorage.getItem('porter_destinations')  || '[]'),
+  carrying:      JSON.parse(localStorage.getItem('porter_carrying')      || '[]'),
+  streak:        0,
+  movingDestId:  null,
+  droneLastUsed: parseInt(localStorage.getItem('porter_drone_last_used') || '0'),
 };
 
 const PROXIMITY_M   = 20;
@@ -719,6 +720,31 @@ function pointsToNextLevel(pts, level) {
   return Math.max(0, Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, level + 1) - 1)) - pts);
 }
 
+function calcPlayerLevel(pts) {
+  return Math.min(LEVEL_MAX, Math.floor(Math.log(pts / LEVEL_BASE + 1) / Math.log(LEVEL_RATE)));
+}
+function getPlayerLevel() { return calcPlayerLevel(state.score); }
+
+function getDroneCooldownMs(level) {
+  if (level >= 45) return 30 * 60 * 1000;
+  if (level >= 35) return 60 * 60 * 1000;
+  if (level >= 25) return 2 * 60 * 60 * 1000;
+  return 3 * 60 * 60 * 1000;
+}
+function formatDroneCooldown(ms) {
+  var h = Math.floor(ms / 3600000);
+  var m = Math.round((ms % 3600000) / 60000);
+  return h > 0 ? (m > 0 ? h + 'h ' + m + 'm' : h + 'h') : m + 'm';
+}
+function getDroneStatus() {
+  var level = getPlayerLevel();
+  if (level < 15) return { available: false, locked: true };
+  var cdMs = getDroneCooldownMs(level);
+  var elapsed = Date.now() - (state.droneLastUsed || 0);
+  if (elapsed >= cdMs) return { available: true };
+  return { available: false, locked: false, remainStr: formatDroneCooldown(cdMs - elapsed) };
+}
+
 function nextDropLabel() {
   var taken = new Set(state.destinations.map(function(d) { return d.label; }));
   for (var i = 0; i < 26; i++) {
@@ -746,7 +772,10 @@ function showToast(msg, duration) {
   el.classList.add('show');
   toastTimer = setTimeout(function() { el.classList.remove('show'); toastTimer = null; }, duration || 3000);
 }
-function getCapacity() { return Math.min(3 + Math.floor(state.score / 500), 12); }
+function getCapacity() {
+  var level = getPlayerLevel();
+  return 3 + [10, 20, 30, 40, 50].filter(function(l) { return level >= l; }).length;
+}
 function currentLoad() {
   return state.carrying.reduce(function(s, id) {
     var p = state.packages.find(function(p) { return p.id === id; });
@@ -2121,16 +2150,58 @@ function attemptDeliver() {
   dest.deliveries = (dest.deliveries || 0) + pkgs.length;
   dest.level = calcDropLevel(getDropTotalPoints(dest));
 
+  var plvlBefore = getPlayerLevel();
   state.score      += pts;
   state.deliveries += pkgs.length;
   state.streak      = (state.streak || 0) + 1;
   var capUp = getCapacity() > capBefore;
+  if (getPlayerLevel() > plvlBefore && !capUp) showToast('PLAYER LEVEL UP · LV ' + getPlayerLevel(), 4000);
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
   vibrate(capUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
   spawnPackagesForDrop(dest);
   saveGameState();
   showCompletion(pts, pkgs.length, dest.label, capUp, state.streak, level, bonusPts);
+  renderOrderMarkers(); updateHUD();
+}
+
+function attemptDroneLift() {
+  var pkg = nearestPickable();
+  if (!pkg) return;
+  var drSt = getDroneStatus();
+  if (!drSt.available) return;
+  var dest = state.destinations.find(function(d) { return d.id === pkg.destId; });
+  var halfPts = Math.floor(pkg.pts / 2);
+  var cdStr = formatDroneCooldown(getDroneCooldownMs(getPlayerLevel()));
+  if (!confirm('Drone lift to Drop ' + (dest ? dest.label : '?') + ' for ' + halfPts + ' pts (half value)? This ability has a ' + cdStr + ' cooldown.')) return;
+
+  state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
+
+  if (dest) {
+    if (!dest.contributions) dest.contributions = [];
+    var c = dest.contributions.find(function(c) { return c.userId === state.userId; });
+    if (!c) { c = { userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: 0, points: 0 }; dest.contributions.push(c); }
+    c.deliveries++;
+    c.points = (c.points || 0) + halfPts;
+    c.userName = state.playerName || 'Anonymous';
+    dest.deliveries = (dest.deliveries || 0) + 1;
+    dest.level = calcDropLevel(getDropTotalPoints(dest));
+  }
+
+  var plvlBefore = getPlayerLevel();
+  state.score += halfPts;
+  state.deliveries += 1;
+  state.droneLastUsed = Date.now();
+  localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
+  localStorage.setItem('porter_score',      state.score);
+  localStorage.setItem('porter_deliveries', state.deliveries);
+
+  if (dest) spawnPackagesForDrop(dest);
+  saveGameState();
+
+  var msg = '✈ Drone delivery! +' + halfPts + ' pts';
+  if (getPlayerLevel() > plvlBefore) msg += ' · LEVEL UP LV ' + getPlayerLevel();
+  showToast(msg, 4000);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -2613,7 +2684,8 @@ function updateHUD() {
   scoreEl.textContent  = state.score;
   var capNow = getCapacity();
   var capEl  = document.getElementById('cap-progress');
-  capEl.textContent = capNow < 12 ? 'CAP ' + capNow + ' · ' + (500 - state.score % 500) + ' TO ↑' : 'CAP MAX';
+  var plevel = getPlayerLevel();
+  capEl.textContent = 'LV ' + plevel + ' · CAP ' + capNow + (capNow >= 8 ? ' MAX' : '');
   btn.className        = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
@@ -2685,6 +2757,13 @@ function updateHUD() {
     detailEl.textContent = iStr + wcfg.label + ' → Drop ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts.';
     distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
     btn.className = 'pickup ready'; btn.textContent = 'PICK UP PACKAGE'; btn.onclick = attemptPickup;
+    var drSt = getDroneStatus();
+    if (!drSt.locked) {
+      secBtn.style.display = 'block';
+      secBtn.disabled = !drSt.available;
+      secBtn.onclick = drSt.available ? attemptDroneLift : null;
+      secBtn.textContent = drSt.available ? '✈ DRONE LIFT' : '✈ DRONE LIFT  (ready in ' + drSt.remainStr + ')';
+    }
   } else if (load >= cap && overweightInRange().length > 0) {
     detailEl.textContent = 'At capacity — deliver first, or find a lighter box.';
     distEl.textContent   = load + '/' + cap + ' units used';
@@ -2766,7 +2845,7 @@ function renderOnboardingStep() {
         '<li>Packages (📦) appear in your zone. Walk to them to pick up.</li>' +
         '<li>Drop them at delivery zones (🏠) to score points.</li>' +
         '<li>Heavier packages are worth more — but use more carry capacity.</li>' +
-        '<li>Your capacity grows as your score climbs.</li>' +
+        '<li>Your capacity grows as you level up (at levels 10, 20, 30, 40, and 50).</li>' +
       '</ul>';
   } else {
     content =
