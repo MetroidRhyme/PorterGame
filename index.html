@@ -491,8 +491,7 @@
       opacity: 0; transition: opacity 0.3s;
     }
     #toast.show { opacity: 1; }
-    @keyframes pkg-bob  { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
-    @keyframes pkg-spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+    @keyframes pkg-bob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
     #pkg-tip {
       display: none; position: fixed; z-index: 800; pointer-events: none;
       background: white; color: #1a1a1a; border: 1px solid #ccc; border-radius: 5px;
@@ -1050,7 +1049,7 @@ function makePackageIcon(weight, size, isNext, tooHeavy) {
   var w = 2 * sub + gap;
   if (weight === 2) {
     return L.divIcon({
-      html: '<div style="display:flex;gap:' + gap + 'px;animation:pkg-spin 12s linear infinite">' + circ + circ + '</div>',
+      html: '<div style="display:flex;gap:' + gap + 'px;animation:pkg-bob 2.8s ease-in-out infinite">' + circ + circ + '</div>',
       iconSize: [w, sub], iconAnchor: [w / 2, sub / 2], className: ''
     });
   }
@@ -1058,7 +1057,7 @@ function makePackageIcon(weight, size, isNext, tooHeavy) {
   // weight 3 — two on top, one centred below
   var h = 2 * sub + gap;
   return L.divIcon({
-    html: '<div style="display:flex;flex-direction:column;gap:' + gap + 'px;align-items:center;animation:pkg-spin 12s linear infinite">' +
+    html: '<div style="display:flex;flex-direction:column;gap:' + gap + 'px;align-items:center;animation:pkg-bob 2.8s ease-in-out infinite">' +
       '<div style="display:flex;gap:' + gap + 'px">' + circ + circ + '</div>' + circ +
     '</div>',
     iconSize: [w, h], iconAnchor: [w / 2, h / 2], className: ''
@@ -1854,7 +1853,23 @@ function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
   });
   drawCtx.fill();
 
+  drawCtx.globalAlpha = strokeOpacity * 0.25;
+  drawCtx.lineWidth = 0.8;
+  drawCtx.beginPath();
+  cells.forEach(function(c) {
+    var verts = hexVerticesPx(c.q, c.r);
+    if (!hexOnScreen(verts)) return;
+    for (var e = 0; e < 6; e++) {
+      if (cellSet.has(hexKey(c.q + HEX_NEIGHBORS[e][0], c.r + HEX_NEIGHBORS[e][1]))) {
+        drawCtx.moveTo(verts[e].x, verts[e].y);
+        drawCtx.lineTo(verts[(e + 1) % 6].x, verts[(e + 1) % 6].y);
+      }
+    }
+  });
+  drawCtx.stroke();
+
   drawCtx.globalAlpha = strokeOpacity;
+  drawCtx.lineWidth = 1.5;
   drawCtx.beginPath();
   cells.forEach(function(c) {
     var verts = hexVerticesPx(c.q, c.r);
