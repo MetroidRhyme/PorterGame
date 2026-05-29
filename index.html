@@ -2681,11 +2681,12 @@ function updateHUD() {
   var btn      = document.getElementById('action-btn');
   var secBtn   = document.getElementById('secondary-btn');
 
-  scoreEl.textContent  = state.score;
+  scoreEl.textContent  = state.score + ' pts';
   var capNow = getCapacity();
   var capEl  = document.getElementById('cap-progress');
   var plevel = getPlayerLevel();
-  capEl.textContent = 'LV ' + plevel + ' · CAP ' + capNow + (capNow >= 8 ? ' MAX' : '');
+  var toNext = pointsToNextLevel(state.score, plevel);
+  capEl.textContent = 'LVL ' + plevel + ' · ' + (plevel >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' to next LVL ' + (plevel + 1));
   btn.className        = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
