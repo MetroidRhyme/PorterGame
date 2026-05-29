@@ -14,7 +14,7 @@
     }
 
     #map         { position: fixed; inset: 0; }
-    #draw-canvas { position: fixed; inset: 0; z-index: 620; pointer-events: none; }
+    #draw-canvas { position: absolute; inset: 0; z-index: 595; pointer-events: none; }
 
     /* ── TOP HUD ── */
     #hud-top {
@@ -491,7 +491,7 @@
       opacity: 0; transition: opacity 0.3s;
     }
     #toast.show { opacity: 1; }
-    .pkg-tip { white-space: normal !important; text-align: left; line-height: 1.7; min-width: 100px; opacity: 1 !important; background: #0d0d14; color: #e0d8c8; border: 1px solid rgba(255,255,255,0.12); }
+    .pkg-tip { white-space: normal !important; text-align: left; line-height: 1.7; min-width: 100px; opacity: 1 !important; background: white; color: #1a1a1a; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
@@ -514,8 +514,7 @@
   <button class="top-menu-item" onclick="closeTopMenu();openSettings()">&#9776; SETTINGS</button>
 </div>
 
-<div id="map"></div>
-<canvas id="draw-canvas"></canvas>
+<div id="map"><canvas id="draw-canvas"></canvas></div>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
