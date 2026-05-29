@@ -886,6 +886,7 @@ function makeDrop(loc) {
     id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
     loc: loc, label: nextDropLabel(),
     deliveries: 0, level: 0, name: randomDropName(),
+    ownerId: state.userId,
     contributions: []
   };
 }
@@ -2424,6 +2425,7 @@ function shareDrop(destId) {
     name: dest.name,
     title: dest.title,
     icon: dest.icon,
+    ownerId: dest.ownerId,
     contributions: dest.contributions && dest.contributions.length
       ? dest.contributions
       : (dest.deliveries > 0 ? [{ userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: dest.deliveries }] : [])
@@ -2524,7 +2526,7 @@ function importDropCode(code) {
     var newDrop = {
       id: data.dropId, loc: data.loc,
       label: nextDropLabel(), name: data.name || 'Unknown',
-      title: data.title, icon: data.icon,
+      title: data.title, icon: data.icon, ownerId: data.ownerId,
       contributions: [], deliveries: 0, level: 0
     };
     mergeDropContributions(newDrop, data.contributions);
@@ -2639,11 +2641,13 @@ function openDropPanel(destId) {
 }
 
 function getRenameStatus(dest) {
+  if (dest.ownerId && dest.ownerId !== state.userId) return { ready: false, tip: 'Owner only' };
   if ((dest.level || 0) < 5) return { ready: false, tip: 'Unlocked at level 5' };
   return { ready: true };
 }
 
 function getIconStatus(dest) {
+  if (dest.ownerId && dest.ownerId !== state.userId) return { ready: false, tip: 'Owner only' };
   if ((dest.level || 0) < 10) return { ready: false, tip: 'Unlocked at level 10' };
   return { ready: true };
 }
@@ -2674,6 +2678,7 @@ function changeIconPrompt(destId) {
 }
 
 function getMoveStatus(dest) {
+  if (dest.ownerId && dest.ownerId !== state.userId) return { ready: false, tip: 'Owner only' };
   var level = dest.level || 0;
   if (level < 20) return { ready: false, tip: 'Unlocked at level 20' };
   var elapsed = Date.now() - (dest.moveLastUsed || 0);
