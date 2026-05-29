@@ -480,7 +480,6 @@
     .ob-next:active { background: #0e1828; }
 
     #cap-progress { font-size: 9px; color: #9090a8; letter-spacing: 1px; text-align: left; margin-top: 2px; }
-    .completion-streak { font-size: 13px; letter-spacing: 4px; color: #e85050; margin-top: 10px; }
     .completion-level  { font-size: 11px; letter-spacing: 3px; color: #5ab05a; margin-top: 6px; }
     #toast {
       position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
@@ -616,7 +615,6 @@
     <div class="completion-pts" id="completion-pts">+0</div>
     <div class="completion-sub" id="completion-detail"></div>
     <div class="completion-sub" id="completion-total">SCORE 0</div>
-    <div class="completion-streak" id="completion-streak"></div>
     <div class="completion-level"  id="completion-level"></div>
   </div>
 </div>
@@ -724,7 +722,6 @@ const state = {
   packages:      JSON.parse(localStorage.getItem('porter_packages')      || '[]'),
   destinations:  JSON.parse(localStorage.getItem('porter_destinations')  || '[]'),
   carrying:      JSON.parse(localStorage.getItem('porter_carrying')      || '[]'),
-  streak:        0,
   movingDestId:  null,
   droneLastUsed: parseInt(localStorage.getItem('porter_drone_last_used') || '0'),
 };
@@ -2373,7 +2370,6 @@ function attemptDeliver() {
   var plvlBefore = getPlayerLevel();
   state.score      += pts;
   state.deliveries += pkgs.length;
-  state.streak      = (state.streak || 0) + 1;
   var capUp = getCapacity() > capBefore;
   if (getPlayerLevel() > plvlBefore && !capUp) showToast('PLAYER LEVEL UP · LV ' + getPlayerLevel(), 4000);
   localStorage.setItem('porter_score',      state.score);
@@ -2381,7 +2377,7 @@ function attemptDeliver() {
   vibrate(capUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
   spawnPackagesForDrop(dest);
   saveGameState();
-  showCompletion(pts, pkgs.length, destDisplayName(dest), capUp, state.streak, level, bonusPts);
+  showCompletion(pts, pkgs.length, destDisplayName(dest), capUp, level, bonusPts);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -2433,8 +2429,6 @@ function abandonPackage(id) {
   if (!confirm('Abandon ' + wcfg.label.toLowerCase() + ' package for ' + destDisplayName(dest) + ' (' + p.pts + ' pts)? It will not be reassigned.')) return;
   state.carrying = state.carrying.filter(function(cid) { return cid !== id; });
   state.packages = state.packages.filter(function(p)   { return p.id  !== id; });
-  // Drops are permanent — never removed on abandon
-  state.streak = 0;
   saveGameState();
   checkRefresh();
   renderOrderMarkers();
@@ -2883,18 +2877,15 @@ function executeRefresh() {
   if (state.phase === 'active') generateOrders();
 }
 
-function showCompletion(pts, count, zoneLabel, capUp, streak, level, bonusPts) {
+function showCompletion(pts, count, zoneLabel, capUp, level, bonusPts) {
   var el = document.getElementById('completion-overlay');
   document.getElementById('completion-pts').textContent = '+' + pts;
 
   var detail = (count > 1 ? count + ' PKGS' : '1 PKG') +
-    (zoneLabel ? ' → DROP ' + zoneLabel : '') +
+    (zoneLabel ? ' → ' + zoneLabel : '') +
     (bonusPts ? '  ·  +' + bonusPts + ' LV' + (level || '') + ' BONUS' : '');
   document.getElementById('completion-detail').textContent = detail;
   document.getElementById('completion-total').textContent  = 'SCORE ' + state.score;
-  var streakEl = document.getElementById('completion-streak');
-  streakEl.style.display = streak > 1 ? 'block' : 'none';
-  if (streak > 1) streakEl.textContent = 'STREAK × ' + streak;
   var levelEl = document.getElementById('completion-level');
   levelEl.style.display = capUp ? 'block' : 'none';
   if (capUp) levelEl.textContent = '⬆ CAPACITY UP TO ' + getCapacity() + 'U';
