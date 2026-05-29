@@ -856,6 +856,10 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                   .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+function destDisplayName(dest) {
+  if (!dest) return '?';
+  return dest.title || ('Drop ' + dest.label);
+}
 function safeColor(c) { return /^#[0-9a-fA-F]{3,6}$/.test(c) ? c : '#e8a030'; }
 
 function vibrate(p)    { if (navigator.vibrate) navigator.vibrate(p); }
@@ -2360,7 +2364,7 @@ function attemptDeliver() {
   vibrate(capUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
   spawnPackagesForDrop(dest);
   saveGameState();
-  showCompletion(pts, pkgs.length, dest.label, capUp, state.streak, level, bonusPts);
+  showCompletion(pts, pkgs.length, destDisplayName(dest), capUp, state.streak, level, bonusPts);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -2372,7 +2376,7 @@ function attemptDroneLift() {
   var dest = state.destinations.find(function(d) { return d.id === pkg.destId; });
   var halfPts = Math.floor(pkg.pts / 2);
   var cdStr = formatDroneCooldown(getDroneCooldownMs(getPlayerLevel()));
-  if (!confirm('Drone lift to Drop ' + (dest ? dest.label : '?') + ' for ' + halfPts + ' pts (half value)? This ability has a ' + cdStr + ' cooldown.')) return;
+  if (!confirm('Drone lift to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? This ability has a ' + cdStr + ' cooldown.')) return;
 
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
 
@@ -2409,7 +2413,7 @@ function abandonPackage(id) {
   if (!p) return;
   var dest = state.destinations.find(function(d) { return d.id === p.destId; });
   var wcfg = WEIGHT[p.weight];
-  if (!confirm('Abandon ' + wcfg.label.toLowerCase() + ' package for Drop ' + (dest ? dest.label : '?') + ' (' + p.pts + ' pts)? It will not be reassigned.')) return;
+  if (!confirm('Abandon ' + wcfg.label.toLowerCase() + ' package for ' + destDisplayName(dest) + ' (' + p.pts + ' pts)? It will not be reassigned.')) return;
   state.carrying = state.carrying.filter(function(cid) { return cid !== id; });
   state.packages = state.packages.filter(function(p)   { return p.id  !== id; });
   // Drops are permanent — never removed on abandon
@@ -2937,7 +2941,7 @@ function renderOrderMarkers() {
     var cfg      = WEIGHT[p.weight];
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy) }).addTo(map);
     var tipLabel = p.item ? p.item + ' (' + cfg.label + ')' : cfg.label;
-    var tipHtml  = esc(tipLabel) + '<br>&#x2192; Drop ' + esc(dest ? dest.label : '?') + '<br>' + p.pts + ' pts' + (tooheavy ? '<br>TOO HEAVY' : '');
+    var tipHtml  = esc(tipLabel) + '<br>&#x2192; ' + esc(destDisplayName(dest)) + '<br>' + p.pts + ' pts' + (tooheavy ? '<br>TOO HEAVY' : '');
     (function(marker, html) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
@@ -2961,7 +2965,7 @@ function renderOrderMarkers() {
     var isNext = !orphaned && deliverable && deliverable.id === d.id;
     var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
     var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0)) }).addTo(map);
-    var tip = 'Drop ' + d.label + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
+    var tip = destDisplayName(d) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
@@ -3047,14 +3051,14 @@ function updateHUD() {
   if (deliver) {
     var pkgsHere = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === deliver.id; });
     var pts = pkgsHere.reduce(function(s, p) { return s + p.pts; }, 0);
-    detailEl.textContent = 'Deliver ' + pkgsHere.length + ' pkg' + (pkgsHere.length > 1 ? 's' : '') + ' to Drop ' + deliver.label + ' for ' + pts + ' pts.';
+    detailEl.textContent = 'Deliver ' + pkgsHere.length + ' pkg' + (pkgsHere.length > 1 ? 's' : '') + ' to ' + destDisplayName(deliver) + ' for ' + pts + ' pts.';
     distEl.textContent   = Math.round(haversine(state.userPos, deliver.loc)) + 'm to drop-off';
-    btn.className = 'deliver ready'; btn.textContent = 'DELIVER TO DROP ' + deliver.label; btn.onclick = attemptDeliver;
+    btn.className = 'deliver ready'; btn.textContent = 'DELIVER TO ' + destDisplayName(deliver).toUpperCase(); btn.onclick = attemptDeliver;
   } else if (pickable) {
     var dest2 = state.destinations.find(function(d) { return d.id === pickable.destId; });
     var wcfg  = WEIGHT[pickable.weight];
     var iStr  = pickable.item ? pickable.item + ' · ' : '';
-    detailEl.textContent = iStr + wcfg.label + ' → Drop ' + (dest2 ? dest2.label : '?') + ' · ' + pickable.pts + ' pts.';
+    detailEl.textContent = iStr + wcfg.label + ' → ' + destDisplayName(dest2) + ' · ' + pickable.pts + ' pts.';
     distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
     btn.className = 'pickup ready'; btn.textContent = 'PICK UP PACKAGE'; btn.onclick = attemptPickup;
     var drSt = getDroneStatus();
@@ -3073,8 +3077,8 @@ function updateHUD() {
       .filter(function(d) { return state.carrying.some(function(id) { var p = state.packages.find(function(p) { return p.id === id; }); return p && p.destId === d.id; }); })
       .reduce(function(b, d) { if (!b) return d; return haversine(state.userPos, d.loc) < haversine(state.userPos, b.loc) ? d : b; }, null);
     if (nd) {
-      detailEl.textContent = 'Walk to Drop ' + nd.label + ' to deliver ' + carrying + ' pkg' + (carrying > 1 ? 's' : '') + '.';
-      distEl.textContent   = Math.round(haversine(state.userPos, nd.loc)) + 'm to Drop ' + nd.label;
+      detailEl.textContent = 'Walk to ' + destDisplayName(nd) + ' to deliver ' + carrying + ' pkg' + (carrying > 1 ? 's' : '') + '.';
+      distEl.textContent   = Math.round(haversine(state.userPos, nd.loc)) + 'm to ' + destDisplayName(nd);
     } else {
       detailEl.textContent = 'Walk to a drop zone to deliver.';
       distEl.textContent   = '';
@@ -3103,7 +3107,7 @@ function updateHUD() {
       var wcfg = WEIGHT[p.weight];
       return '<div class="inv-row">' +
         '<div class="inv-info">' +
-          '<div class="inv-label">' + (p.item ? esc(p.item) + ' · ' : '') + wcfg.label + ' &rarr; DROP ' + (dest ? dest.label : '?') + '</div>' +
+          '<div class="inv-label">' + (p.item ? esc(p.item) + ' · ' : '') + wcfg.label + ' &rarr; ' + esc(destDisplayName(dest)).toUpperCase() + '</div>' +
           '<div class="inv-sub">' + p.pts + ' PTS</div>' +
         '</div>' +
         '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button>' +
