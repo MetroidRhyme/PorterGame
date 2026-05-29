@@ -664,6 +664,11 @@ const WEIGHT = {
 // Spawn ratio: LIGHT 50%, STANDARD 33%, HEAVY 17%
 const WEIGHT_POOL = [1, 1, 1, 2, 2, 3];
 
+// Level 1 = 150 pts; level 50 ≈ 31k pts  (LEVEL_BASE * (LEVEL_RATE^n - 1))
+const LEVEL_BASE = 3000;
+const LEVEL_RATE = 1.05;
+const LEVEL_MAX  = 50;
+
 const PACKAGE_ITEMS = [
   'Vintage Records','Birthday Cake','Fragile Glassware','Fresh Flowers',
   'Electronics','Medical Supplies','Homemade Jam','Library Books',
@@ -704,14 +709,13 @@ function getDropTotalPoints(dest) {
   return dest.points || 0;
 }
 
-// Level 1 = 300 pts; level 100 ≈ 783k pts (6000 * (1.05^n - 1))
 function calcDropLevel(pts) {
-  return Math.min(100, Math.floor(Math.log(pts / 6000 + 1) / Math.log(1.05)));
+  return Math.min(LEVEL_MAX, Math.floor(Math.log(pts / LEVEL_BASE + 1) / Math.log(LEVEL_RATE)));
 }
 
 function pointsToNextLevel(pts, level) {
-  if (level >= 100) return 0;
-  return Math.max(0, Math.ceil(6000 * (Math.pow(1.05, level + 1) - 1)) - pts);
+  if (level >= LEVEL_MAX) return 0;
+  return Math.max(0, Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, level + 1) - 1)) - pts);
 }
 
 function nextDropLabel() {
@@ -2258,10 +2262,10 @@ function openDropPanel(destId) {
   var level      = dest.level || 0;
   var totalPts   = getDropTotalPoints(dest);
   var totalDel   = getDropTotalDeliveries(dest);
-  var toNext     = level < 100 ? pointsToNextLevel(totalPts, level) : 0;
-  var prevNeeded = level > 0 ? Math.ceil(6000 * (Math.pow(1.05, level) - 1)) : 0;
-  var nextNeeded = level < 100 ? Math.ceil(6000 * (Math.pow(1.05, level + 1) - 1)) : totalPts;
-  var pct = level >= 100 ? 100
+  var toNext     = level < LEVEL_MAX ? pointsToNextLevel(totalPts, level) : 0;
+  var prevNeeded = level > 0 ? Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, level) - 1)) : 0;
+  var nextNeeded = level < LEVEL_MAX ? Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, level + 1) - 1)) : totalPts;
+  var pct = level >= LEVEL_MAX ? 100
     : (nextNeeded <= prevNeeded ? 100
     : Math.round((totalPts - prevNeeded) / (nextNeeded - prevNeeded) * 100));
   var pkgsWaiting = state.packages.filter(function(p) { return p.destId === destId && !p.picked; }).length;
@@ -2306,7 +2310,7 @@ function openDropPanel(destId) {
       '<div><div style="font-size:10px;color:#555;letter-spacing:2px">TOTAL PTS</div><div style="font-size:24px;color:#e8a030">' + totalPts + '</div></div>' +
       '<div><div style="font-size:10px;color:#555;letter-spacing:2px">BONUS</div><div style="font-size:24px;color:#5ab05a">+' + level + '%</div></div>' +
     '</div>' +
-    (level < 100
+    (level < LEVEL_MAX
       ? '<div style="margin-bottom:14px">' +
           '<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">LEVEL ' + (level + 1) + ' IN ' + toNext + ' PTS</div>' +
           '<div style="height:4px;background:#1a1a2a;border-radius:2px"><div style="height:4px;background:#e8a030;border-radius:2px;width:' + Math.max(2, pct) + '%"></div></div>' +
