@@ -2199,7 +2199,7 @@ function attemptDroneLift() {
   if (dest) spawnPackagesForDrop(dest);
   saveGameState();
 
-  var msg = '✈ Drone delivery! +' + halfPts + ' pts';
+  var msg = '🚁 Drone delivery! +' + halfPts + ' pts';
   if (getPlayerLevel() > plvlBefore) msg += ' · LEVEL UP LV ' + getPlayerLevel();
   showToast(msg, 4000);
   renderOrderMarkers(); updateHUD();
@@ -2762,7 +2762,7 @@ function updateHUD() {
       secBtn.style.display = 'block';
       secBtn.disabled = !drSt.available;
       secBtn.onclick = drSt.available ? attemptDroneLift : null;
-      secBtn.textContent = drSt.available ? '✈ DRONE LIFT' : '✈ DRONE LIFT  (ready in ' + drSt.remainStr + ')';
+      secBtn.textContent = drSt.available ? '🚁 DRONE LIFT' : '🚁 DRONE LIFT  (ready in ' + drSt.remainStr + ')';
     }
   } else if (load >= cap && overweightInRange().length > 0) {
     detailEl.textContent = 'At capacity — deliver first, or find a lighter box.';
