@@ -907,10 +907,11 @@ const icons = {
   user: makeIcon('#1a3050', '🧍', 44),
 };
 
-let userMarker   = null;
-let orderMarkers = [];
-let zoneMarkers  = [];
-let _userIconPx  = 0;
+let userMarker    = null;
+let orderMarkers  = [];
+let zoneMarkers   = [];
+let _userIconPx   = 0;
+let _lastRenderSig = '';
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
@@ -948,7 +949,7 @@ function onLocationUpdate(pos) {
     var ph = latLngToHex(lat, lng), pk = hexKey(ph.q, ph.r);
     if (pk !== lastPaintHexKey) { lastPaintHexKey = pk; paintHex(ph.q, ph.r); }
   }
-  renderOrderMarkers();
+  if (orderRenderSig() !== _lastRenderSig) renderOrderMarkers();
   updateHUD();
 }
 
@@ -1977,6 +1978,22 @@ function nearestDeliverable() {
   return cands.reduce(function(b, d) { return haversine(state.userPos, d.loc) < haversine(state.userPos, b.loc) ? d : b; });
 }
 
+// Signature of everything that affects the rendered order markers. Used to
+// skip the full marker rebuild on GPS ticks where nothing visible changed.
+// Position only matters while carrying (carried-package lines start at the
+// user); otherwise walking just changes which order is highlighted next.
+function orderRenderSig() {
+  var p = state.userPos;
+  var posKey = (p && state.carrying.length)
+    ? Math.round(p.lat * 1e5) + ',' + Math.round(p.lng * 1e5)
+    : 'static';
+  var pick = nearestPickable();
+  var del  = nearestDeliverable();
+  return [posKey, pick ? pick.id : '-', del ? del.id : '-',
+          map.getZoom(), state.packages.length, state.destinations.length,
+          state.carrying.length, state.zones.length].join('|');
+}
+
 // ═══════════════════════════════════════════════════════════
 //  GAME ACTIONS
 // ═══════════════════════════════════════════════════════════
@@ -2311,6 +2328,7 @@ function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m);
 
 function renderOrderMarkers() {
   clearMarkers();
+  _lastRenderSig = orderRenderSig();
   if (state.drawing)            return;
   if (state.phase !== 'active') return;
   var pickable    = nearestPickable();
