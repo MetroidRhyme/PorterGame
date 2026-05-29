@@ -2422,6 +2422,8 @@ function shareDrop(destId) {
     dropId: dest.id,
     loc: dest.loc,
     name: dest.name,
+    title: dest.title,
+    icon: dest.icon,
     contributions: dest.contributions && dest.contributions.length
       ? dest.contributions
       : (dest.deliveries > 0 ? [{ userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: dest.deliveries }] : [])
@@ -2485,10 +2487,22 @@ function importDropCode(code) {
 
     if (!data.dropId || !data.loc) throw new Error('bad format');
 
-    // Same drop already present → sync contributions
+    // Same drop already present → sync metadata + contributions
     var existing = state.destinations.find(function(d) { return d.id === data.dropId; });
     if (existing) {
       mergeDropContributions(existing, data.contributions);
+      if (data.title) existing.title = data.title;
+      if (data.icon)  existing.icon  = data.icon;
+      if (data.loc) {
+        var newH = latLngToHex(data.loc.lat, data.loc.lng);
+        var newK = hexKey(newH.q, newH.r);
+        var locBlocked = state.destinations.some(function(d) {
+          if (d.id === data.dropId) return false;
+          var h = latLngToHex(d.loc.lat, d.loc.lng);
+          return hexKey(h.q, h.r) === newK;
+        });
+        if (!locBlocked) existing.loc = data.loc;
+      }
       saveGameState();
       renderOrderMarkers();
       showToast('Drop synced! Level ' + existing.level);
@@ -2510,6 +2524,7 @@ function importDropCode(code) {
     var newDrop = {
       id: data.dropId, loc: data.loc,
       label: nextDropLabel(), name: data.name || 'Unknown',
+      title: data.title, icon: data.icon,
       contributions: [], deliveries: 0, level: 0
     };
     mergeDropContributions(newDrop, data.contributions);
