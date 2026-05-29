@@ -1320,6 +1320,7 @@ function importData(input) {
       state.packages     = data.packages     || [];
       state.destinations = data.destinations || [];
       state.carrying     = data.carrying     || [];
+      migrateDestinations();
       if (data.cellLngDeg) CELL_LNG_DEG = data.cellLngDeg;
       if (data.gridOffsetLat != null) gridOffsetLat = data.gridOffsetLat;
       if (data.gridOffsetLng != null) gridOffsetLng = data.gridOffsetLng;
@@ -1528,7 +1529,8 @@ function hexCenter(q, r) {
 
 function hexKey(q, r) { return q + ',' + r; }
 
-var HEX_DIRS = [{q:1,r:0},{q:-1,r:0},{q:0,r:1},{q:0,r:-1},{q:1,r:-1},{q:-1,r:1}];
+// Same six directions as HEX_NEIGHBORS, as {q,r} objects for membership tests.
+var HEX_DIRS = HEX_NEIGHBORS.map(function(d) { return { q: d[0], r: d[1] }; });
 
 function hexDist(q1, r1, q2, r2) {
   var dq = q1 - q2, dr = r1 - r2;
@@ -1888,11 +1890,7 @@ function ensureMinDestPerZone(active, occupied) {
   });
 }
 
-function generateOrders() {
-  var active = getActiveZones();
-  if (!active.length) { updateHUD(); return; }
-
-  // Migrate existing destinations without drop data
+function migrateDestinations() {
   state.destinations.forEach(function(d) {
     if (d.deliveries == null) d.deliveries = 0;
     if (d.level      == null) d.level      = 0;
@@ -1902,12 +1900,17 @@ function generateOrders() {
         ? [{ userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: d.deliveries, points: d.deliveries * 250 }]
         : [];
     }
-    // Migrate contributions that predate points tracking
+    // Backfill contributions that predate points tracking
     d.contributions.forEach(function(c) {
       if (c.points == null && c.deliveries) c.points = c.deliveries * 250;
     });
     d.level = calcDropLevel(getDropTotalPoints(d));
   });
+}
+
+function generateOrders() {
+  var active = getActiveZones();
+  if (!active.length) { updateHUD(); return; }
 
   // Keep carried packages; discard undelivered ones (they will respawn)
   state.packages = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
@@ -2622,6 +2625,9 @@ function haversine(a, b) {
   });
   if (changed) saveZones();
 }());
+
+// Backfill drop fields on saves that predate level/points/contribution tracking
+migrateDestinations();
 
 initDrawCanvas();
 updateHUD();
