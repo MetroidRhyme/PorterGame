@@ -458,6 +458,7 @@
       opacity: 0; transition: opacity 0.3s;
     }
     #toast.show { opacity: 1; }
+    .pkg-tip { white-space: normal !important; text-align: left; line-height: 1.7; min-width: 100px; }
   </style>
 </head>
 <body>
@@ -2576,7 +2577,8 @@ function renderOrderMarkers() {
     var cfg      = WEIGHT[p.weight];
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy) }).addTo(map);
     var tipLabel = p.item ? p.item + ' (' + cfg.label + ')' : cfg.label;
-    m.bindTooltip(tipLabel + ' · → Drop ' + (dest ? dest.label : '?') + ' · ' + p.pts + ' pts' + (tooheavy ? ' · TOO HEAVY' : ''));
+    var tipHtml  = esc(tipLabel) + '<br>&#x2192; Drop ' + esc(dest ? dest.label : '?') + '<br>' + p.pts + ' pts' + (tooheavy ? '<br>TOO HEAVY' : '');
+    m.bindTooltip(tipHtml, { direction: 'top', className: 'pkg-tip' });
     orderMarkers.push(m);
   });
 
