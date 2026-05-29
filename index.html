@@ -144,13 +144,6 @@
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-del:active { color: #c04040; border-color: #602020; }
-    .s-zone-share {
-      font-size: 14px; color: #999; background: transparent;
-      border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
-      padding: 10px 12px; min-height: 44px;
-      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-    }
-    .s-zone-share:active { color: #5090d0; border-color: #1a3060; }
     .s-zone-merge {
       font-size: 14px; color: #999; background: transparent;
       border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
@@ -170,6 +163,25 @@
       border-radius: 10px; padding: 24px 20px 18px; width: min(340px, calc(100vw - 40px));
       display: flex; flex-direction: column; gap: 10px; max-height: 80vh; overflow-y: auto;
     }
+
+    #share-overlay {
+      display: none; position: fixed; inset: 0; z-index: 7000;
+      background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
+    }
+    #share-overlay.open { display: flex; }
+    #share-modal {
+      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 24px 20px 18px; width: min(360px, calc(100vw - 40px));
+      display: flex; flex-direction: column; gap: 10px; max-height: 84vh; overflow-y: auto;
+    }
+    .share-textarea {
+      width: 100%; box-sizing: border-box; resize: none;
+      font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.5;
+      letter-spacing: 0.5px; word-break: break-all;
+      background: rgba(0,0,0,0.4); color: #e0d8c8;
+      border: 1px solid #2a2a3a; border-radius: 6px; padding: 12px; outline: none;
+    }
+    .share-textarea:focus { border-color: #4a4a6a; }
 
     .s-empty { font-size: 12px; color: #777; letter-spacing: 1px; padding: 6px 0 4px; }
     .s-name-input {
@@ -501,7 +513,6 @@
   <div class="s-section">
     <div class="s-section-label">ZONES</div>
     <div id="s-zone-list"></div>
-    <div class="s-hint">Tap &#x2191; next to a zone to share it as a file. Friends import it with IMPORT SAVE FILE.</div>
     <button class="s-btn s-btn-green" onclick="settingsAddZone()">+ ADD ZONE</button>
     <button class="s-btn s-btn-dim" onclick="openAdjust()">ADJUST ZONE POSITION</button>
     <button class="s-btn s-btn-danger" id="s-clear-btn" style="display:none" onclick="settingsClearZones()">CLEAR ALL ZONES</button>
@@ -512,14 +523,27 @@
     <input class="s-name-input" id="s-player-name" type="text" maxlength="20"
       placeholder="ENTER NAME…" autocomplete="off" autocorrect="off" spellcheck="false"
       oninput="savePlayerName(this.value)">
-    <button class="s-btn s-btn-dim" onclick="shareProfile()">&#x2191; SHARE PROFILE</button>
-    <div class="s-hint">Sends your name and score as a text message.</div>
+    <div class="s-hint">Your name is shown on drops you've contributed to.</div>
   </div>
 
   <div class="s-section">
-    <div class="s-section-label">DROPS</div>
-    <button class="s-btn s-btn-dim" onclick="closeSettings();importDropFromClipboard()">&#x2193; IMPORT DROP CODE</button>
-    <div class="s-hint">Paste a drop code from a friend to add their drop to your map.</div>
+    <div class="s-section-label">SHARE / SYNC ZONE</div>
+    <button class="s-btn s-btn-dim" onclick="openShareZonePicker()">&#x2191; SHARE ZONE</button>
+    <button class="s-btn s-btn-dim" onclick="openSyncZone()">&#x2193; SYNC ZONE</button>
+    <div class="s-hint">SHARE shows a code for a zone. A friend taps SYNC ZONE and pastes it to add that zone to their map.</div>
+  </div>
+
+  <div class="s-section">
+    <div class="s-section-label">SHARE / SYNC DROP</div>
+    <button class="s-btn s-btn-dim" onclick="openShareDropPicker()">&#x2191; SHARE DROP</button>
+    <button class="s-btn s-btn-dim" onclick="openSyncDrop()">&#x2193; SYNC DROP</button>
+    <div class="s-hint">SHARE shows a code for a drop. A friend taps SYNC DROP and pastes it to add or sync that drop.</div>
+  </div>
+
+  <div class="s-section">
+    <div class="s-section-label">SYNC ALL DROP STATS</div>
+    <button class="s-btn s-btn-dim" onclick="shareAllDropStats()">&#x2191; SHARE ALL DROP STATS</button>
+    <div class="s-hint">Shows one code with the points you've earned across every drop. A friend pastes it into SYNC DROP to add your points to the drops you both share.</div>
   </div>
 
   <div class="s-section">
@@ -530,7 +554,7 @@
       IMPORT SAVE FILE
       <input id="import-input" type="file" accept=".json,.porter" style="display:none" onchange="importData(this)">
     </label>
-    <div class="s-hint">Restore a backup (.json) or import a shared zone (.porter). Warning: restoring a backup replaces all your current data.</div>
+    <div class="s-hint">Restore a personal backup (.json). Warning: restoring a backup replaces all your current data.</div>
     <button class="s-btn s-btn-danger" onclick="resetProfile()">RESET PROFILE</button>
   </div>
 </div>
@@ -573,6 +597,13 @@
 <div id="merge-overlay" onclick="closeMergeModal()">
   <div id="merge-modal" onclick="event.stopPropagation()">
     <div id="merge-modal-content"></div>
+  </div>
+</div>
+
+<!-- ── SHARE / SYNC MODAL ── -->
+<div id="share-overlay" onclick="closeShareModal()">
+  <div id="share-modal" onclick="event.stopPropagation()">
+    <div id="share-modal-content"></div>
   </div>
 </div>
 
@@ -1077,7 +1108,6 @@ function renderSettingsPanel() {
         '<button class="s-zone-toggle" ' +
         'style="color:' + (z.active ? col : '#555') + ';border-color:' + (z.active ? col : '#2a2a3a') + '" ' +
         'onclick="settingsToggleZone(\'' + esc(z.id) + '\')">' + esc(z.name.toUpperCase()) + '</button>' +
-        '<button class="s-zone-share" title="Share zone file" onclick="shareZone(\'' + esc(z.id) + '\')">&#x2191;</button>' +
         '<button class="s-zone-merge" title="Merge into another zone" onclick="openMergeModal(\'' + esc(z.id) + '\')">&#x2295;</button>' +
         '<button class="s-zone-edit" onclick="settingsEditZone(\'' + esc(z.id) + '\')">&#9998;</button>' +
         '<button class="s-zone-del" onclick="settingsDeleteZone(\'' + esc(z.id) + '\')">&#10005;</button>' +
@@ -1223,46 +1253,148 @@ function savePlayerName(val) {
   localStorage.setItem('porter_name', state.playerName);
 }
 
-async function shareZone(id) {
-  var zone = state.zones.find(function(z) { return z.id === id; });
-  if (!zone) return;
-  var absCells = (zone.cells || []).map(function(c) { return hexCenter(c.q, c.r); });
-  var shareZoneData = { name: zone.name, color: zone.color, active: zone.active, cells: absCells };
-  var content = await signedEnvelope({ version: 1, type: 'zone', zone: shareZoneData });
-  var filename = zone.name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.porter';
-  if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
-    var file = new File([content], filename, { type: 'application/json' });
-    if (navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: 'Porter Zone: ' + zone.name }).catch(function() {});
-      return;
-    }
-  }
-  var blob = new Blob([content], { type: 'application/json' });
-  var url  = URL.createObjectURL(blob);
-  var a    = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('Zone file downloaded! Send it to a friend — they import it with IMPORT SAVE FILE.');
+// ═══════════════════════════════════════════════════════════
+//  TEXT SHARE / SYNC MODALS
+// ═══════════════════════════════════════════════════════════
+
+var _syncHandler = null;
+
+function closeShareModal() {
+  document.getElementById('share-overlay').classList.remove('open');
+  _syncHandler = null;
 }
 
-function shareProfile() {
-  var name = state.playerName || 'Anonymous';
-  var text = 'PORTER · ' + name.toUpperCase() + '\nScore: ' + state.score + ' pts';
-  if (typeof navigator.share === 'function') {
-    navigator.share({ title: 'Porter Score', text: text }).catch(function() {});
-    return;
-  }
+var _mBtn = 'width:100%;padding:13px 14px;border-radius:4px;text-align:center;' +
+  'font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;' +
+  'touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
+
+function showShareText(title, hint, code) {
+  document.getElementById('share-modal-content').innerHTML =
+    '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:10px">' + esc(title) + '</div>' +
+    '<div style="font-size:11px;color:#888;letter-spacing:1px;line-height:1.6;margin-bottom:12px">' + esc(hint) + '</div>' +
+    '<textarea class="share-textarea" id="share-code-box" rows="6" readonly onclick="this.select()">' + esc(code) + '</textarea>' +
+    '<button onclick="copyShareCode()" style="' + _mBtn + 'color:#5ab05a;border:1px solid #2a3a20;background:rgba(20,40,10,0.4);margin-top:4px">&#x29C9; COPY CODE</button>' +
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#888;border:1px solid #2a2a3a;background:transparent;margin-top:8px">CLOSE</button>';
+  document.getElementById('share-overlay').classList.add('open');
+}
+
+function copyShareCode() {
+  var box = document.getElementById('share-code-box');
+  if (!box) return;
+  box.select();
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function() {
-      showToast('Score copied to clipboard!');
+    navigator.clipboard.writeText(box.value).then(function() {
+      showToast('Code copied! Send it to a friend.');
     }).catch(function() {
-      prompt('Copy your score:', text);
+      showToast('Select the text and copy it manually.', 4000);
     });
-    return;
+  } else {
+    showToast('Select the text and copy it manually.', 4000);
   }
-  prompt('Copy your score:', text);
+}
+
+function showSyncInput(title, hint, handlerName) {
+  _syncHandler = handlerName;
+  document.getElementById('share-modal-content').innerHTML =
+    '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:10px">' + esc(title) + '</div>' +
+    '<div style="font-size:11px;color:#888;letter-spacing:1px;line-height:1.6;margin-bottom:12px">' + esc(hint) + '</div>' +
+    '<textarea class="share-textarea" id="sync-code-box" rows="6" placeholder="Paste code here…" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>' +
+    '<button onclick="submitSyncInput()" style="' + _mBtn + 'color:#3080c0;border:1px solid #1a2a3a;background:rgba(10,20,40,0.4);margin-top:4px">&#x2713; CONFIRM</button>' +
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#888;border:1px solid #2a2a3a;background:transparent;margin-top:8px">CANCEL</button>';
+  document.getElementById('share-overlay').classList.add('open');
+  setTimeout(function() { var b = document.getElementById('sync-code-box'); if (b) b.focus(); }, 50);
+}
+
+function submitSyncInput() {
+  var box = document.getElementById('sync-code-box');
+  var val = box ? box.value : '';
+  var handler = _syncHandler;
+  closeShareModal();
+  if (handler && val && val.trim()) window[handler](val);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SHARE CODE ENCODE / DECODE
+// ═══════════════════════════════════════════════════════════
+
+function encodeCode(obj, prefix) {
+  return prefix + '\n' + btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+}
+
+function decodeCode(text) {
+  text = (text || '').trim();
+  var nl = text.indexOf('\n');
+  if (nl !== -1 && /^PORTER /i.test(text)) text = text.slice(nl + 1).trim();
+  return JSON.parse(decodeURIComponent(escape(atob(text))));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ZONE SHARE / SYNC (text)
+// ═══════════════════════════════════════════════════════════
+
+function openShareZonePicker() {
+  if (!state.zones.length) { showToast('No zones to share yet.', 4000); return; }
+  if (state.zones.length === 1) { shareZoneCode(state.zones[0].id); return; }
+  document.getElementById('share-modal-content').innerHTML =
+    '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:12px">SHARE ZONE</div>' +
+    '<div style="font-size:11px;color:#888;letter-spacing:1px;line-height:1.6;margin-bottom:14px">Pick a zone to share.</div>' +
+    state.zones.map(function(z) {
+      var col = safeColor(z.color);
+      return '<button style="' + _mBtn + 'text-align:left;color:' + col + ';border:1px solid ' + col + ';background:rgba(0,0,0,0.3);margin-bottom:8px"' +
+        ' onclick="shareZoneCode(\'' + esc(z.id) + '\')">' + esc(z.name.toUpperCase()) + '</button>';
+    }).join('') +
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#888;border:1px solid #2a2a3a;background:transparent;margin-top:4px">CANCEL</button>';
+  document.getElementById('share-overlay').classList.add('open');
+}
+
+function shareZoneCode(id) {
+  var zone = state.zones.find(function(z) { return z.id === id; });
+  if (!zone) return;
+  var cells = (zone.cells || []).map(function(c) {
+    var ll = hexCenter(c.q, c.r);
+    return [Math.round(ll.lat * 1e6) / 1e6, Math.round(ll.lng * 1e6) / 1e6];
+  });
+  var payload = { v: 1, t: 'zone', name: zone.name, color: zone.color, active: zone.active !== false, cells: cells };
+  showShareText('SHARE ZONE · ' + zone.name.toUpperCase(),
+    'Send this code to a friend. They tap SYNC ZONE and paste it to add this zone.',
+    encodeCode(payload, 'PORTER ZONE'));
+}
+
+function openSyncZone() {
+  closeSettings();
+  showSyncInput('SYNC ZONE', 'Paste a zone code from a friend.', 'applyZoneCode');
+}
+
+function zoneSignature(cellsHex) {
+  return cellsHex.map(function(c) { return hexKey(c.q, c.r); }).sort().join('|');
+}
+
+function applyZoneCode(text) {
+  try {
+    var data = decodeCode(text);
+    if (data.t !== 'zone' || !Array.isArray(data.cells)) throw new Error('not a zone');
+    var cellsHex = data.cells.map(function(c) {
+      var lat = Array.isArray(c) ? c[0] : c.lat, lng = Array.isArray(c) ? c[1] : c.lng;
+      return latLngToHex(lat, lng);
+    });
+    var sig = zoneSignature(cellsHex);
+    var dup = state.zones.some(function(z) {
+      return z.name === data.name && zoneSignature(z.cells || []) === sig;
+    });
+    if (dup) { showToast('That zone is already on your map.', 4000); return; }
+    state.zones.push({
+      id:     'zone_' + Date.now() + '_0',
+      name:   String(data.name || 'Shared Zone').slice(0, 40),
+      color:  safeColor(data.color),
+      active: data.active !== false,
+      cells:  cellsHex,
+    });
+    saveZones();
+    renderZoneMarkers(); renderGridCanvas(); renderSettingsPanel(); updateHUD();
+    showToast('Zone "' + (data.name || 'Shared Zone') + '" added!');
+  } catch (e) {
+    showToast('Invalid zone code.', 4000);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2221,11 +2353,25 @@ function abandonPackage(id) {
   updateHUD();
 }
 
+function openShareDropPicker() {
+  if (!state.destinations.length) { showToast('No drops to share yet.', 4000); return; }
+  if (state.destinations.length === 1) { shareDrop(state.destinations[0].id); return; }
+  document.getElementById('share-modal-content').innerHTML =
+    '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:12px">SHARE DROP</div>' +
+    '<div style="font-size:11px;color:#888;letter-spacing:1px;line-height:1.6;margin-bottom:14px">Pick a drop to share.</div>' +
+    state.destinations.map(function(d) {
+      return '<button style="' + _mBtn + 'text-align:left;color:#3080c0;border:1px solid #1a2a3a;background:rgba(10,20,40,0.3);margin-bottom:8px"' +
+        ' onclick="shareDrop(\'' + esc(d.id) + '\')">DROP ' + esc(d.label) + ' · ' + esc(d.name || 'UNKNOWN') + '</button>';
+    }).join('') +
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#888;border:1px solid #2a2a3a;background:transparent;margin-top:4px">CANCEL</button>';
+  document.getElementById('share-overlay').classList.add('open');
+}
+
 function shareDrop(destId) {
   var dest = state.destinations.find(function(d) { return d.id === destId; });
   if (!dest) return;
-  var data = {
-    v: 1,
+  var payload = {
+    v: 1, t: 'drop',
     dropId: dest.id,
     loc: dest.loc,
     name: dest.name,
@@ -2233,19 +2379,38 @@ function shareDrop(destId) {
       ? dest.contributions
       : (dest.deliveries > 0 ? [{ userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: dest.deliveries }] : [])
   };
-  var code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  var text = 'PORTER DROP\n' + code;
-  if (navigator.share) {
-    navigator.share({ title: 'Porter Drop ' + dest.label, text: text }).catch(function() {
-      navigator.clipboard.writeText(code).then(function() { showToast('Drop code copied! Send it to a friend — they tap ↓ IMPORT to add this drop.'); });
-    });
-  } else {
-    navigator.clipboard.writeText(code).then(function() {
-      showToast('Drop code copied! Send it to a friend — they tap ↓ IMPORT to add this drop.');
-    }).catch(function() {
-      prompt('Copy this drop code and send it to a friend. They tap ↓ IMPORT to add it:', code);
-    });
-  }
+  showShareText('SHARE DROP · ' + dest.label,
+    'Send this code to a friend. They tap SYNC DROP and paste it to add or sync this drop.',
+    encodeCode(payload, 'PORTER DROP'));
+}
+
+function openSyncDrop() {
+  closeSettings();
+  showSyncInput('SYNC DROP', 'Paste a drop code, or a stats-sync code, from a friend.', 'importDropCode');
+}
+
+function shareAllDropStats() {
+  var drops = state.destinations
+    .filter(function(d) { return d.contributions && d.contributions.length; })
+    .map(function(d) { return { dropId: d.id, contributions: d.contributions }; });
+  if (!drops.length) { showToast('No drop stats to share yet.', 4000); return; }
+  var payload = { v: 1, t: 'dropstats', drops: drops };
+  showShareText('SHARE ALL DROP STATS',
+    'This code holds your points for ' + drops.length + ' drop' + (drops.length !== 1 ? 's' : '') + '. A friend pastes it into SYNC DROP to add your points to the drops you both share.',
+    encodeCode(payload, 'PORTER SYNC'));
+}
+
+function applyDropStats(data) {
+  var matched = 0;
+  (data.drops || []).forEach(function(entry) {
+    var existing = state.destinations.find(function(d) { return d.id === entry.dropId; });
+    if (existing) { mergeDropContributions(existing, entry.contributions); matched++; }
+  });
+  saveGameState();
+  renderOrderMarkers();
+  showToast(matched > 0
+    ? 'Synced stats into ' + matched + ' drop' + (matched !== 1 ? 's' : '') + '!'
+    : 'No matching drops found to sync.', 4000);
 }
 
 function mergeDropContributions(dest, incoming) {
@@ -2266,10 +2431,12 @@ function mergeDropContributions(dest, incoming) {
 
 function importDropCode(code) {
   try {
-    code = code.trim();
-    if (code.indexOf('PORTER DROP\n') === 0) code = code.slice('PORTER DROP\n'.length);
-    var data = JSON.parse(decodeURIComponent(escape(atob(code))));
-    if (!data.v || !data.dropId || !data.loc) throw new Error('bad format');
+    var data = decodeCode(code);
+
+    // Bulk stats-sync code → update existing drops only
+    if (data.t === 'dropstats') { applyDropStats(data); return; }
+
+    if (!data.dropId || !data.loc) throw new Error('bad format');
 
     // Same drop already present → sync contributions
     var existing = state.destinations.find(function(d) { return d.id === data.dropId; });
@@ -2307,20 +2474,6 @@ function importDropCode(code) {
     showToast('Drop ' + newDrop.label + ' added! Level ' + newDrop.level);
   } catch (e) {
     showToast('Invalid drop code.', 4000);
-  }
-}
-
-function importDropFromClipboard() {
-  if (navigator.clipboard && navigator.clipboard.readText) {
-    navigator.clipboard.readText().then(function(text) {
-      importDropCode(text);
-    }).catch(function() {
-      var code = prompt('Paste drop code:');
-      if (code) importDropCode(code);
-    });
-  } else {
-    var code = prompt('Paste drop code:');
-    if (code) importDropCode(code);
   }
 }
 
@@ -2414,11 +2567,6 @@ function openDropPanel(destId) {
     '<div style="font-size:11px;color:#555;letter-spacing:2px;margin-bottom:16px">' +
       pkgsWaiting + ' package' + (pkgsWaiting !== 1 ? 's' : '') + ' waiting' +
     '</div>' +
-    '<div style="display:flex;gap:8px;margin-bottom:4px">' +
-      '<button onclick="shareDrop(\'' + destId + '\')" style="flex:1;' + btnStyle + ' #2a3a20;background:rgba(20,40,10,0.4);color:#5ab05a">&#x2191; SHARE</button>' +
-      '<button onclick="importDropFromClipboard()" style="flex:1;' + btnStyle + ' #1a2a3a;background:rgba(10,20,40,0.4);color:#3080c0">&#x2193; IMPORT</button>' +
-    '</div>' +
-    '<div style="font-size:10px;color:#556;letter-spacing:1px;margin-bottom:10px;text-align:center">SHARE sends a code · the recipient taps IMPORT to add it</div>' +
     renameHtml +
     iconHtml +
     moveHtml +
