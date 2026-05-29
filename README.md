@@ -75,3 +75,4 @@ You can paint your entire accessible area, or place just a handful of hexes in s
 - **Hex grid** — flat-top axial coordinates (q, r). Cell size is ~20 m (~0.00018°) latitude; longitude is corrected for the player's latitude on first GPS lock.
 - **Proximity** — pickup and delivery both require being within 20 m (`PROXIMITY_M`).
 - **Auto-refresh** — if a zone is too small to fit new packages and destinations, the game schedules a 30-second retry rather than silently failing.
+- **Drop persistence** — delivery drops are permanent: they keep their level, points, and contributors even after their zone is deleted (they just go dormant). To keep saves bounded, never-used auto-generated drops (no deliveries, points, or contributors) whose zone is gone are pruned on load.

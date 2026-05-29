@@ -1999,6 +1999,41 @@ function isDropOrphaned(dest) {
   });
 }
 
+// Covered by any zone at all — active or inactive (re-enabling revives the drop).
+function dropInAnyZone(dest) {
+  var h = latLngToHex(dest.loc.lat, dest.loc.lng), k = hexKey(h.q, h.r);
+  return state.zones.some(function(z) {
+    if (z.cells && z.cells.length) {
+      return z.cells.some(function(c) { return hexKey(c.q, c.r) === k; });
+    }
+    if (z.polygon && z.polygon.length >= 3) return pointInPolygon(dest.loc, z.polygon);
+    return false;
+  });
+}
+
+// Drops are permanent once a player invests in them, but auto-generated drops
+// whose zone was later deleted/shrunk and that were never used (no deliveries,
+// points, or contributions) are pure cruft. Prune those so destinations stay
+// bounded by the area actually being played. Returns the number removed.
+function pruneEmptyDrops() {
+  var removed = new Set();
+  state.destinations = state.destinations.filter(function(d) {
+    var unused = getDropTotalDeliveries(d) === 0 && getDropTotalPoints(d) === 0 &&
+                 (!d.contributions || d.contributions.length === 0);
+    if (unused && !dropInAnyZone(d)) { removed.add(d.id); return false; }
+    return true;
+  });
+  if (removed.size) {
+    var removedPkgs = new Set();
+    state.packages = state.packages.filter(function(p) {
+      if (removed.has(p.destId)) { removedPkgs.add(p.id); return false; }
+      return true;
+    });
+    state.carrying = state.carrying.filter(function(id) { return !removedPkgs.has(id); });
+  }
+  return removed.size;
+}
+
 function spawnPackagesForDrop(dest) {
   if (isDropOrphaned(dest)) return;
   var active = getActiveZones();
@@ -2631,6 +2666,8 @@ function haversine(a, b) {
 
 // Backfill drop fields on saves that predate level/points/contribution tracking
 migrateDestinations();
+// Drop never-used auto-generated drops whose zone is gone, so saves stay bounded
+if (pruneEmptyDrops()) saveGameState();
 
 initDrawCanvas();
 updateHUD();
