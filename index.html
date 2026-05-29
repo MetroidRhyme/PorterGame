@@ -522,7 +522,8 @@
 <div id="completion-overlay">
   <div class="completion-label">DELIVERY COMPLETE</div>
   <div class="completion-pts" id="completion-pts">+0</div>
-  <div class="completion-sub" id="completion-total">SCORE: 0</div>
+  <div class="completion-sub" id="completion-detail"></div>
+  <div class="completion-sub" id="completion-total">SCORE 0</div>
   <div class="completion-streak" id="completion-streak"></div>
   <div class="completion-level"  id="completion-level"></div>
 </div>
@@ -2087,13 +2088,13 @@ function shareDrop(destId) {
   var text = 'PORTER DROP\n' + code;
   if (navigator.share) {
     navigator.share({ title: 'Porter Drop ' + dest.label, text: text }).catch(function() {
-      navigator.clipboard.writeText(code).then(function() { showToast('Drop code copied! Send it to a friend — they tap ↓ SYNC to add this drop.'); });
+      navigator.clipboard.writeText(code).then(function() { showToast('Drop code copied! Send it to a friend — they tap ↓ IMPORT to add this drop.'); });
     });
   } else {
     navigator.clipboard.writeText(code).then(function() {
-      showToast('Drop code copied! Send it to a friend — they tap ↓ SYNC to add this drop.');
+      showToast('Drop code copied! Send it to a friend — they tap ↓ IMPORT to add this drop.');
     }).catch(function() {
-      prompt('Copy this drop code and send it to a friend. They tap ↓ SYNC to import it:', code);
+      prompt('Copy this drop code and send it to a friend. They tap ↓ IMPORT to add it:', code);
     });
   }
 }
@@ -2233,9 +2234,9 @@ function openDropPanel(destId) {
     '</div>' +
     '<div style="display:flex;gap:8px;margin-bottom:4px">' +
       '<button onclick="shareDrop(\'' + destId + '\')" style="flex:1;' + btnStyle + ' #2a3a20;background:rgba(20,40,10,0.4);color:#5ab05a">&#x2191; SHARE</button>' +
-      '<button onclick="importDropFromClipboard()" style="flex:1;' + btnStyle + ' #1a2a3a;background:rgba(10,20,40,0.4);color:#3080c0">&#x2193; SYNC</button>' +
+      '<button onclick="importDropFromClipboard()" style="flex:1;' + btnStyle + ' #1a2a3a;background:rgba(10,20,40,0.4);color:#3080c0">&#x2193; IMPORT</button>' +
     '</div>' +
-    '<div style="font-size:10px;color:#556;letter-spacing:1px;margin-bottom:10px;text-align:center">SHARE sends a code · recipient taps SYNC to import</div>' +
+    '<div style="font-size:10px;color:#556;letter-spacing:1px;margin-bottom:10px;text-align:center">SHARE sends a code · the recipient taps IMPORT to add it</div>' +
     '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>';
 
   document.getElementById('drop-overlay').classList.add('open');
@@ -2284,12 +2285,14 @@ function executeRefresh() {
 function showCompletion(pts, count, zoneLabel, capUp, streak, level, bonusPts) {
   var el = document.getElementById('completion-overlay');
   var km = (state.sessionDist / 1000).toFixed(2);
-  document.getElementById('completion-pts').textContent   = '+' + pts;
-  document.getElementById('completion-total').textContent =
-    (count > 1 ? count + ' PKGS' : '1 PKG') +
-    (zoneLabel ? ' · DROP ' + zoneLabel : '') +
-    (bonusPts ? ' · +' + bonusPts + ' LVL' + (level || '') + ' BONUS' : '') +
-    ' · SCORE: ' + state.score + ' · ' + km + 'km walked';
+  document.getElementById('completion-pts').textContent = '+' + pts;
+
+  var detail = (count > 1 ? count + ' PKGS' : '1 PKG') +
+    (zoneLabel ? ' → DROP ' + zoneLabel : '') +
+    (bonusPts ? '  ·  +' + bonusPts + ' LV' + (level || '') + ' BONUS' : '');
+  document.getElementById('completion-detail').textContent = detail;
+  document.getElementById('completion-total').textContent  =
+    'SCORE ' + state.score + '  ·  ' + km + ' KM';
   var streakEl = document.getElementById('completion-streak');
   streakEl.style.display = streak > 1 ? 'block' : 'none';
   if (streak > 1) streakEl.textContent = 'STREAK × ' + streak;
