@@ -14,7 +14,7 @@
     }
 
     #map         { position: fixed; inset: 0; }
-    #draw-canvas { position: absolute; inset: 0; z-index: 595; pointer-events: none; }
+    #draw-canvas { position: fixed; inset: 0; z-index: 620; pointer-events: none; }
 
     /* ── TOP HUD ── */
     #hud-top {
@@ -491,7 +491,23 @@
       opacity: 0; transition: opacity 0.3s;
     }
     #toast.show { opacity: 1; }
-    .pkg-tip { white-space: normal !important; text-align: left; line-height: 1.7; min-width: 100px; opacity: 1 !important; background: white; color: #1a1a1a; border: 1px solid #ccc; }
+    #pkg-tip {
+      display: none; position: fixed; z-index: 800; pointer-events: none;
+      background: white; color: #1a1a1a; border: 1px solid #ccc; border-radius: 5px;
+      padding: 6px 10px; font-size: 13px; line-height: 1.7; min-width: 100px;
+      white-space: normal; text-align: left;
+      transform: translate(-50%, calc(-100% - 12px));
+    }
+    #pkg-tip::after {
+      content: ''; position: absolute; left: 50%; bottom: -7px;
+      transform: translateX(-50%);
+      border: 6px solid transparent; border-bottom: none; border-top-color: #ccc;
+    }
+    #pkg-tip::before {
+      content: ''; position: absolute; left: 50%; bottom: -6px;
+      transform: translateX(-50%);
+      border: 6px solid transparent; border-bottom: none; border-top-color: white;
+    }
   </style>
 </head>
 <body>
@@ -514,7 +530,9 @@
   <button class="top-menu-item" onclick="closeTopMenu();openSettings()">&#9776; SETTINGS</button>
 </div>
 
-<div id="map"><canvas id="draw-canvas"></canvas></div>
+<div id="map"></div>
+<canvas id="draw-canvas"></canvas>
+<div id="pkg-tip"></div>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
@@ -1883,7 +1901,9 @@ function renderGridCanvas() {
 map.on('move zoom', scheduleGridRender);
 map.on('zoomend',  renderOrderMarkers);
 
+map.on('move', function() { document.getElementById('pkg-tip').style.display = 'none'; });
 map.on('click', function(e) {
+  document.getElementById('pkg-tip').style.display = 'none';
   if (state.movingDestId) { executeDropMove(e.latlng); return; }
   if (!state.drawing) return;
   toggleCell(e.latlng);
@@ -2918,7 +2938,17 @@ function renderOrderMarkers() {
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy) }).addTo(map);
     var tipLabel = p.item ? p.item + ' (' + cfg.label + ')' : cfg.label;
     var tipHtml  = esc(tipLabel) + '<br>&#x2192; Drop ' + esc(dest ? dest.label : '?') + '<br>' + p.pts + ' pts' + (tooheavy ? '<br>TOO HEAVY' : '');
-    m.bindTooltip(tipHtml, { direction: 'top', className: 'pkg-tip' });
+    (function(marker, html) {
+      marker.on('click', function(e) {
+        L.DomEvent.stopPropagation(e);
+        var pt = map.latLngToContainerPoint(marker.getLatLng());
+        var tip = document.getElementById('pkg-tip');
+        tip.innerHTML = html;
+        tip.style.left = pt.x + 'px';
+        tip.style.top  = pt.y + 'px';
+        tip.style.display = 'block';
+      });
+    })(m, tipHtml);
     orderMarkers.push(m);
   });
 
