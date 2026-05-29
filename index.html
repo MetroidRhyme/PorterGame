@@ -627,6 +627,8 @@ const WEIGHT = {
   2: { label: 'STANDARD', multiplier: 1.0 },
   3: { label: 'HEAVY',    multiplier: 1.5 },
 };
+// Spawn ratio: LIGHT 50%, STANDARD 33%, HEAVY 17%
+const WEIGHT_POOL = [1, 1, 1, 2, 2, 3];
 
 const PACKAGE_ITEMS = [
   'Vintage Records','Birthday Cake','Fragile Glassware','Fresh Flowers',
@@ -1834,7 +1836,7 @@ function orderCounts(activeZones) {
 }
 
 function spawnOrders(active, needDests, needPkgs, occupied) {
-  var weightPool = [1, 1, 2, 2, 3];
+  var weightPool = WEIGHT_POOL;
   for (var i = 0; i < needDests; i++) {
     var dz = active[Math.floor(Math.random() * active.length)];
     var pt = randomPointInZone(dz, occupied);
@@ -2039,7 +2041,7 @@ function spawnPackagesForDrop(dest) {
   var active = getActiveZones();
   if (!active.length) return;
   var occupied = buildOccupiedSet();
-  var weightPool = [1, 1, 2, 2, 3];
+  var weightPool = WEIGHT_POOL;
   var count = 1 + (Math.random() < 0.4 ? 1 : 0);
   for (var i = 0; i < count; i++) {
     var pz  = active[Math.floor(Math.random() * active.length)];
