@@ -2286,6 +2286,28 @@ function openDropPanel(destId) {
 
   var btnStyle = 'padding:13px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid';
 
+  var renameSt = getRenameStatus(dest);
+  var renameHtml;
+  if (renameSt.ready) {
+    renameHtml = '<button onclick="renameDropPrompt(\'' + destId + '\')" style="width:100%;margin-bottom:8px;' + btnStyle + ' #2a2a1a;background:rgba(30,30,10,0.4);color:#c0a030">&#x270E; RENAME DROP</button>';
+  } else {
+    renameHtml = '<div class="move-btn-wrap" onclick="showMoveTip(this)" style="margin-bottom:8px">' +
+      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">&#x270E; RENAME DROP</button>' +
+      '<div class="move-tooltip">' + esc(renameSt.tip) + '</div>' +
+      '</div>';
+  }
+
+  var iconSt = getIconStatus(dest);
+  var iconHtml;
+  if (iconSt.ready) {
+    iconHtml = '<button onclick="changeIconPrompt(\'' + destId + '\')" style="width:100%;margin-bottom:8px;' + btnStyle + ' #2a1a2a;background:rgba(30,10,30,0.4);color:#a060c0">&#x2605; CHANGE ICON</button>';
+  } else {
+    iconHtml = '<div class="move-btn-wrap" onclick="showMoveTip(this)" style="margin-bottom:8px">' +
+      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">&#x2605; CHANGE ICON</button>' +
+      '<div class="move-tooltip">' + esc(iconSt.tip) + '</div>' +
+      '</div>';
+  }
+
   var moveSt = getMoveStatus(dest);
   var moveHtml;
   if (moveSt.ready) {
@@ -2299,7 +2321,7 @@ function openDropPanel(destId) {
 
   document.getElementById('drop-panel-content').innerHTML =
     '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">' +
-      '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.label) + '</div>' +
+      '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.icon || dest.label) + '</div>' +
       '<div>' +
         '<div style="font-size:14px;letter-spacing:3px;color:#e0d8c8">DROP ' + esc(dest.label) + '</div>' +
         '<div style="font-size:11px;color:#666;letter-spacing:2px;margin-top:3px">' + esc(dest.name || 'UNKNOWN') + '</div>' +
@@ -2325,11 +2347,48 @@ function openDropPanel(destId) {
       '<button onclick="importDropFromClipboard()" style="flex:1;' + btnStyle + ' #1a2a3a;background:rgba(10,20,40,0.4);color:#3080c0">&#x2193; IMPORT</button>' +
     '</div>' +
     '<div style="font-size:10px;color:#556;letter-spacing:1px;margin-bottom:10px;text-align:center">SHARE sends a code · the recipient taps IMPORT to add it</div>' +
+    renameHtml +
+    iconHtml +
     moveHtml +
     '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>';
 
   document.getElementById('drop-overlay').classList.add('open');
   document.getElementById('drop-panel').classList.add('open');
+}
+
+function getRenameStatus(dest) {
+  if ((dest.level || 0) < 5) return { ready: false, tip: 'Unlocked at level 5' };
+  return { ready: true };
+}
+
+function getIconStatus(dest) {
+  if ((dest.level || 0) < 10) return { ready: false, tip: 'Unlocked at level 10' };
+  return { ready: true };
+}
+
+function renameDropPrompt(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  var n = prompt('New name for Drop ' + dest.label + ':', dest.name || '');
+  if (n === null) return;
+  n = n.trim().slice(0, 40);
+  if (!n) return;
+  dest.name = n;
+  saveState();
+  openDropPanel(destId);
+}
+
+function changeIconPrompt(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  var raw = prompt('Enter an emoji, letter, or symbol for Drop ' + dest.label + ':', dest.icon || dest.label);
+  if (raw === null) return;
+  var trimmed = raw.trim();
+  if (!trimmed) return;
+  dest.icon = Array.from(trimmed)[0];
+  saveState();
+  openDropPanel(destId);
+  renderOrderMarkers();
 }
 
 function getMoveStatus(dest) {
@@ -2529,7 +2588,7 @@ function renderOrderMarkers() {
     }).length;
     var isNext = !orphaned && deliverable && deliverable.id === d.id;
     var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
-    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.label, iconPx, orphaned ? 0 : (d.level || 0)) }).addTo(map);
+    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0)) }).addTo(map);
     var tip = 'Drop ' + d.label + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
