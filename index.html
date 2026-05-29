@@ -377,6 +377,33 @@
     }
     #drop-panel.open { transform: translateY(0); }
 
+    /* ── MOVE MODE BANNER ── */
+    #move-banner {
+      display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 4999;
+      background: #0d1a0d; border-top: 1px solid #1e4020;
+      padding: 14px 16px max(14px, env(safe-area-inset-bottom));
+      flex-direction: column; align-items: center; gap: 10px;
+    }
+    #move-banner.open { display: flex; }
+    #move-banner-text { font-size: 11px; letter-spacing: 2px; color: #5ab05a; text-align: center; }
+    #move-banner-cancel {
+      padding: 10px 28px; border-radius: 4px; cursor: pointer; touch-action: manipulation;
+      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+      background: transparent; border: 1px solid #602020; color: #c04040;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Locked/cooldown button tooltip wrapper */
+    .move-btn-wrap { position: relative; width: 100%; }
+    .move-btn-wrap .move-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%); background: #1a1a2a; border: 1px solid #2a2a3a;
+      border-radius: 4px; padding: 6px 10px; font-size: 10px; letter-spacing: 1px;
+      color: #aaa; white-space: nowrap; pointer-events: none; z-index: 10;
+    }
+    .move-btn-wrap:hover .move-tooltip,
+    .move-btn-wrap.tip-open .move-tooltip { display: block; }
+
     /* ── ONBOARDING ── */
     #onboarding-overlay {
       display: none; position: fixed; inset: 0; z-index: 8500;
@@ -554,6 +581,12 @@
   <div id="drop-panel-content"></div>
 </div>
 
+<!-- ── MOVE MODE BANNER ── -->
+<div id="move-banner">
+  <div id="move-banner-text">Tap the map to relocate Drop</div>
+  <button id="move-banner-cancel" onclick="cancelMoveMode()">CANCEL</button>
+</div>
+
 <!-- ── ONBOARDING OVERLAY ── -->
 <div id="onboarding-overlay">
   <div class="ob-card" id="onboarding-card"></div>
@@ -613,6 +646,7 @@ const state = {
   destinations: JSON.parse(localStorage.getItem('porter_destinations') || '[]'),
   carrying:     JSON.parse(localStorage.getItem('porter_carrying')     || '[]'),
   streak:       0,
+  movingDestId: null,
 };
 
 const PROXIMITY_M   = 20;
@@ -1637,6 +1671,7 @@ map.on('move zoom', scheduleGridRender);
 map.on('zoomend',  renderOrderMarkers);
 
 map.on('click', function(e) {
+  if (state.movingDestId) { executeDropMove(e.latlng); return; }
   if (!state.drawing) return;
   toggleCell(e.latlng);
 });
@@ -2247,6 +2282,17 @@ function openDropPanel(destId) {
 
   var btnStyle = 'padding:13px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid';
 
+  var moveSt = getMoveStatus(dest);
+  var moveHtml;
+  if (moveSt.ready) {
+    moveHtml = '<button onclick="startMoveMode(\'' + destId + '\')" style="width:100%;margin-bottom:8px;' + btnStyle + ' #1a3a2a;background:rgba(10,30,20,0.4);color:#5ab05a">&#x2316; RELOCATE DROP</button>';
+  } else {
+    moveHtml = '<div class="move-btn-wrap" onclick="showMoveTip(this)" style="margin-bottom:8px">' +
+      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">&#x2316; RELOCATE DROP</button>' +
+      '<div class="move-tooltip">' + esc(moveSt.tip) + '</div>' +
+      '</div>';
+  }
+
   document.getElementById('drop-panel-content').innerHTML =
     '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">' +
       '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.label) + '</div>' +
@@ -2275,10 +2321,80 @@ function openDropPanel(destId) {
       '<button onclick="importDropFromClipboard()" style="flex:1;' + btnStyle + ' #1a2a3a;background:rgba(10,20,40,0.4);color:#3080c0">&#x2193; IMPORT</button>' +
     '</div>' +
     '<div style="font-size:10px;color:#556;letter-spacing:1px;margin-bottom:10px;text-align:center">SHARE sends a code · the recipient taps IMPORT to add it</div>' +
+    moveHtml +
     '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>';
 
   document.getElementById('drop-overlay').classList.add('open');
   document.getElementById('drop-panel').classList.add('open');
+}
+
+function getMoveStatus(dest) {
+  var level = dest.level || 0;
+  if (level < 20) return { ready: false, tip: 'Unlocked at level 20' };
+  var elapsed = Date.now() - (dest.moveLastUsed || 0);
+  var cooldownMs = 24 * 60 * 60 * 1000;
+  if (elapsed < cooldownMs) {
+    var rem = cooldownMs - elapsed;
+    var hrs = Math.floor(rem / 3600000);
+    var min = Math.ceil((rem % 3600000) / 60000);
+    return { ready: false, tip: 'Ready in ' + hrs + 'h ' + min + 'm' };
+  }
+  return { ready: true };
+}
+
+function showMoveTip(el) {
+  el.classList.add('tip-open');
+  setTimeout(function() { el.classList.remove('tip-open'); }, 2500);
+}
+
+function startMoveMode(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  closeDrop();
+  state.movingDestId = destId;
+  document.getElementById('move-banner-text').textContent = 'Tap the map to relocate Drop ' + dest.label;
+  document.getElementById('move-banner').classList.add('open');
+}
+
+function cancelMoveMode() {
+  state.movingDestId = null;
+  document.getElementById('move-banner').classList.remove('open');
+}
+
+function executeDropMove(latlng) {
+  var destId = state.movingDestId;
+  if (!destId) return;
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) { cancelMoveMode(); return; }
+
+  var nh = latLngToHex(latlng.lat, latlng.lng);
+  var nk = hexKey(nh.q, nh.r);
+
+  var inZone = state.zones.some(function(z) {
+    return z.active && (z.cells || []).some(function(c) { return hexKey(c.q, c.r) === nk; });
+  });
+  if (!inZone) { showToast('Must be inside a zone'); return; }
+
+  var tooClose = state.destinations.some(function(d) {
+    if (d.id === destId) return false;
+    var dh = latLngToHex(d.loc.lat, d.loc.lng);
+    return hexDist(nh.q, nh.r, dh.q, dh.r) < 5;
+  });
+  if (tooClose) { showToast('Too close to another drop (min 5 hexes)'); return; }
+
+  cancelMoveMode();
+  dest.loc = { lat: latlng.lat, lng: latlng.lng };
+  dest.moveLastUsed = Date.now();
+
+  var toRemove = new Set(state.packages.filter(function(p) { return p.destId === destId; }).map(function(p) { return p.id; }));
+  state.carrying = state.carrying.filter(function(id) { return !toRemove.has(id); });
+  state.packages = state.packages.filter(function(p) { return !toRemove.has(p.id); });
+  spawnPackagesForDrop(dest);
+
+  saveGameState();
+  renderOrderMarkers();
+  updateHUD();
+  showToast('Drop ' + dest.label + ' relocated');
 }
 
 function closeDrop() {
