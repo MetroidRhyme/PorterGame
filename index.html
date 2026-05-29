@@ -2382,6 +2382,8 @@ function executeDropMove(latlng) {
   });
   if (tooClose) { showToast('Too close to another drop (min 5 hexes)'); return; }
 
+  if (!confirm('Relocate Drop ' + dest.label + ' to this location? This ability has a 24-hour cooldown.')) return;
+
   cancelMoveMode();
   dest.loc = { lat: latlng.lat, lng: latlng.lng };
   dest.moveLastUsed = Date.now();
