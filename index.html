@@ -389,6 +389,20 @@
     }
     #drop-panel.open { transform: translateY(0); }
 
+    /* ── LEVEL BREAKDOWN MODAL ── */
+    #level-overlay {
+      display: none; position: fixed; inset: 0; z-index: 6000;
+      background: rgba(0,0,0,0.65);
+    }
+    #level-overlay.open { display: block; }
+    #level-modal {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 6001; background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 20px; width: min(320px, calc(100vw - 40px));
+      max-height: 80vh; overflow-y: auto; display: none;
+    }
+    #level-modal.open { display: block; }
+
     /* ── MOVE MODE BANNER ── */
     #move-banner {
       display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 4999;
@@ -478,7 +492,7 @@
 <div id="hud-top">
   <div id="hud-top-left">
     <div id="game-title">PORTER</div>
-    <div id="score-display">
+    <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
     </div>
@@ -613,6 +627,12 @@
   <div id="drop-panel-content"></div>
 </div>
 
+<!-- ── LEVEL BREAKDOWN MODAL ── -->
+<div id="level-overlay" onclick="closeLevelBreakdown()"></div>
+<div id="level-modal">
+  <div id="level-modal-content"></div>
+</div>
+
 <!-- ── MOVE MODE BANNER ── -->
 <div id="move-banner">
   <div id="move-banner-text">Tap the map to relocate Drop</div>
@@ -720,6 +740,24 @@ const DROP_LAST_NAMES = [
   'Chen','Rivera','Kowalski','Osei','Nakamura','Dubois','Patel','Berg',
   'Santos','Müller','Park','Okonkwo','Ferreira','Lindström','Abboud','Walsh',
   'Moreau','Tanaka','Reyes','Fischer','Diallo','Nguyen','Eriksson','Yamamoto'
+];
+
+const PLAYER_UPGRADES = [
+  { level: 10, text: 'Carry capacity +1 (4U)' },
+  { level: 15, text: 'Drone ability unlocked (3h cooldown)' },
+  { level: 20, text: 'Carry capacity +1 (5U)' },
+  { level: 25, text: 'Drone cooldown → 2h' },
+  { level: 30, text: 'Carry capacity +1 (6U)' },
+  { level: 35, text: 'Drone cooldown → 1h' },
+  { level: 40, text: 'Carry capacity +1 (7U)' },
+  { level: 45, text: 'Drone cooldown → 30m' },
+  { level: 50, text: 'Carry capacity +1 (8U) · MAX LEVEL' },
+];
+
+const DROP_UPGRADES = [
+  { level: 5,  text: 'Rename drop' },
+  { level: 10, text: 'Change icon' },
+  { level: 20, text: 'Relocate drop' },
 ];
 
 function randomDropName() {
@@ -2548,13 +2586,13 @@ function openDropPanel(destId) {
     '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">' +
       '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.icon || dest.label) + '</div>' +
       '<div>' +
-        '<div style="font-size:14px;letter-spacing:3px;color:#e0d8c8">DROP ' + esc(dest.label) + '</div>' +
+        '<div style="font-size:14px;letter-spacing:3px;color:#e0d8c8">' + (dest.title ? esc(dest.title) : 'DROP ' + esc(dest.label)) + '</div>' +
         '<div style="font-size:11px;color:#666;letter-spacing:2px;margin-top:3px">' + esc(dest.name || 'UNKNOWN') + '</div>' +
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:24px;margin-bottom:14px">' +
-      '<div><div style="font-size:10px;color:#555;letter-spacing:2px">LEVEL</div><div style="font-size:24px;color:#e8a030">' + level + '</div></div>' +
-      '<div><div style="font-size:10px;color:#555;letter-spacing:2px">TOTAL PTS</div><div style="font-size:24px;color:#e8a030">' + totalPts + '</div></div>' +
+      '<div onclick="showDropLevelBreakdown(\'' + destId + '\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent"><div style="font-size:10px;color:#555;letter-spacing:2px">LEVEL</div><div style="font-size:24px;color:#e8a030">' + level + '</div></div>' +
+      '<div onclick="showDropLevelBreakdown(\'' + destId + '\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent"><div style="font-size:10px;color:#555;letter-spacing:2px">TOTAL PTS</div><div style="font-size:24px;color:#e8a030">' + totalPts + '</div></div>' +
       '<div><div style="font-size:10px;color:#555;letter-spacing:2px">BONUS</div><div style="font-size:24px;color:#5ab05a">+' + level + '%</div></div>' +
     '</div>' +
     (level < LEVEL_MAX
@@ -2589,12 +2627,12 @@ function getIconStatus(dest) {
 function renameDropPrompt(destId) {
   var dest = state.destinations.find(function(d) { return d.id === destId; });
   if (!dest) return;
-  var n = prompt('New name for Drop ' + dest.label + ':', dest.name || '');
+  var n = prompt('New title for Drop ' + dest.label + ':', dest.title || '');
   if (n === null) return;
   n = n.trim().slice(0, 40);
   if (!n) return;
-  dest.name = n;
-  saveState();
+  dest.title = n;
+  saveGameState();
   openDropPanel(destId);
 }
 
@@ -2606,7 +2644,7 @@ function changeIconPrompt(destId) {
   var trimmed = raw.trim();
   if (!trimmed) return;
   dest.icon = Array.from(trimmed)[0];
-  saveState();
+  saveGameState();
   openDropPanel(destId);
   renderOrderMarkers();
 }
@@ -2688,10 +2726,61 @@ function closeDrop() {
   dropPanelDestId = null;
 }
 
+function closeLevelBreakdown() {
+  document.getElementById('level-overlay').classList.remove('open');
+  document.getElementById('level-modal').classList.remove('open');
+}
+
+function _levelBreakdownRows(upgrades, currentLevel) {
+  return upgrades.map(function(u) {
+    var done = currentLevel >= u.level;
+    return '<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)">' +
+      '<div style="font-size:12px;color:' + (done ? '#e8a030' : '#2e2e3e') + ';font-weight:bold;min-width:32px;text-align:right;letter-spacing:1px">LV' + u.level + '</div>' +
+      '<div style="font-size:11px;letter-spacing:1px;color:' + (done ? '#e0d8c8' : '#3a3a4a') + ';flex:1">' + u.text + '</div>' +
+      (done ? '<div style="color:#5ab05a;font-size:13px">&#x2713;</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+function showPlayerLevelBreakdown() {
+  var level = getPlayerLevel();
+  var toNext = level < LEVEL_MAX ? pointsToNextLevel(state.score, level) : 0;
+  var progress = level >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LV' + (level + 1);
+  document.getElementById('level-modal-content').innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+      '<div style="font-size:10px;letter-spacing:4px;color:#999">PLAYER UPGRADES</div>' +
+      '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#777;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+    '</div>' +
+    '<div style="font-size:12px;color:#666;letter-spacing:2px;margin-bottom:6px">LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
+    '<div style="font-size:10px;color:#444;letter-spacing:1px;margin-bottom:12px">Each level: +1% delivery bonus</div>' +
+    _levelBreakdownRows(PLAYER_UPGRADES, level);
+  document.getElementById('level-overlay').classList.add('open');
+  document.getElementById('level-modal').classList.add('open');
+}
+
+function showDropLevelBreakdown(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  var level = dest.level || 0;
+  var totalPts = getDropTotalPoints(dest);
+  var toNext = level < LEVEL_MAX ? pointsToNextLevel(totalPts, level) : 0;
+  var progress = level >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LV' + (level + 1);
+  document.getElementById('level-modal-content').innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+      '<div style="font-size:10px;letter-spacing:4px;color:#999">DROP UPGRADES</div>' +
+      '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#777;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+    '</div>' +
+    '<div style="font-size:12px;color:#666;letter-spacing:2px;margin-bottom:6px">DROP ' + esc(dest.label) + ' &nbsp;&middot;&nbsp; LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
+    '<div style="font-size:10px;color:#444;letter-spacing:1px;margin-bottom:12px">Each level: +1% delivery bonus</div>' +
+    _levelBreakdownRows(DROP_UPGRADES, level);
+  document.getElementById('level-overlay').classList.add('open');
+  document.getElementById('level-modal').classList.add('open');
+}
+
 function deleteDropConfirm() {
   var dest = state.destinations.find(function(d) { return d.id === dropPanelDestId; });
   if (!dest) { closeDrop(); return; }
-  if (!confirm('Delete Drop ' + dest.label + ' (' + esc(dest.name || '') + ') and erase all history? This cannot be undone.')) return;
+  if (!confirm('Delete Drop ' + dest.label + ' (' + esc(dest.title || dest.name || '') + ') and erase all history? This cannot be undone.')) return;
   var idsToRemove = new Set(state.packages.filter(function(p) { return p.destId === dropPanelDestId; }).map(function(p) { return p.id; }));
   state.carrying     = state.carrying.filter(function(id) { return !idsToRemove.has(id); });
   state.packages     = state.packages.filter(function(p)  { return p.destId !== dropPanelDestId; });
