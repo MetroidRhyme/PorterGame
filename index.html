@@ -1015,7 +1015,7 @@ function makeDestIcon(bg, letter, size, level) {
   var fs  = Math.round(size * 0.55);
   var lfs = Math.round(size * 0.28);
   var lvlHtml = level > 0
-    ? '<div style="font-size:' + lfs + 'px;color:#e8a030;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,1);margin-top:2px;letter-spacing:1px">LV' + level + '</div>'
+    ? '<div style="font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 3px rgba(255,255,255,0.6);margin-top:2px;letter-spacing:1px">LV' + level + '</div>'
     : '';
   var h = level > 0 ? size + lfs + 4 : size;
   return L.divIcon({
