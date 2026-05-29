@@ -323,14 +323,21 @@
 
     #completion-overlay {
       display: none; position: fixed; inset: 0; z-index: 9999;
-      background: rgba(20,60,120,0.18);
+      background: transparent;
       flex-direction: column; justify-content: center; align-items: center;
       pointer-events: none;
     }
-    #completion-overlay.show { display: flex; animation: flash 0.6s ease-out; }
+    #completion-overlay.show { display: flex; }
     @keyframes flash {
-      0%   { background: rgba(20,60,120,0.55); }
-      100% { background: rgba(20,60,120,0.18); }
+      0%   { opacity: 0; transform: scale(0.92); }
+      40%  { opacity: 1; transform: scale(1.03); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .completion-box {
+      background: #fff; border-radius: 14px;
+      padding: 28px 36px; text-align: center;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+      animation: flash 0.4s ease-out;
     }
     .completion-label { font-size: 14px; letter-spacing: 8px; color: #3080c0; }
     .completion-pts   { font-size: 56px; font-weight: bold; color: #e8a030; margin-top: 4px; }
@@ -586,12 +593,14 @@
 </div>
 
 <div id="completion-overlay">
-  <div class="completion-label">DELIVERY COMPLETE</div>
-  <div class="completion-pts" id="completion-pts">+0</div>
-  <div class="completion-sub" id="completion-detail"></div>
-  <div class="completion-sub" id="completion-total">SCORE 0</div>
-  <div class="completion-streak" id="completion-streak"></div>
-  <div class="completion-level"  id="completion-level"></div>
+  <div class="completion-box">
+    <div class="completion-label">DELIVERY COMPLETE</div>
+    <div class="completion-pts" id="completion-pts">+0</div>
+    <div class="completion-sub" id="completion-detail"></div>
+    <div class="completion-sub" id="completion-total">SCORE 0</div>
+    <div class="completion-streak" id="completion-streak"></div>
+    <div class="completion-level"  id="completion-level"></div>
+  </div>
 </div>
 
 <div id="toast"></div>
