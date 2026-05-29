@@ -2186,10 +2186,6 @@ function generateOrders() {
   var active = getActiveZones();
   if (!active.length) { updateHUD(); return; }
 
-  // Keep carried packages; discard undelivered ones (they will respawn)
-  state.packages = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
-  // Drops (destinations) are permanent — never cleared here
-
   var occupied = buildOccupiedSet();
 
   ensureMinDestPerZone(active, occupied);
