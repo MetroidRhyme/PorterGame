@@ -715,6 +715,46 @@ function currentLoad() {
   }, 0);
 }
 
+// ── ORDER-GENERATION HELPERS (shared by spawn/refresh paths) ──
+function getActiveZones() {
+  return state.zones.filter(function(z) {
+    return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
+  });
+}
+
+function buildOccupiedSet() {
+  var occupied = new Set();
+  state.packages.forEach(function(p) {
+    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+    occupied.add(hexKey(h.q, h.r));
+  });
+  state.destinations.forEach(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    occupied.add(hexKey(h.q, h.r));
+  });
+  return occupied;
+}
+
+function makeDrop(loc) {
+  return {
+    id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    loc: loc, label: nextDropLabel(),
+    deliveries: 0, level: 0, name: randomDropName(),
+    contributions: []
+  };
+}
+
+function makePackageOrder(pickupLoc, dest, weight) {
+  var dist = haversine(pickupLoc, dest.loc);
+  return {
+    id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    pickupLoc: pickupLoc, destId: dest.id,
+    dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
+    weight: weight, picked: false,
+    item: PACKAGE_ITEMS[Math.floor(Math.random() * PACKAGE_ITEMS.length)]
+  };
+}
+
 // ═══════════════════════════════════════════════════════════
 //  FOLLOW MODE
 // ═══════════════════════════════════════════════════════════
@@ -869,6 +909,7 @@ const icons = {
 let userMarker   = null;
 let orderMarkers = [];
 let zoneMarkers  = [];
+let _userIconPx  = 0;
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
@@ -1368,19 +1409,8 @@ function removeZoneOrders(zone, removeDrops) {
 
 function generateOrdersForZone(zone) {
   if (!zone.active) return;
-  var activeZones = state.zones.filter(function(z) {
-    return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
-  });
-
-  var occupied = new Set();
-  state.packages.forEach(function(p) {
-    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
-    occupied.add(hexKey(h.q, h.r));
-  });
-  state.destinations.forEach(function(d) {
-    var h = latLngToHex(d.loc.lat, d.loc.lng);
-    occupied.add(hexKey(h.q, h.r));
-  });
+  var activeZones = getActiveZones();
+  var occupied    = buildOccupiedSet();
 
   // Adopt any dormant drops now covered by this zone and give them initial packages
   var zoneKeys = new Set((zone.cells || []).map(function(c) { return hexKey(c.q, c.r); }));
@@ -1823,12 +1853,7 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
     if (!pt) continue;
     var hd = latLngToHex(pt.lat, pt.lng);
     occupied.add(hexKey(hd.q, hd.r));
-    state.destinations.push({
-      id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-      loc: pt, label: nextDropLabel(),
-      deliveries: 0, level: 0, name: randomDropName(),
-      contributions: []
-    });
+    state.destinations.push(makeDrop(pt));
   }
   if (!state.destinations.length) return false;
 
@@ -1841,13 +1866,7 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
     var pt2  = randomPointInZone(pz, occupied, dh);
     if (!pt2) continue;
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
-    var dist   = haversine(pt2, dest.loc);
-    state.packages.push({
-      id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), pickupLoc: pt2, destId: dest.id,
-      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
-      weight: weight, picked: false,
-      item: PACKAGE_ITEMS[Math.floor(Math.random() * PACKAGE_ITEMS.length)]
-    });
+    state.packages.push(makePackageOrder(pt2, dest, weight));
   }
   return true;
 }
@@ -1865,19 +1884,12 @@ function ensureMinDestPerZone(active, occupied) {
     if (!pt) return;
     var hd = latLngToHex(pt.lat, pt.lng);
     occupied.add(hexKey(hd.q, hd.r));
-    state.destinations.push({
-      id: 'dest_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-      loc: pt, label: nextDropLabel(),
-      deliveries: 0, level: 0, name: randomDropName(),
-      contributions: []
-    });
+    state.destinations.push(makeDrop(pt));
   });
 }
 
 function generateOrders() {
-  var active = state.zones.filter(function(z) {
-    return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
-  });
+  var active = getActiveZones();
   if (!active.length) { updateHUD(); return; }
 
   // Migrate existing destinations without drop data
@@ -1901,15 +1913,7 @@ function generateOrders() {
   state.packages = state.packages.filter(function(p) { return state.carrying.includes(p.id); });
   // Drops (destinations) are permanent — never cleared here
 
-  var occupied = new Set();
-  state.packages.forEach(function(p) {
-    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
-    occupied.add(hexKey(h.q, h.r));
-  });
-  state.destinations.forEach(function(d) {
-    var h = latLngToHex(d.loc.lat, d.loc.lng);
-    occupied.add(hexKey(h.q, h.r));
-  });
+  var occupied = buildOccupiedSet();
 
   ensureMinDestPerZone(active, occupied);
 
@@ -1992,19 +1996,9 @@ function isDropOrphaned(dest) {
 
 function spawnPackagesForDrop(dest) {
   if (isDropOrphaned(dest)) return;
-  var active = state.zones.filter(function(z) {
-    return z.active && ((z.cells && z.cells.length) || (z.polygon && z.polygon.length >= 3));
-  });
+  var active = getActiveZones();
   if (!active.length) return;
-  var occupied = new Set();
-  state.packages.forEach(function(p) {
-    var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
-    occupied.add(hexKey(h.q, h.r));
-  });
-  state.destinations.forEach(function(d) {
-    var h = latLngToHex(d.loc.lat, d.loc.lng);
-    occupied.add(hexKey(h.q, h.r));
-  });
+  var occupied = buildOccupiedSet();
   var weightPool = [1, 1, 2, 2, 3];
   var count = 1 + (Math.random() < 0.4 ? 1 : 0);
   for (var i = 0; i < count; i++) {
@@ -2014,14 +2008,7 @@ function spawnPackagesForDrop(dest) {
     var h = latLngToHex(pt.lat, pt.lng);
     occupied.add(hexKey(h.q, h.r));
     var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
-    var dist   = haversine(pt, dest.loc);
-    state.packages.push({
-      id: 'pkg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-      pickupLoc: pt, destId: dest.id,
-      dist: dist, pts: Math.round(dist * WEIGHT[weight].multiplier),
-      weight: weight, picked: false,
-      item: PACKAGE_ITEMS[Math.floor(Math.random() * PACKAGE_ITEMS.length)]
-    });
+    state.packages.push(makePackageOrder(pt, dest, weight));
   }
 }
 
@@ -2324,7 +2311,10 @@ function renderOrderMarkers() {
   var deliverable = nearestDeliverable();
   var rem         = getCapacity() - currentLoad();
   var iconPx      = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
-  if (userMarker) userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx));
+  if (userMarker && iconPx !== _userIconPx) {
+    userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx));
+    _userIconPx = iconPx;
+  }
 
   var activeZoneCells = new Set();
   var allZoneCells    = new Set();
