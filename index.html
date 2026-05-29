@@ -2634,7 +2634,12 @@ function openDropPanel(destId) {
     renameHtml +
     iconHtml +
     moveHtml +
-    '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>';
+    ((!dest.ownerId || dest.ownerId === state.userId)
+      ? '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>'
+      : '<div class="move-btn-wrap" onclick="showMoveTip(this)">' +
+          '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">DELETE DROP</button>' +
+          '<div class="move-tooltip">Owner only</div>' +
+        '</div>');
 
   document.getElementById('drop-overlay').classList.add('open');
   document.getElementById('drop-panel').classList.add('open');
