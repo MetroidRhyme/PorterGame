@@ -73,5 +73,5 @@ You can paint your entire accessible area, or place just a handful of hexes in s
 - **Dependencies** — [Leaflet 1.9.4](https://leafletjs.com/) loaded from CDN; [CartoDB light](https://carto.com/basemaps/) map tiles.
 - **Storage** — all state is in `localStorage` under `porter_*` keys. No backend.
 - **Hex grid** — flat-top axial coordinates (q, r). Cell size is ~20 m (~0.00018°) latitude; longitude is corrected for the player's latitude on first GPS lock.
-- **Proximity** — pickup and delivery both require being within 20 m (`PROXIMITY_M`). GPS jumps larger than 50 m (`MAX_GPS_DELTA`) are ignored for distance tracking.
+- **Proximity** — pickup and delivery both require being within 20 m (`PROXIMITY_M`).
 - **Auto-refresh** — if a zone is too small to fit new packages and destinations, the game schedules a 30-second retry rather than silently failing.

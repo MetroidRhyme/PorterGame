@@ -601,8 +601,6 @@ const state = {
   phase:       'no_gps',
   following:   false,
   userPos:     null,
-  sessionDist: parseFloat(localStorage.getItem('porter_session_dist') || '0'),
-  lastPos:     null,
 
   zones:         JSON.parse(localStorage.getItem('porter_zones')        || '[]'),
   drawing:       false,
@@ -618,7 +616,6 @@ const state = {
 };
 
 const PROXIMITY_M   = 20;
-const MAX_GPS_DELTA = 50;
 const CELL_LAT_DEG  = 20 / 111111;
 var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 var   gridOffsetLat = parseFloat(localStorage.getItem('porter_grid_lat')) || 0;
@@ -928,14 +925,6 @@ if (!navigator.geolocation) {
 function onLocationUpdate(pos) {
   var lat = pos.coords.latitude, lng = pos.coords.longitude;
   var newPos = { lat: lat, lng: lng };
-  if (state.lastPos) {
-    var delta = haversine(state.lastPos, newPos);
-    if (delta > 0 && delta <= MAX_GPS_DELTA) {
-      state.sessionDist += delta;
-      localStorage.setItem('porter_session_dist', state.sessionDist.toFixed(1));
-    }
-  }
-  state.lastPos = newPos;
   state.userPos = newPos;
   if (!userMarker) {
     userMarker = L.marker([lat, lng], { icon: icons.user, zIndexOffset: 1000 }).addTo(map);
@@ -1265,7 +1254,6 @@ async function exportData() {
     exported:     new Date().toISOString(),
     score:        state.score,
     deliveries:   state.deliveries,
-    sessionDist:  state.sessionDist,
     zones:        state.zones,
     packages:     state.packages,
     destinations: state.destinations,
@@ -1317,7 +1305,6 @@ function importData(input) {
 
       state.score        = data.score        || 0;
       state.deliveries   = data.deliveries   || 0;
-      state.sessionDist  = data.sessionDist  || 0;
       state.zones        = data.zones        || [];
       state.packages     = data.packages     || [];
       state.destinations = data.destinations || [];
@@ -1329,7 +1316,6 @@ function importData(input) {
 
       localStorage.setItem('porter_score',        state.score);
       localStorage.setItem('porter_deliveries',   state.deliveries);
-      localStorage.setItem('porter_session_dist', state.sessionDist);
       if (data.cellLngDeg) localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
       if (data.gridOffsetLat != null) localStorage.setItem('porter_grid_lat', gridOffsetLat);
       if (data.gridOffsetLng != null) localStorage.setItem('porter_grid_lng', gridOffsetLng);
@@ -1354,15 +1340,13 @@ function resetProfile() {
   if (!confirm('Reset all data? This will permanently delete your score, zones, and inventory.')) return;
   if (!confirm('Are you sure? This cannot be undone.')) return;
 
-  ['porter_score','porter_deliveries','porter_session_dist',
+  ['porter_score','porter_deliveries',
    'porter_zones','porter_packages','porter_destinations','porter_carrying','porter_cell_lng',
    'porter_grid_lat','porter_grid_lng']
     .forEach(function(k) { localStorage.removeItem(k); });
 
   state.score        = 0;
   state.deliveries   = 0;
-  state.sessionDist  = 0;
-  state.lastPos      = null;
   state.zones        = [];
   state.packages     = [];
   state.destinations = [];
@@ -2301,15 +2285,13 @@ function executeRefresh() {
 
 function showCompletion(pts, count, zoneLabel, capUp, streak, level, bonusPts) {
   var el = document.getElementById('completion-overlay');
-  var km = (state.sessionDist / 1000).toFixed(2);
   document.getElementById('completion-pts').textContent = '+' + pts;
 
   var detail = (count > 1 ? count + ' PKGS' : '1 PKG') +
     (zoneLabel ? ' → DROP ' + zoneLabel : '') +
     (bonusPts ? '  ·  +' + bonusPts + ' LV' + (level || '') + ' BONUS' : '');
   document.getElementById('completion-detail').textContent = detail;
-  document.getElementById('completion-total').textContent  =
-    'SCORE ' + state.score + '  ·  ' + km + ' KM';
+  document.getElementById('completion-total').textContent  = 'SCORE ' + state.score;
   var streakEl = document.getElementById('completion-streak');
   streakEl.style.display = streak > 1 ? 'block' : 'none';
   if (streak > 1) streakEl.textContent = 'STREAK × ' + streak;
@@ -2462,8 +2444,8 @@ function updateHUD() {
   }
 
   // ── ACTIVE GAMEPLAY ───────────────────────────────────────
-  var load = currentLoad(), cap = getCapacity(), km = (state.sessionDist / 1000).toFixed(2);
-  statusEl.textContent = 'LOAD ' + load + ' / ' + cap + '  ·  ' + km + 'km';
+  var load = currentLoad(), cap = getCapacity();
+  statusEl.textContent = 'LOAD ' + load + ' / ' + cap;
 
   var carrying  = state.carrying.length;
   var available = state.packages.filter(function(p) { return !p.picked; }).length;
