@@ -956,6 +956,7 @@ function launchDrone(startLat, startLng, dest, halfPts) {
     destLat: destLat, destLng: destLng,
     startTime: Date.now(), durationMs: durationMs
   });
+  saveDronesInFlight();
   if (!_droneAnimInterval) {
     _droneAnimInterval = setInterval(animateDrones, 50);
   }
@@ -965,6 +966,7 @@ function launchDrone(startLat, startLng, dest, halfPts) {
 function animateDrones() {
   var now = Date.now();
   var remaining = [];
+  var anyCompleted = false;
   activeDroneMarkers.forEach(function(drone) {
     var t = Math.min(1, (now - drone.startTime) / drone.durationMs);
     var lat = drone.startLat + (drone.destLat - drone.startLat) * t;
@@ -974,12 +976,14 @@ function animateDrones() {
     if (t >= 1) {
       map.removeLayer(drone.marker);
       map.removeLayer(drone.line);
+      anyCompleted = true;
       completeDroneDelivery(drone);
     } else {
       remaining.push(drone);
     }
   });
   activeDroneMarkers = remaining;
+  if (anyCompleted) saveDronesInFlight();
   if (!activeDroneMarkers.length) {
     clearInterval(_droneAnimInterval);
     _droneAnimInterval = null;
@@ -1371,6 +1375,7 @@ function onGpsLocked() {
   generateOrders();
   expandHUD();
   updateHUD();
+  restoreDronesInFlight();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1382,6 +1387,45 @@ function saveGameState() {
   localStorage.setItem('porter_carrying',     JSON.stringify(state.carrying));
   localStorage.setItem('porter_packages',     JSON.stringify(state.packages));
   localStorage.setItem('porter_destinations', JSON.stringify(state.destinations));
+}
+function saveDronesInFlight() {
+  localStorage.setItem('porter_drones_in_flight', JSON.stringify(
+    activeDroneMarkers.map(function(d) {
+      return { destId: d.destId, halfPts: d.halfPts,
+               startLat: d.startLat, startLng: d.startLng,
+               destLat: d.destLat, destLng: d.destLng,
+               startTime: d.startTime, durationMs: d.durationMs };
+    })
+  ));
+}
+function restoreDronesInFlight() {
+  var saved = JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]');
+  if (!saved.length) return;
+  var now = Date.now();
+  saved.forEach(function(d) {
+    if (now - d.startTime >= d.durationMs) {
+      completeDroneDelivery(d);
+    } else {
+      var t   = (now - d.startTime) / d.durationMs;
+      var lat = d.startLat + (d.destLat - d.startLat) * t;
+      var lng = d.startLng + (d.destLng - d.startLng) * t;
+      var sz  = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
+      var mk  = L.marker([lat, lng], { icon: makeIcon('#1a3050', '🚁', sz), zIndexOffset: 900 }).addTo(map);
+      var ln  = L.polyline([[lat, lng], [d.destLat, d.destLng]],
+        { color: '#3080c0', weight: 1.5, opacity: 0.75, dashArray: '4 8', lineCap: 'round', interactive: false }
+      ).addTo(map);
+      activeDroneMarkers.push({
+        marker: mk, line: ln, destId: d.destId, halfPts: d.halfPts,
+        startLat: d.startLat, startLng: d.startLng,
+        destLat: d.destLat, destLng: d.destLng,
+        startTime: d.startTime, durationMs: d.durationMs
+      });
+    }
+  });
+  if (activeDroneMarkers.length && !_droneAnimInterval) {
+    _droneAnimInterval = setInterval(animateDrones, 50);
+  }
+  saveDronesInFlight();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1760,17 +1804,22 @@ async function openEnvelope(raw) {
 
 async function exportData() {
   var data = {
-    version:      1,
-    exported:     new Date().toISOString(),
-    score:        state.score,
-    deliveries:   state.deliveries,
-    zones:        state.zones,
-    packages:     state.packages,
-    destinations: state.destinations,
-    carrying:     state.carrying,
-    cellLngDeg:   CELL_LNG_DEG,
-    gridOffsetLat: gridOffsetLat,
-    gridOffsetLng: gridOffsetLng,
+    version:        1,
+    exported:       new Date().toISOString(),
+    score:          state.score,
+    deliveries:     state.deliveries,
+    playerName:     state.playerName,
+    zones:          state.zones,
+    packages:       state.packages,
+    destinations:   state.destinations,
+    carrying:       state.carrying,
+    droneLastUsed:  state.droneLastUsed,
+    drone2LastUsed: state.drone2LastUsed,
+    refreshLastUsed: state.refreshLastUsed,
+    dronesInFlight: JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]'),
+    cellLngDeg:     CELL_LNG_DEG,
+    gridOffsetLat:  gridOffsetLat,
+    gridOffsetLng:  gridOffsetLng,
   };
   var content = await signedEnvelope(data);
   var blob = new Blob([content], { type: 'application/json' });
@@ -1819,6 +1868,13 @@ function importData(input) {
       state.packages     = data.packages     || [];
       state.destinations = data.destinations || [];
       state.carrying     = data.carrying     || [];
+      if (data.playerName) { state.playerName = data.playerName; localStorage.setItem('porter_name', state.playerName); }
+      state.droneLastUsed  = data.droneLastUsed  || 0;
+      state.drone2LastUsed = data.drone2LastUsed || 0;
+      state.refreshLastUsed = data.refreshLastUsed || 0;
+      localStorage.setItem('porter_drone_last_used',   state.droneLastUsed);
+      localStorage.setItem('porter_drone2_last_used',  state.drone2LastUsed);
+      localStorage.setItem('porter_refresh_last_used', state.refreshLastUsed);
       migrateDestinations();
       if (data.cellLngDeg) CELL_LNG_DEG = data.cellLngDeg;
       if (data.gridOffsetLat != null) gridOffsetLat = data.gridOffsetLat;
@@ -1831,6 +1887,13 @@ function importData(input) {
       if (data.gridOffsetLng != null) localStorage.setItem('porter_grid_lng', gridOffsetLng);
       saveZones();
       saveGameState();
+
+      // Restore in-flight drones
+      activeDroneMarkers.forEach(function(d) { map.removeLayer(d.marker); map.removeLayer(d.line); });
+      activeDroneMarkers = [];
+      if (_droneAnimInterval) { clearInterval(_droneAnimInterval); _droneAnimInterval = null; }
+      localStorage.setItem('porter_drones_in_flight', JSON.stringify(data.dronesInFlight || []));
+      if (state.phase === 'active') restoreDronesInFlight();
 
       renderZoneMarkers();
       renderGridCanvas();
@@ -1852,8 +1915,12 @@ function resetProfile() {
 
   ['porter_score','porter_deliveries',
    'porter_zones','porter_packages','porter_destinations','porter_carrying','porter_cell_lng',
-   'porter_grid_lat','porter_grid_lng']
+   'porter_grid_lat','porter_grid_lng',
+   'porter_drone_last_used','porter_drone2_last_used','porter_refresh_last_used','porter_drones_in_flight']
     .forEach(function(k) { localStorage.removeItem(k); });
+  activeDroneMarkers.forEach(function(d) { map.removeLayer(d.marker); map.removeLayer(d.line); });
+  activeDroneMarkers = [];
+  if (_droneAnimInterval) { clearInterval(_droneAnimInterval); _droneAnimInterval = null; }
 
   state.score        = 0;
   state.deliveries   = 0;
