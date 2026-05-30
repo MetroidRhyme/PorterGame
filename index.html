@@ -1058,9 +1058,9 @@ function makeDestIcon(bg, letter, size, level, borderColor) {
   });
 }
 
-function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy) {
+function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy, isDropView) {
   var bg   = isNext ? '#e8a030' : (inRangeTooHeavy ? '#3a0808' : (tooHeavy ? '#2a1a1a' : '#2a1800'));
-  var bdr  = inRangeTooHeavy ? '2px solid #c04040' : '2px solid rgba(255,255,255,0.25)';
+  var bdr  = inRangeTooHeavy ? '2px solid #c04040' : (isDropView ? '2px solid #ffd060' : '2px solid rgba(255,255,255,0.25)');
   var shd  = '0 2px 8px rgba(0,0,0,0.7)';
   var sub  = Math.round(size * 0.58);
   var fs   = Math.round(sub * 0.60);
@@ -1107,6 +1107,8 @@ let userMarker    = null;
 let orderMarkers  = [];
 var selectedPkgId = null;
 var preSelView    = null;
+var viewingDropId = null;
+var preDropView   = null;
 let zoneMarkers   = [];
 let _userIconPx   = 0;
 let _lastRenderSig = '';
@@ -1947,6 +1949,7 @@ map.on('zoomend', function() {
 
 map.on('click', function(e) {
   if (state.movingDestId) { executeDropMove(e.latlng); return; }
+  if (viewingDropId) { exitDropView(); return; }
   if (selectedPkgId) {
     selectedPkgId = null;
     hideOrderInfo();
@@ -2646,7 +2649,47 @@ function importDropCode(code) {
 
 var dropPanelDestId = null;
 
+function viewDropOrders(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  // Close panel but keep dropPanelDestId so we can reopen it
+  document.getElementById('drop-overlay').classList.remove('open');
+  document.getElementById('drop-panel').classList.remove('open');
+  // Clear any active package selection
+  selectedPkgId = null;
+  hideOrderInfo();
+  preSelView = null;
+  // Enter drop view mode
+  viewingDropId = destId;
+  preDropView = { center: map.getCenter(), zoom: map.getZoom() };
+  renderOrderMarkers();
+  // Fit camera to drop + all pending orders
+  var pkgs = state.packages.filter(function(p) { return p.destId === destId && !p.picked; });
+  var points = [[dest.loc.lat, dest.loc.lng]];
+  pkgs.forEach(function(p) { points.push([p.pickupLoc.lat, p.pickupLoc.lng]); });
+  var topPad = ((document.getElementById('hud-top')    || {}).offsetHeight || 0) + 24;
+  var botPad = ((document.getElementById('hud-bottom') || {}).offsetHeight || 0) + 24;
+  if (points.length === 1) {
+    map.flyTo(adjustLatLngForMenus(dest.loc, 17), 17, { duration: 0.5 });
+  } else {
+    map.flyToBounds(L.latLngBounds(points), {
+      paddingTopLeft: [24, topPad], paddingBottomRight: [24, botPad], duration: 0.5
+    });
+  }
+}
+
+function exitDropView() {
+  if (!viewingDropId) return;
+  var vid = viewingDropId;
+  viewingDropId = null;
+  renderOrderMarkers();
+  if (preDropView) { map.flyTo(preDropView.center, preDropView.zoom, { duration: 0.3 }); preDropView = null; }
+  openDropPanel(vid);
+}
+
 function openDropPanel(destId) {
+  viewingDropId = null;
+  preDropView   = null;
   var dest = state.destinations.find(function(d) { return d.id === destId; });
   if (!dest) return;
   dropPanelDestId = destId;
@@ -2700,11 +2743,17 @@ function openDropPanel(destId) {
   }
 
   document.getElementById('drop-panel-content').innerHTML =
-    '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">' +
-      '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.icon || dest.label) + '</div>' +
-      '<div>' +
-        '<div style="font-size:14px;letter-spacing:3px;color:#e0d8c8">' + (dest.title ? esc(dest.title) : 'DROP ' + esc(dest.label)) + '</div>' +
-        '<div style="font-size:11px;color:#fff;letter-spacing:2px;margin-top:3px">' + esc(dest.name || 'UNKNOWN') + '</div>' +
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">' +
+      '<div style="display:flex;align-items:center;gap:16px">' +
+        '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.icon || dest.label) + '</div>' +
+        '<div>' +
+          '<div style="font-size:14px;letter-spacing:3px;color:#e0d8c8">' + (dest.title ? esc(dest.title) : 'DROP ' + esc(dest.label)) + '</div>' +
+          '<div style="font-size:11px;color:#fff;letter-spacing:2px;margin-top:3px">' + esc(dest.name || 'UNKNOWN') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">' +
+        '<button onclick="viewDropOrders(\'' + destId + '\')" style="padding:8px 14px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a3a4a;background:rgba(10,30,50,0.4);color:#5ab0e0">&#128065; VIEW</button>' +
+        '<div style="font-size:10px;color:#fff;letter-spacing:1px;opacity:0.6">' + pkgsWaiting + ' PENDING ORDER' + (pkgsWaiting !== 1 ? 'S' : '') + '</div>' +
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:24px;margin-bottom:14px">' +
@@ -2719,9 +2768,6 @@ function openDropPanel(destId) {
         '</div>'
       : '<div style="font-size:11px;color:#5ab05a;letter-spacing:3px;margin-bottom:14px">MAX LEVEL</div>') +
     contribHtml +
-    '<div style="font-size:11px;color:#fff;letter-spacing:2px;margin-bottom:16px">' +
-      pkgsWaiting + ' package' + (pkgsWaiting !== 1 ? 's' : '') + ' waiting' +
-    '</div>' +
     renameHtml +
     iconHtml +
     moveHtml +
@@ -2996,12 +3042,16 @@ function renderOrderMarkers() {
     if (selPkg) selectedDestId = selPkg.destId;
   }
 
-  // Connection lines — normal ones first, selected one last so it renders on top
+  // Connection lines — normal first, drop-view and selected on top
   var selectedLineInfo = null;
+  var dropViewLines    = [];
   state.packages.forEach(function(p) {
     var dest = state.destinations.find(function(d) { return d.id === p.destId; });
     if (!dest || !visibleDestIds.has(dest.id)) return;
     var origin = p.picked && state.userPos ? state.userPos : p.pickupLoc;
+    if (viewingDropId && p.destId === viewingDropId && !p.picked) {
+      dropViewLines.push({ origin: origin, dest: dest }); return;
+    }
     if (p.id === selectedPkgId) { selectedLineInfo = { origin: origin, dest: dest }; return; }
     var line = L.polyline(
       [[origin.lat, origin.lng], [dest.loc.lat, dest.loc.lng]],
@@ -3010,6 +3060,12 @@ function renderOrderMarkers() {
         lineCap: 'round', interactive: false }
     ).addTo(map);
     orderMarkers.push(line);
+  });
+  dropViewLines.forEach(function(info) {
+    orderMarkers.push(L.polyline(
+      [[info.origin.lat, info.origin.lng], [info.dest.loc.lat, info.dest.loc.lng]],
+      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false }
+    ).addTo(map));
   });
   if (selectedLineInfo) {
     orderMarkers.push(L.polyline(
@@ -3024,11 +3080,13 @@ function renderOrderMarkers() {
     var isNext          = pickable && pickable.id === p.id;
     var tooheavy        = p.weight > rem;
     var inRangeTooHeavy = overweightRangeIds.has(p.id);
+    var isDropViewPkg   = !!(viewingDropId && p.destId === viewingDropId);
     var cfg             = WEIGHT[p.weight];
-    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy) }).addTo(map);
+    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy, isDropViewPkg) }).addTo(map);
     (function(pid, latlng, destLoc, pkg, destObj, marker) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
+        if (viewingDropId) { exitDropView(); return; }
         var selecting = selectedPkgId !== pid;
         selectedPkgId = selecting ? pid : null;
         renderOrderMarkers();
@@ -3073,7 +3131,8 @@ function renderOrderMarkers() {
     }).length;
     var isNext = !orphaned && deliverable && deliverable.id === d.id;
     var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
-    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), d.id === selectedDestId ? '#ffd060' : null) }).addTo(map);
+    var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId) ? '#ffd060' : null;
+    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder) }).addTo(map);
     var tip = destDisplayName(d) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
