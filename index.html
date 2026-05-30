@@ -617,7 +617,10 @@
   </div>
 
   <div style="padding:14px 20px 20px;border-top:1px solid rgba(255,255,255,0.05);font-size:9px;color:rgba(255,255,255,0.25);letter-spacing:1px;text-align:center;line-height:2">
-    <a href="https://www.flaticon.com/free-icons/weight-lifting" title="weight lifting icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Weight lifting icons created by Fliqqer - Flaticon</a>
+    <a href="https://www.flaticon.com/free-icons/weight-lifting" title="weight lifting icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Weight lifting icons created by Fliqqer - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/air-drone" title="air drone icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Air drone icons created by Shaharea - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/helicopter" title="helicopter icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Helicopter icons created by Pixel perfect - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/military-drone" title="military drone icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Military drone icons created by bsd - Flaticon</a>
   </div>
 </div>
 
@@ -892,6 +895,11 @@ function getDroneMaxWeight(level) {
   if (level >= 25) return 2;
   return 1;
 }
+function getDroneIcon(maxW) {
+  if (maxW >= 3) return 'drone-heavy.png';
+  if (maxW >= 2) return 'drone-medium.png';
+  return 'drone-light.png';
+}
 function updateDroneStatus() {
   var el = document.getElementById('drone-status');
   if (!el) return;
@@ -909,7 +917,7 @@ function updateDroneStatus() {
     : '<div class="status-value">' + formatRemainTime(cdMs - elapsed) + '</div>';
   el.innerHTML =
     '<div class="status-row">' +
-      '<div class="status-icon-cell" style="font-size:14px">🚁</div>' +
+      '<div class="status-icon-cell"><img src="' + getDroneIcon(maxW) + '" width="16" height="16" style="filter:brightness(0) invert(1);opacity:0.8;vertical-align:middle"></div>' +
       '<div class="status-bar-track"><div class="status-bar-fill" style="width:' + barPct + '%;background:' + barColor + '"></div></div>' +
       '<div class="status-right">' + valueHtml + '<div class="status-sub-note">' + wLabel + '</div></div>' +
     '</div>';
@@ -3466,6 +3474,9 @@ function updateDroneCd() {
   var arc   = document.getElementById('drone-cd-arc');
   var timer = document.getElementById('drone-cd-timer');
   var CIRC  = 56.55;
+  var maxW  = getDroneMaxWeight(getPlayerLevel());
+  document.getElementById('drone-cd-emoji').innerHTML =
+    '<img src="' + getDroneIcon(maxW) + '" width="14" height="14" style="filter:brightness(0);vertical-align:middle">';
   if (status.available) {
     arc.setAttribute('stroke', '#e8a030');
     arc.setAttribute('stroke-dashoffset', '0');
