@@ -777,6 +777,7 @@ const state = {
   carrying:      JSON.parse(localStorage.getItem('porter_carrying')      || '[]'),
   movingDestId:  null,
   droneLastUsed:   parseInt(localStorage.getItem('porter_drone_last_used')   || '0'),
+  drone2LastUsed:  parseInt(localStorage.getItem('porter_drone2_last_used')  || '0'),
   refreshLastUsed: parseInt(localStorage.getItem('porter_refresh_last_used') || '0'),
 };
 
@@ -830,7 +831,7 @@ const PLAYER_UPGRADES = [
   { level: 30, text: 'Carry capacity +1 (6U)' },
   { level: 35, text: 'Drone upgrade: all package weights · 30 hex range · 1h cooldown' },
   { level: 40, text: 'Carry capacity +1 (7U)' },
-  { level: 45, text: 'Drone cooldown → 30m · all package weights' },
+  { level: 45, text: 'Second drone slot unlocked · both share 1h cooldown' },
   { level: 50, text: 'Carry capacity +1 (8U) · MAX LEVEL' },
 ];
 
@@ -874,8 +875,8 @@ function calcPlayerLevel(pts) {
 }
 function getPlayerLevel() { return calcPlayerLevel(state.score); }
 
+function getDroneSlotCount(level) { return level >= 45 ? 2 : 1; }
 function getDroneCooldownMs(level) {
-  if (level >= 45) return 30 * 60 * 1000;
   if (level >= 35) return 60 * 60 * 1000;
   if (level >= 25) return 2 * 60 * 60 * 1000;
   return 3 * 60 * 60 * 1000;
@@ -897,9 +898,17 @@ function getDroneStatus() {
   var level = getPlayerLevel();
   if (level < 15) return { available: false, locked: true };
   var cdMs = getDroneCooldownMs(level);
-  var elapsed = Date.now() - (state.droneLastUsed || 0);
-  if (elapsed >= cdMs) return { available: true };
-  return { available: false, locked: false, remainStr: formatDroneCooldown(cdMs - elapsed) };
+  var now  = Date.now();
+  var e0   = now - (state.droneLastUsed  || 0);
+  if (getDroneSlotCount(level) >= 2) {
+    var e1 = now - (state.drone2LastUsed || 0);
+    if (e0 >= cdMs) return { available: true, slotIndex: 0 };
+    if (e1 >= cdMs) return { available: true, slotIndex: 1 };
+    var soonest = Math.min(cdMs - e0, cdMs - e1);
+    return { available: false, locked: false, remainStr: formatDroneCooldown(soonest) };
+  }
+  if (e0 >= cdMs) return { available: true, slotIndex: 0 };
+  return { available: false, locked: false, remainStr: formatDroneCooldown(cdMs - e0) };
 }
 function getDroneMaxWeight(level) {
   if (level >= 35) return 3;
@@ -1005,22 +1014,31 @@ function updateDroneStatus() {
   if (!el) return;
   var level = getPlayerLevel();
   if (level < 15) { el.style.display = 'none'; return; }
-  var drSt   = getDroneStatus();
   var maxW   = getDroneMaxWeight(level);
   var wLabel = (maxW === 1 ? 'LIGHT' : maxW === 2 ? 'STD' : 'ALL') + ' · ' + getDroneRange(maxW) + ' HEX';
-  var cdMs    = getDroneCooldownMs(level);
-  var elapsed = Date.now() - (state.droneLastUsed || 0);
-  var barPct  = drSt.available ? 100 : Math.min(99, Math.round(elapsed / cdMs * 100));
-  var barColor = drSt.available ? '#6aaa6a' : '#e8a030';
-  var valueHtml = drSt.available
-    ? '<div class="status-value" style="color:#6aaa6a">READY</div>'
-    : '<div class="status-value">' + formatRemainTime(cdMs - elapsed) + '</div>';
-  el.innerHTML =
-    '<div class="status-row">' +
-      '<div class="status-icon-cell"><img src="' + getDroneIcon(maxW) + '" width="16" height="16" style="filter:brightness(0) invert(1);opacity:0.8;vertical-align:middle"></div>' +
+  var cdMs   = getDroneCooldownMs(level);
+  var iconHtml = '<img src="' + getDroneIcon(maxW) + '" width="16" height="16" style="filter:brightness(0) invert(1);opacity:0.8;vertical-align:middle">';
+  function slotRow(elapsed, label) {
+    var ready    = elapsed >= cdMs;
+    var barPct   = ready ? 100 : Math.min(99, Math.round(elapsed / cdMs * 100));
+    var barColor = ready ? '#6aaa6a' : '#e8a030';
+    var valHtml  = ready
+      ? '<div class="status-value" style="color:#6aaa6a">READY</div>'
+      : '<div class="status-value">' + formatRemainTime(cdMs - elapsed) + '</div>';
+    return '<div class="status-row">' +
+      '<div class="status-icon-cell">' + iconHtml + '</div>' +
       '<div class="status-bar-track"><div class="status-bar-fill" style="width:' + barPct + '%;background:' + barColor + '"></div></div>' +
-      '<div class="status-right">' + valueHtml + '<div class="status-sub-note">' + wLabel + '</div></div>' +
+      '<div class="status-right">' + valHtml + '<div class="status-sub-note">' + label + '</div></div>' +
     '</div>';
+  }
+  var now = Date.now();
+  var e0  = now - (state.droneLastUsed  || 0);
+  var html = slotRow(e0, wLabel);
+  if (getDroneSlotCount(level) >= 2) {
+    var e1 = now - (state.drone2LastUsed || 0);
+    html += slotRow(e1, wLabel);
+  }
+  el.innerHTML = html;
   el.style.display = 'block';
 }
 
@@ -2662,8 +2680,13 @@ function attemptDroneLift() {
 
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
 
-  state.droneLastUsed = Date.now();
-  localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
+  if (drSt.slotIndex === 1) {
+    state.drone2LastUsed = Date.now();
+    localStorage.setItem('porter_drone2_last_used', state.drone2LastUsed);
+  } else {
+    state.droneLastUsed = Date.now();
+    localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
+  }
   saveGameState();
   launchDrone(pkg.pickupLoc.lat, pkg.pickupLoc.lng, dest, halfPts);
   renderOrderMarkers(); updateHUD();
@@ -2687,8 +2710,13 @@ function droneDeliverCarried(pkgId) {
   state.carrying = state.carrying.filter(function(id) { return id !== pkgId; });
   state.packages = state.packages.filter(function(p) { return p.id !== pkgId; });
 
-  state.droneLastUsed = Date.now();
-  localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
+  if (drSt.slotIndex === 1) {
+    state.drone2LastUsed = Date.now();
+    localStorage.setItem('porter_drone2_last_used', state.drone2LastUsed);
+  } else {
+    state.droneLastUsed = Date.now();
+    localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
+  }
   saveGameState();
   var startPos = state.userPos || pkg.pickupLoc;
   launchDrone(startPos.lat, startPos.lng, dest, halfPts);
@@ -3581,8 +3609,7 @@ function updateHUD() {
       if (_drSt.locked) {
         droneLabel = 'DRONE'; droneActive = false;
       } else if (!_drSt.available) {
-        var _rem = Math.max(0, _drCdMs - (Date.now() - (state.droneLastUsed || 0)));
-        droneLabel = formatRemainTime(_rem); droneActive = false;
+        droneLabel = _drSt.remainStr || ''; droneActive = false;
       } else if (p.weight > _drMaxW) {
         droneLabel = 'TOO HEAVY'; droneActive = false;
       } else {
@@ -3637,34 +3664,38 @@ var _droneCdInterval = null;
 function updateDroneCd() {
   var el = document.getElementById('drone-cd');
   if (!el) return;
+  var level  = getPlayerLevel();
   var status = getDroneStatus();
-  if (status.locked) {
-    el.classList.add('locked');
-    _stopDroneCdInterval();
-    return;
-  }
+  if (status.locked) { el.classList.add('locked'); _stopDroneCdInterval(); return; }
   el.classList.remove('locked');
-  var arc   = document.getElementById('drone-cd-arc');
-  var timer = document.getElementById('drone-cd-timer');
+  var cdMs  = getDroneCooldownMs(level);
+  var maxW  = getDroneMaxWeight(level);
   var CIRC  = 56.55;
-  var maxW  = getDroneMaxWeight(getPlayerLevel());
-  document.getElementById('drone-cd-emoji').innerHTML =
-    '<img src="' + getDroneIcon(maxW) + '" width="14" height="14" style="filter:brightness(0);vertical-align:middle">';
-  if (status.available) {
-    arc.setAttribute('stroke', '#e8a030');
-    arc.setAttribute('stroke-dashoffset', '0');
-    timer.textContent = '';
-    _stopDroneCdInterval();
-  } else {
-    var cdMs     = getDroneCooldownMs(getPlayerLevel());
-    var elapsed  = Date.now() - (state.droneLastUsed || 0);
-    var remainMs = Math.max(0, cdMs - elapsed);
-    var pct      = Math.min(1, elapsed / cdMs);
-    arc.setAttribute('stroke', 'rgba(0,0,0,0.18)');
-    arc.setAttribute('stroke-dashoffset', String(CIRC * (1 - pct)));
-    timer.textContent = formatRemainTime(remainMs);
-    _startDroneCdInterval();
+  var now   = Date.now();
+  var iconHtml = '<img src="' + getDroneIcon(maxW) + '" width="14" height="14" style="filter:brightness(0);vertical-align:middle">';
+  var anyOnCd  = false;
+  function ringHtml(elapsed) {
+    var ready = elapsed >= cdMs;
+    if (!ready) anyOnCd = true;
+    var pct    = ready ? 1 : Math.min(1, elapsed / cdMs);
+    var stroke = ready ? '#e8a030' : 'rgba(0,0,0,0.18)';
+    var offset = ready ? '0' : String(CIRC * (1 - pct));
+    var label  = ready ? '' : formatRemainTime(Math.max(0, cdMs - elapsed));
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
+      '<div style="position:relative;width:24px;height:24px">' +
+        '<svg width="24" height="24" viewBox="0 0 24 24" style="display:block;transform:rotate(-90deg)">' +
+          '<circle cx="12" cy="12" r="9" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.12)" stroke-width="3"/>' +
+          '<circle cx="12" cy="12" r="9" fill="none" stroke="' + stroke + '" stroke-width="3" stroke-linecap="round" stroke-dasharray="56.55" stroke-dashoffset="' + offset + '"/>' +
+        '</svg>' +
+        '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1">' + iconHtml + '</div>' +
+      '</div>' +
+      '<div style="font-size:8px;font-family:\'Courier New\',monospace;color:rgba(0,0,0,0.65);text-align:center;white-space:nowrap;min-height:10px">' + label + '</div>' +
+    '</div>';
   }
+  var html = ringHtml(now - (state.droneLastUsed || 0));
+  if (getDroneSlotCount(level) >= 2) html += ringHtml(now - (state.drone2LastUsed || 0));
+  el.innerHTML = '<div style="display:flex;gap:4px;align-items:flex-start">' + html + '</div>';
+  if (anyOnCd) { _startDroneCdInterval(); } else { _stopDroneCdInterval(); }
 }
 function _startDroneCdInterval() {
   if (_droneCdInterval) return;
