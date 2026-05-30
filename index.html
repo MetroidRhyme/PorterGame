@@ -3100,6 +3100,7 @@ function renderOrderMarkers() {
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy, isDropViewPkg) }).addTo(map);
     if (selectedPkgId && p.id !== selectedPkgId) m.setOpacity(0.5);
     else if (viewingDropId && !isDropViewPkg) m.setOpacity(0.5);
+    if ((selectedPkgId && p.id === selectedPkgId) || (viewingDropId && isDropViewPkg)) m.setZIndexOffset(1000);
     (function(pid, latlng, destLoc, pkg, destObj, marker) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
@@ -3152,6 +3153,7 @@ function renderOrderMarkers() {
     var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder) }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
     else if (viewingDropId && d.id !== viewingDropId) m.setOpacity(0.5);
+    if ((selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId)) m.setZIndexOffset(1000);
     var tip = destDisplayName(d) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
