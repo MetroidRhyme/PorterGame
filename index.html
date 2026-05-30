@@ -2590,18 +2590,6 @@ function openDropPanel(destId) {
   var pkgsWaiting = state.packages.filter(function(p) { return p.destId === destId && !p.picked; }).length;
 
   var contribHtml = '';
-  if (dest.contributions && dest.contributions.length > 0) {
-    contribHtml = '<div style="margin-bottom:14px">' +
-      '<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:8px">CONTRIBUTORS</div>' +
-      dest.contributions.slice().sort(function(a, b) { return (b.points || 0) - (a.points || 0); }).map(function(c) {
-        var isMe = c.userId === state.userId;
-        return '<div style="display:flex;justify-content:space-between;font-size:11px;color:' + (isMe ? '#e0d8c8' : '#777') + ';letter-spacing:1px;margin-bottom:4px">' +
-          '<span>' + esc(c.userName || 'Anonymous') + (isMe ? ' (you)' : '') + '</span>' +
-          '<span>' + (c.points || 0) + ' pts</span>' +
-        '</div>';
-      }).join('') +
-    '</div>';
-  }
 
   var btnStyle = 'padding:13px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid';
 
