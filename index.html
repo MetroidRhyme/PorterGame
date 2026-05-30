@@ -489,6 +489,12 @@
     .cap-seg { width:10px; height:26px; border-radius:1px; background:rgba(255,255,255,0.06); }
     .cap-seg.filled { background:#e8a030; }
     #cap-bar-label { font-size:9px; font-family:'Courier New',monospace; color:rgba(0,0,0,0.65); letter-spacing:0.5px; white-space:nowrap; }
+    #cap-status { display:none; margin-bottom:8px; }
+    .cap-hbar { display:flex; align-items:center; gap:8px; }
+    .cap-hbar-segs { display:flex; gap:2px; }
+    .cap-hbar-seg { height:6px; width:18px; border-radius:2px; background:rgba(255,255,255,0.12); }
+    .cap-hbar-seg.filled { background:#e8a030; }
+    .cap-hbar-info { font-size:11px; color:#e0d8c8; letter-spacing:1px; display:flex; align-items:center; gap:5px; }
     #drone-cd { display:flex; flex-direction:column; align-items:center; gap:2px; }
     #drone-cd.locked { display:none; }
     #drone-cd-ring { position:relative; width:24px; height:24px; }
@@ -614,6 +620,7 @@
   <button id="hud-collapse-btn" onclick="toggleHUD()" aria-label="Toggle panel"></button>
   <div id="collapsible-hud">
     <div id="mission-status">STANDBY</div>
+    <div id="cap-status"></div>
     <div id="drone-status"></div>
     <div id="mission-detail">Acquiring GPS lock…</div>
     <div id="mission-distance"></div>
@@ -1053,15 +1060,18 @@ function updatePaintBtn() {
 
 function expandHUD() {
   document.getElementById('hud-bottom').classList.remove('collapsed');
-  var cEl = document.getElementById('collapsible-hud');
-  function onEnd(e) { if (e.propertyName !== 'max-height') return; cEl.removeEventListener('transitionend', onEnd); updateCapBar(); }
-  cEl.addEventListener('transitionend', onEnd);
+  updateCapBar();
 }
 function toggleHUD() {
-  document.getElementById('hud-bottom').classList.toggle('collapsed');
-  var cEl = document.getElementById('collapsible-hud');
-  function onEnd(e) { if (e.propertyName !== 'max-height') return; cEl.removeEventListener('transitionend', onEnd); updateCapBar(); }
-  cEl.addEventListener('transitionend', onEnd);
+  var hud = document.getElementById('hud-bottom');
+  hud.classList.toggle('collapsed');
+  if (!hud.classList.contains('collapsed')) {
+    updateCapBar(); // expanded → hide cap bar immediately
+  } else {
+    var cEl = document.getElementById('collapsible-hud');
+    function onEnd(e) { if (e.propertyName !== 'max-height') return; cEl.removeEventListener('transitionend', onEnd); updateCapBar(); }
+    cEl.addEventListener('transitionend', onEnd);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3200,7 +3210,7 @@ function renderOrderMarkers() {
     orderMarkers.push(m);
   });
   var _cb = document.getElementById('cap-bar');
-  if (_cb) _cb.classList.toggle('hidden', !!(selectedPkgId || viewingDropId));
+  if (_cb) _cb.classList.toggle('hidden', !!(selectedPkgId || viewingDropId) || !document.getElementById('hud-bottom').classList.contains('collapsed'));
 }
 
 function showOrderInfo(pkg, dest) {
@@ -3253,6 +3263,7 @@ function updateHUD() {
   btn.className        = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
+  document.getElementById('cap-status').style.display = 'none';
   updateFollowBtn();
   updatePaintBtn();
   updateCapBar();
@@ -3303,6 +3314,14 @@ function updateHUD() {
   // ── ACTIVE GAMEPLAY ───────────────────────────────────────
   var load = currentLoad(), cap = getCapacity();
   statusEl.textContent = '';
+  var capStatusEl = document.getElementById('cap-status');
+  if (capStatusEl) {
+    var _segs = '';
+    for (var _i = 0; _i < cap; _i++) _segs += '<div class="cap-hbar-seg' + (_i < load ? ' filled' : '') + '"></div>';
+    capStatusEl.innerHTML = '<div class="cap-hbar"><div class="cap-hbar-segs">' + _segs + '</div>' +
+      '<div class="cap-hbar-info">' + load + ' / ' + cap + '<img src="weight-icon.png" width="12" height="12" style="vertical-align:middle;opacity:0.8"></div></div>';
+    capStatusEl.style.display = 'block';
+  }
   updateDroneStatus();
 
   var carrying  = state.carrying.length;
@@ -3397,7 +3416,8 @@ function updateHUD() {
 function updateCapBar() {
   var bar = document.getElementById('cap-bar');
   if (!bar) return;
-  var hide = !!(selectedPkgId || viewingDropId);
+  var hudOpen = !document.getElementById('hud-bottom').classList.contains('collapsed');
+  var hide = !!(selectedPkgId || viewingDropId) || hudOpen;
   bar.classList.toggle('hidden', hide);
   updateDroneCd();
   if (hide) return;
