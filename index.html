@@ -492,23 +492,16 @@
     }
     #toast.show { opacity: 1; }
     @keyframes pkg-bob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
-    #pkg-tip {
-      display: none; position: fixed; z-index: 800; pointer-events: none;
-      background: white; color: #1a1a1a; border: 1px solid #ccc; border-radius: 5px;
-      padding: 6px 10px; font-size: 13px; line-height: 1.7; min-width: 100px;
-      white-space: normal; text-align: left;
-      transform: translate(-50%, calc(-100% - 12px));
+    #order-info {
+      display: none; position: fixed; z-index: 1500; pointer-events: none;
+      right: 8px;
+      background: rgba(10,10,15,0.92);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+      padding: 12px 14px; min-width: 150px; max-width: 210px;
+      font-family: 'Courier New', monospace;
     }
-    #pkg-tip::after {
-      content: ''; position: absolute; left: 50%; bottom: -7px;
-      transform: translateX(-50%);
-      border: 6px solid transparent; border-bottom: none; border-top-color: #fff;
-    }
-    #pkg-tip::before {
-      content: ''; position: absolute; left: 50%; bottom: -6px;
-      transform: translateX(-50%);
-      border: 6px solid transparent; border-bottom: none; border-top-color: white;
-    }
+    #order-info.left { right: auto; left: 8px; }
   </style>
 </head>
 <body>
@@ -533,7 +526,7 @@
 
 <div id="map"></div>
 <canvas id="draw-canvas"></canvas>
-<div id="pkg-tip"></div>
+<div id="order-info"></div>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
 
@@ -1952,12 +1945,11 @@ map.on('zoomend', function() {
   }
 });
 
-map.on('move', function() { document.getElementById('pkg-tip').style.display = 'none'; });
 map.on('click', function(e) {
-  document.getElementById('pkg-tip').style.display = 'none';
   if (state.movingDestId) { executeDropMove(e.latlng); return; }
   if (selectedPkgId) {
     selectedPkgId = null;
+    hideOrderInfo();
     renderOrderMarkers();
     if (preSelView) { map.flyTo(preSelView.center, preSelView.zoom, { duration: 0.4 }); preSelView = null; }
   }
@@ -3034,22 +3026,14 @@ function renderOrderMarkers() {
     var inRangeTooHeavy = overweightRangeIds.has(p.id);
     var cfg             = WEIGHT[p.weight];
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy) }).addTo(map);
-    var tipLabel = p.item ? p.item + ' (' + cfg.label + ')' : cfg.label;
-    var tipHtml  = esc(tipLabel) + '<br>&#x2192; ' + esc(destDisplayName(dest)) + '<br>' + p.pts + ' pts' +
-      (inRangeTooHeavy ? '<br><b>CAN\'T PICK UP · TOO HEAVY</b>' : (tooheavy ? '<br>too heavy' : ''));
-    (function(pid, latlng, destLoc, marker, html) {
+    (function(pid, latlng, destLoc, pkg, destObj, marker) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
         var selecting = selectedPkgId !== pid;
         selectedPkgId = selecting ? pid : null;
         renderOrderMarkers();
         if (selecting) {
-          var pt = map.latLngToContainerPoint([latlng.lat, latlng.lng]);
-          var tip = document.getElementById('pkg-tip');
-          tip.innerHTML = html;
-          tip.style.left = pt.x + 'px';
-          tip.style.top  = pt.y + 'px';
-          tip.style.display = 'block';
+          showOrderInfo(pkg, destObj);
           preSelView = { center: map.getCenter(), zoom: map.getZoom() };
           var _topPad = ((document.getElementById('hud-top')    || {}).offsetHeight || 0) + 24;
           var _botPad = ((document.getElementById('hud-bottom') || {}).offsetHeight || 0) + 24;
@@ -3057,11 +3041,27 @@ function renderOrderMarkers() {
             L.latLngBounds([[latlng.lat, latlng.lng], [destLoc.lat, destLoc.lng]]),
             { paddingTopLeft: [24, _topPad], paddingBottomRight: [24, _botPad], duration: 0.5 }
           );
+          map.once('moveend', function() {
+            if (selectedPkgId !== pid) return;
+            var el = document.getElementById('order-info');
+            if (!el || el.style.display === 'none') return;
+            var rect = el.getBoundingClientRect();
+            var margin = 24;
+            function overlaps(pt) {
+              return pt.x >= rect.left - margin && pt.x <= rect.right + margin &&
+                     pt.y >= rect.top  - margin && pt.y <= rect.bottom + margin;
+            }
+            if (overlaps(map.latLngToContainerPoint([latlng.lat, latlng.lng])) ||
+                overlaps(map.latLngToContainerPoint([destLoc.lat, destLoc.lng]))) {
+              el.classList.add('left');
+            }
+          });
         } else {
+          hideOrderInfo();
           if (preSelView) { map.flyTo(preSelView.center, preSelView.zoom, { duration: 0.4 }); preSelView = null; }
         }
       });
-    })(p.id, p.pickupLoc, dest.loc, m, tipHtml);
+    })(p.id, p.pickupLoc, dest.loc, p, dest, m);
     orderMarkers.push(m);
   });
 
@@ -3079,6 +3079,31 @@ function renderOrderMarkers() {
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
   });
+}
+
+function showOrderInfo(pkg, dest) {
+  var el = document.getElementById('order-info');
+  if (!el) return;
+  var cfg = WEIGHT[pkg.weight];
+  var label = pkg.item ? esc(pkg.item) + ' · ' + cfg.label : cfg.label;
+  var rem = getCapacity() - currentLoad();
+  var inRange = overweightInRange().some(function(p) { return p.id === pkg.id; });
+  el.innerHTML =
+    '<div style="font-size:9px;letter-spacing:2px;color:rgba(255,255,255,0.5);margin-bottom:6px">ORDER</div>' +
+    '<div style="font-size:13px;color:#e0d8c8;line-height:1.4;margin-bottom:4px">' + label + '</div>' +
+    '<div style="font-size:11px;color:#e8a030;letter-spacing:1px;margin-bottom:4px">→ ' + esc(destDisplayName(dest)) + '</div>' +
+    '<div style="font-size:11px;color:#fff">' + pkg.pts + ' pts</div>' +
+    (inRange ? '<div style="font-size:10px;color:#c04040;margin-top:6px;letter-spacing:1px">CAN\'T PICK UP · TOO HEAVY</div>'
+             : (pkg.weight > rem ? '<div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:6px">too heavy</div>' : ''));
+  var topH = (document.getElementById('hud-top') || {}).offsetHeight || 0;
+  el.style.top = (topH + 8) + 'px';
+  el.classList.remove('left');
+  el.style.display = 'block';
+}
+
+function hideOrderInfo() {
+  var el = document.getElementById('order-info');
+  if (el) el.style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════════════════
