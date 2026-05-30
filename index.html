@@ -1031,6 +1031,7 @@ function toggleHUD() { document.getElementById('hud-bottom').classList.toggle('c
 
 const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 13 });
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+map.createPane('highlightLinePane').style.zIndex = 610;
 map.setView([20, 0], 3);
 
 // Returns a LatLng adjusted so that, when Leaflet centers on it (placing it
@@ -3079,14 +3080,14 @@ function renderOrderMarkers() {
   dropViewLines.forEach(function(info) {
     orderMarkers.push(L.polyline(
       [[info.origin.lat, info.origin.lng], [info.dest.loc.lat, info.dest.loc.lng]],
-      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false }
+      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false, pane: 'highlightLinePane' }
     ).addTo(map));
   });
   if (selectedLineInfo) {
     orderMarkers.push(L.polyline(
       [[selectedLineInfo.origin.lat, selectedLineInfo.origin.lng],
        [selectedLineInfo.dest.loc.lat, selectedLineInfo.dest.loc.lng]],
-      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false }
+      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false, pane: 'highlightLinePane' }
     ).addTo(map));
   }
 
