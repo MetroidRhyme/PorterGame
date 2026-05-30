@@ -925,16 +925,13 @@ function getDroneRange(maxW) {
   if (maxW >= 2) return 20;
   return 10;
 }
-function hexDist(a, b) {
-  var dq = a.q - b.q, dr = a.r - b.r;
-  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
-}
 function droneInRange(dest) {
   if (!state.userPos || !dest) return { ok: true };
   var maxW  = getDroneMaxWeight(getPlayerLevel());
   var range = getDroneRange(maxW);
-  var dist  = Math.round(hexDist(latLngToHex(state.userPos.lat, state.userPos.lng),
-                                  latLngToHex(dest.loc.lat, dest.loc.lng)));
+  var ah    = latLngToHex(state.userPos.lat, state.userPos.lng);
+  var bh    = latLngToHex(dest.loc.lat, dest.loc.lng);
+  var dist  = Math.round(hexDist(ah.q, ah.r, bh.q, bh.r));
   return { ok: dist <= range, dist: dist, range: range };
 }
 
