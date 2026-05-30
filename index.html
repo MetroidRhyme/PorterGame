@@ -598,6 +598,10 @@
     <div class="s-hint">Restore a personal backup (.json). Warning: restoring a backup replaces all your current data.</div>
     <button class="s-btn s-btn-danger" onclick="resetProfile()">RESET PROFILE</button>
   </div>
+
+  <div style="padding:14px 20px 20px;border-top:1px solid rgba(255,255,255,0.05);font-size:9px;color:rgba(255,255,255,0.25);letter-spacing:1px;text-align:center;line-height:2">
+    <a href="https://www.flaticon.com/free-icon/fitness_5529291" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Weight icon by Flaticon</a>
+  </div>
 </div>
 
 <div id="hud-bottom">
@@ -3369,7 +3373,7 @@ function updateCapBar() {
     html += '<div class="cap-seg' + (i < load ? ' filled' : '') + '"></div>';
   }
   document.getElementById('cap-bar-sections').innerHTML = html;
-  document.getElementById('cap-bar-label').textContent = load + '/' + cap + ' 🏋️';
+  document.getElementById('cap-bar-label').innerHTML = load + '/' + cap + '&thinsp;<img src="https://cdn-icons-png.flaticon.com/512/5529/5529291.png" style="width:10px;height:10px;filter:invert(1);opacity:0.55;vertical-align:middle">';
 }
 
 // ═══════════════════════════════════════════════════════════
