@@ -1946,6 +1946,11 @@ function renderGridCanvas() {
 
 map.on('move zoom', scheduleGridRender);
 map.on('zoomend',  renderOrderMarkers);
+map.on('zoomend', function() {
+  if (state.following && state.userPos) {
+    map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
+  }
+});
 
 map.on('move', function() { document.getElementById('pkg-tip').style.display = 'none'; });
 map.on('click', function(e) {
