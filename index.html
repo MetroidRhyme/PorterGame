@@ -489,6 +489,12 @@
     .cap-seg { width:10px; height:26px; border-radius:1px; background:rgba(255,255,255,0.06); }
     .cap-seg.filled { background:#e8a030; }
     #cap-bar-label { font-size:9px; font-family:'Courier New',monospace; color:rgba(0,0,0,0.65); letter-spacing:0.5px; white-space:nowrap; }
+    #drone-cd { display:flex; flex-direction:column; align-items:center; gap:2px; }
+    #drone-cd.locked { display:none; }
+    #drone-cd-ring { position:relative; width:24px; height:24px; }
+    #drone-cd-ring svg { display:block; }
+    #drone-cd-emoji { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1; }
+    #drone-cd-timer { font-size:8px; font-family:'Courier New',monospace; color:rgba(0,0,0,0.65); text-align:center; white-space:nowrap; min-height:10px; }
     .completion-level  { font-size: 11px; letter-spacing: 3px; color: #5ab05a; margin-top: 6px; }
     #toast {
       position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
@@ -618,6 +624,16 @@
 </div>
 
 <div id="cap-bar" class="hidden">
+  <div id="drone-cd" class="locked">
+    <div id="drone-cd-ring">
+      <svg width="24" height="24" viewBox="0 0 24 24" style="transform:rotate(-90deg)">
+        <circle cx="12" cy="12" r="9" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.12)" stroke-width="3"/>
+        <circle id="drone-cd-arc" cx="12" cy="12" r="9" fill="none" stroke="#e8a030" stroke-width="3" stroke-linecap="round" stroke-dasharray="56.55" stroke-dashoffset="0"/>
+      </svg>
+      <div id="drone-cd-emoji">🚁</div>
+    </div>
+    <div id="drone-cd-timer"></div>
+  </div>
   <div id="cap-bar-sections"></div>
   <div id="cap-bar-label"></div>
 </div>
@@ -842,6 +858,14 @@ function formatDroneCooldown(ms) {
   var h = Math.floor(ms / 3600000);
   var m = Math.round((ms % 3600000) / 60000);
   return h > 0 ? (m > 0 ? h + 'h ' + m + 'm' : h + 'h') : m + 'm';
+}
+function formatRemainTime(ms) {
+  var s = Math.ceil(ms / 1000);
+  var h = Math.floor(s / 3600); s -= h * 3600;
+  var m = Math.floor(s / 60);   s -= m * 60;
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
 }
 function getDroneStatus() {
   var level = getPlayerLevel();
@@ -3375,6 +3399,7 @@ function updateCapBar() {
   if (!bar) return;
   var hide = !!(selectedPkgId || viewingDropId);
   bar.classList.toggle('hidden', hide);
+  updateDroneCd();
   if (hide) return;
   var botH = (document.getElementById('hud-bottom') || {}).offsetHeight || 0;
   bar.style.bottom = (botH + 10) + 'px';
@@ -3386,6 +3411,47 @@ function updateCapBar() {
   document.getElementById('cap-bar-sections').innerHTML = html;
   document.getElementById('cap-bar-label').innerHTML = load + '/' + cap +
     '&thinsp;<img src="weight-icon.png" width="14" height="14" style="vertical-align:middle">';
+  updateDroneCd();
+}
+
+var _droneCdInterval = null;
+
+function updateDroneCd() {
+  var el = document.getElementById('drone-cd');
+  if (!el) return;
+  var status = getDroneStatus();
+  if (status.locked) {
+    el.classList.add('locked');
+    _stopDroneCdInterval();
+    return;
+  }
+  el.classList.remove('locked');
+  var arc   = document.getElementById('drone-cd-arc');
+  var timer = document.getElementById('drone-cd-timer');
+  var CIRC  = 56.55;
+  if (status.available) {
+    arc.setAttribute('stroke', '#e8a030');
+    arc.setAttribute('stroke-dashoffset', '0');
+    timer.textContent = '';
+    _stopDroneCdInterval();
+  } else {
+    var cdMs     = getDroneCooldownMs(getPlayerLevel());
+    var elapsed  = Date.now() - (state.droneLastUsed || 0);
+    var remainMs = Math.max(0, cdMs - elapsed);
+    var pct      = Math.min(1, elapsed / cdMs);
+    arc.setAttribute('stroke', 'rgba(0,0,0,0.18)');
+    arc.setAttribute('stroke-dashoffset', String(CIRC * (1 - pct)));
+    timer.textContent = formatRemainTime(remainMs);
+    _startDroneCdInterval();
+  }
+}
+function _startDroneCdInterval() {
+  if (_droneCdInterval) return;
+  _droneCdInterval = setInterval(updateDroneCd, 1000);
+}
+function _stopDroneCdInterval() {
+  if (!_droneCdInterval) return;
+  clearInterval(_droneCdInterval); _droneCdInterval = null;
 }
 
 // ═══════════════════════════════════════════════════════════
