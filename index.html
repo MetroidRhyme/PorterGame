@@ -298,6 +298,14 @@
       white-space: nowrap; flex-shrink: 0; margin-left: 10px;
     }
     .inv-abandon:active { color: #e05050; border-color: #802020; background: rgba(60,10,10,0.4); }
+    .inv-drone {
+      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
+      padding: 8px 10px; border-radius: 3px; cursor: pointer; min-height: 38px;
+      background: transparent; color: #e8a030; border: 1px solid #4a3000;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      white-space: nowrap; flex-shrink: 0; margin-left: 10px;
+    }
+    .inv-drone:active { color: #ffd060; border-color: #8a6000; background: rgba(60,40,0,0.3); }
 
     #secondary-btn {
       display: none; width: 100%; margin-top: 10px; padding: 14px;
@@ -2576,6 +2584,50 @@ function attemptDroneLift() {
   renderOrderMarkers(); updateHUD();
 }
 
+function droneDeliverCarried(pkgId) {
+  var pkg = state.packages.find(function(p) { return p.id === pkgId; });
+  if (!pkg) return;
+  var drSt = getDroneStatus();
+  if (!drSt.available) return;
+  var level = getPlayerLevel();
+  var maxW = getDroneMaxWeight(level);
+  if (pkg.weight > maxW) return;
+  var dest = state.destinations.find(function(d) { return d.id === pkg.destId; });
+  var halfPts = Math.floor(pkg.pts / 2);
+  var cdStr = formatDroneCooldown(getDroneCooldownMs(level));
+  if (!confirm('Drone deliver ' + (pkg.item ? pkg.item + ' · ' : '') + WEIGHT[pkg.weight].label + ' to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? This ability has a ' + cdStr + ' cooldown.')) return;
+
+  state.carrying = state.carrying.filter(function(id) { return id !== pkgId; });
+  state.packages = state.packages.filter(function(p) { return p.id !== pkgId; });
+
+  if (dest) {
+    if (!dest.contributions) dest.contributions = [];
+    var c = dest.contributions.find(function(c) { return c.userId === state.userId; });
+    if (!c) { c = { userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: 0, points: 0 }; dest.contributions.push(c); }
+    c.deliveries++;
+    c.points = (c.points || 0) + halfPts;
+    c.userName = state.playerName || 'Anonymous';
+    dest.deliveries = (dest.deliveries || 0) + 1;
+    dest.level = calcDropLevel(getDropTotalPoints(dest));
+  }
+
+  var plvlBefore = getPlayerLevel();
+  state.score += halfPts;
+  state.deliveries += 1;
+  state.droneLastUsed = Date.now();
+  localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
+  localStorage.setItem('porter_score',      state.score);
+  localStorage.setItem('porter_deliveries', state.deliveries);
+
+  if (dest) spawnPackagesForDrop(dest);
+  saveGameState();
+
+  var dmsg = '🚁 Drone delivery! +' + halfPts + ' pts';
+  if (getPlayerLevel() > plvlBefore) dmsg += ' · LEVEL UP LV ' + getPlayerLevel();
+  showToast(dmsg, 4000);
+  renderOrderMarkers(); updateHUD();
+}
+
 function abandonPackage(id) {
   var p = state.packages.find(function(p) { return p.id === id; });
   if (!p) return;
@@ -3420,18 +3472,24 @@ function updateHUD() {
 
   // ── INVENTORY ────────────────────────────────────────────
   if (state.carrying.length > 0) {
-    var invEl = document.getElementById('inventory');
+    var invEl   = document.getElementById('inventory');
+    var _drSt   = getDroneStatus();
+    var _drMaxW = getDroneMaxWeight(getPlayerLevel());
     invEl.innerHTML = state.carrying.map(function(id) {
       var p    = state.packages.find(function(p) { return p.id === id; });
       if (!p) return '';
       var dest = state.destinations.find(function(d) { return d.id === p.destId; });
       var wcfg = WEIGHT[p.weight];
+      var droneBtn = (!_drSt.locked && _drSt.available && p.weight <= _drMaxW)
+        ? '<button class="inv-drone" onclick="droneDeliverCarried(\'' + id + '\')">DRONE</button>'
+        : '';
       return '<div class="inv-row">' +
         '<div class="inv-info">' +
           '<div class="inv-label">' + (p.item ? esc(p.item) + ' · ' : '') + wcfg.label + ' &rarr; ' + esc(destDisplayName(dest)).toUpperCase() + '</div>' +
-          '<div class="inv-sub">' + p.pts + ' PTS</div>' +
+          '<div class="inv-sub">' + p.pts + ' PTS &nbsp;·&nbsp; ' + Math.floor(p.pts / 2) + ' DRONE</div>' +
         '</div>' +
-        '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button>' +
+        '<div style="display:flex;gap:0">' + droneBtn +
+        '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button></div>' +
         '</div>';
     }).join('');
     invEl.style.display = 'block';
