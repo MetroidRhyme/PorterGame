@@ -1127,7 +1127,8 @@ function toggleHUD() {
 
 const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 13 });
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-map.createPane('highlightLinePane').style.zIndex = 610;
+map.createPane('highlightLinePane').style.zIndex   = 610;
+map.createPane('highlightMarkerPane').style.zIndex = 620;
 map.setView([20, 0], 3);
 
 // Returns a LatLng adjusted so that, when Leaflet centers on it (placing it
@@ -3263,10 +3264,13 @@ function renderOrderMarkers() {
     var inRangeTooHeavy = overweightRangeIds.has(p.id);
     var isDropViewPkg   = !!(viewingDropId && p.destId === viewingDropId);
     var cfg             = WEIGHT[p.weight];
-    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy, isDropViewPkg) }).addTo(map);
+    var isFocusedPkg = (selectedPkgId && p.id === selectedPkgId) || (viewingDropId && isDropViewPkg);
+    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], {
+      icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy, isDropViewPkg),
+      pane: isFocusedPkg ? 'highlightMarkerPane' : 'markerPane'
+    }).addTo(map);
     if (selectedPkgId && p.id !== selectedPkgId) m.setOpacity(0.5);
     else if (viewingDropId && !isDropViewPkg) m.setOpacity(0.5);
-    if ((selectedPkgId && p.id === selectedPkgId) || (viewingDropId && isDropViewPkg)) m.setZIndexOffset(1000);
     (function(pid, latlng, destLoc, pkg, destObj, marker) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
@@ -3316,10 +3320,13 @@ function renderOrderMarkers() {
     var isNext = !orphaned && deliverable && deliverable.id === d.id;
     var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
     var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId) ? '#ffd060' : null;
-    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder) }).addTo(map);
+    var isFocusedDest = (selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId);
+    var m = L.marker([d.loc.lat, d.loc.lng], {
+      icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder),
+      pane: isFocusedDest ? 'highlightMarkerPane' : 'markerPane'
+    }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
     else if (viewingDropId && d.id !== viewingDropId) m.setOpacity(0.5);
-    if ((selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId)) m.setZIndexOffset(1000);
     var tip = destDisplayName(d) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
