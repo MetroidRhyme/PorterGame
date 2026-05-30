@@ -928,6 +928,78 @@ function droneInRange(dest) {
                                   latLngToHex(dest.loc.lat, dest.loc.lng)));
   return { ok: dist <= range, dist: dist, range: range };
 }
+
+function launchDrone(startLat, startLng, dest, halfPts) {
+  var destLat = dest.loc.lat, destLng = dest.loc.lng;
+  var dlat = (destLat - startLat) * 111111;
+  var dlng = (destLng - startLng) * 111111 * Math.cos(startLat * Math.PI / 180);
+  var distM = Math.sqrt(dlat * dlat + dlng * dlng);
+  var durationMs = Math.max(2000, (distM / 0.5) * 1000);
+  var sz = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
+  var mk = L.marker([startLat, startLng], {
+    icon: makeIcon('#1a3050', '🚁', sz),
+    zIndexOffset: 900
+  }).addTo(map);
+  activeDroneMarkers.push({
+    marker: mk, destId: dest.id, halfPts: halfPts,
+    startLat: startLat, startLng: startLng,
+    destLat: destLat, destLng: destLng,
+    startTime: Date.now(), durationMs: durationMs
+  });
+  if (!_droneAnimInterval) {
+    _droneAnimInterval = setInterval(animateDrones, 50);
+  }
+  showToast('🚁 Drone en route (~' + Math.round(durationMs / 1000) + 's)', 3000);
+}
+
+function animateDrones() {
+  var now = Date.now();
+  var remaining = [];
+  activeDroneMarkers.forEach(function(drone) {
+    var t = Math.min(1, (now - drone.startTime) / drone.durationMs);
+    drone.marker.setLatLng([
+      drone.startLat + (drone.destLat - drone.startLat) * t,
+      drone.startLng + (drone.destLng - drone.startLng) * t
+    ]);
+    if (t >= 1) {
+      map.removeLayer(drone.marker);
+      completeDroneDelivery(drone);
+    } else {
+      remaining.push(drone);
+    }
+  });
+  activeDroneMarkers = remaining;
+  if (!activeDroneMarkers.length) {
+    clearInterval(_droneAnimInterval);
+    _droneAnimInterval = null;
+  }
+}
+
+function completeDroneDelivery(drone) {
+  var dest = state.destinations.find(function(d) { return d.id === drone.destId; });
+  if (dest) {
+    if (!dest.contributions) dest.contributions = [];
+    var c = dest.contributions.find(function(c) { return c.userId === state.userId; });
+    if (!c) { c = { userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: 0, points: 0 }; dest.contributions.push(c); }
+    c.deliveries++;
+    c.points = (c.points || 0) + drone.halfPts;
+    c.userName = state.playerName || 'Anonymous';
+    dest.deliveries = (dest.deliveries || 0) + 1;
+    dest.level = calcDropLevel(getDropTotalPoints(dest));
+  }
+  var plvlBefore = getPlayerLevel();
+  state.score += drone.halfPts;
+  state.deliveries += 1;
+  localStorage.setItem('porter_score', state.score);
+  localStorage.setItem('porter_deliveries', state.deliveries);
+  if (dest) spawnPackagesForDrop(dest);
+  saveGameState();
+  var msg = '🚁 Drone delivered! +' + drone.halfPts + ' pts';
+  if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel();
+  showToast(msg, 4000);
+  renderOrderMarkers(); updateHUD();
+}
+
 function updateDroneStatus() {
   var el = document.getElementById('drone-status');
   if (!el) return;
@@ -1224,6 +1296,8 @@ var preDropView   = null;
 let zoneMarkers   = [];
 let _userIconPx   = 0;
 let _lastRenderSig = '';
+let activeDroneMarkers = [];
+let _droneAnimInterval = null;
 
 // ═══════════════════════════════════════════════════════════
 //  GPS
@@ -2588,31 +2662,10 @@ function attemptDroneLift() {
 
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
 
-  if (dest) {
-    if (!dest.contributions) dest.contributions = [];
-    var c = dest.contributions.find(function(c) { return c.userId === state.userId; });
-    if (!c) { c = { userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: 0, points: 0 }; dest.contributions.push(c); }
-    c.deliveries++;
-    c.points = (c.points || 0) + halfPts;
-    c.userName = state.playerName || 'Anonymous';
-    dest.deliveries = (dest.deliveries || 0) + 1;
-    dest.level = calcDropLevel(getDropTotalPoints(dest));
-  }
-
-  var plvlBefore = getPlayerLevel();
-  state.score += halfPts;
-  state.deliveries += 1;
   state.droneLastUsed = Date.now();
   localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
-  localStorage.setItem('porter_score',      state.score);
-  localStorage.setItem('porter_deliveries', state.deliveries);
-
-  if (dest) spawnPackagesForDrop(dest);
   saveGameState();
-
-  var msg = '🚁 Drone delivery! +' + halfPts + ' pts';
-  if (getPlayerLevel() > plvlBefore) msg += ' · LEVEL UP LV ' + getPlayerLevel();
-  showToast(msg, 4000);
+  launchDrone(pkg.pickupLoc.lat, pkg.pickupLoc.lng, dest, halfPts);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -2634,31 +2687,11 @@ function droneDeliverCarried(pkgId) {
   state.carrying = state.carrying.filter(function(id) { return id !== pkgId; });
   state.packages = state.packages.filter(function(p) { return p.id !== pkgId; });
 
-  if (dest) {
-    if (!dest.contributions) dest.contributions = [];
-    var c = dest.contributions.find(function(c) { return c.userId === state.userId; });
-    if (!c) { c = { userId: state.userId, userName: state.playerName || 'Anonymous', deliveries: 0, points: 0 }; dest.contributions.push(c); }
-    c.deliveries++;
-    c.points = (c.points || 0) + halfPts;
-    c.userName = state.playerName || 'Anonymous';
-    dest.deliveries = (dest.deliveries || 0) + 1;
-    dest.level = calcDropLevel(getDropTotalPoints(dest));
-  }
-
-  var plvlBefore = getPlayerLevel();
-  state.score += halfPts;
-  state.deliveries += 1;
   state.droneLastUsed = Date.now();
   localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
-  localStorage.setItem('porter_score',      state.score);
-  localStorage.setItem('porter_deliveries', state.deliveries);
-
-  if (dest) spawnPackagesForDrop(dest);
   saveGameState();
-
-  var dmsg = '🚁 Drone delivery! +' + halfPts + ' pts';
-  if (getPlayerLevel() > plvlBefore) dmsg += ' · LEVEL UP LV ' + getPlayerLevel();
-  showToast(dmsg, 4000);
+  var startPos = state.userPos || pkg.pickupLoc;
+  launchDrone(startPos.lat, startPos.lng, dest, halfPts);
   renderOrderMarkers(); updateHUD();
 }
 
