@@ -2073,13 +2073,18 @@ function pointInPolygon(pt, polygon) {
   return inside;
 }
 
-function randomPointInZone(zone, occupied, excludeNear) {
+function randomPointInZone(zone, occupied, excludeNear, avoidHexes, avoidDist) {
   occupied = occupied || new Set();
+  function tooClose(q, r) {
+    if (!avoidHexes || !avoidHexes.length) return false;
+    return avoidHexes.some(function(h) { return hexDist(q, r, h.q, h.r) < avoidDist; });
+  }
   if (zone.cells && zone.cells.length) {
     var free = zone.cells.filter(function(c) {
       if (occupied.has(hexKey(c.q, c.r))) return false;
       if (!canPlaceOrder(c.q, c.r, occupied)) return false;
       if (excludeNear && hexDist(c.q, c.r, excludeNear.q, excludeNear.r) < 2) return false;
+      if (tooClose(c.q, c.r)) return false;
       return true;
     });
     if (!free.length) return null;
@@ -2099,8 +2104,10 @@ function randomPointInZone(zone, occupied, excludeNear) {
       var h = latLngToHex(lat, lng), hk = hexKey(h.q, h.r);
       if (!occupied.has(hk) && canPlaceOrder(h.q, h.r, occupied)) {
         if (!excludeNear || hexDist(h.q, h.r, excludeNear.q, excludeNear.r) >= 2) {
-          occupied.add(hk);
-          return hexCenter(h.q, h.r);
+          if (!tooClose(h.q, h.r)) {
+            occupied.add(hk);
+            return hexCenter(h.q, h.r);
+          }
         }
       }
     }
@@ -2123,12 +2130,14 @@ function orderCounts(activeZones) {
 
 function spawnOrders(active, needDests, needPkgs, occupied) {
   var weightPool = WEIGHT_POOL;
+  var dropHexes = state.destinations.map(function(d) { return latLngToHex(d.loc.lat, d.loc.lng); });
   for (var i = 0; i < needDests; i++) {
     var dz = active[Math.floor(Math.random() * active.length)];
-    var pt = randomPointInZone(dz, occupied);
+    var pt = randomPointInZone(dz, occupied, null, dropHexes, 5);
     if (!pt) continue;
     var hd = latLngToHex(pt.lat, pt.lng);
     occupied.add(hexKey(hd.q, hd.r));
+    dropHexes.push(hd);
     state.destinations.push(makeDrop(pt));
   }
   if (!state.destinations.length) return false;
@@ -2148,6 +2157,7 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
 }
 
 function ensureMinDestPerZone(active, occupied) {
+  var dropHexes = state.destinations.map(function(d) { return latLngToHex(d.loc.lat, d.loc.lng); });
   active.forEach(function(zone) {
     if (!zone.cells || !zone.cells.length) return;
     var zoneKeys = new Set(zone.cells.map(function(c) { return hexKey(c.q, c.r); }));
@@ -2156,10 +2166,11 @@ function ensureMinDestPerZone(active, occupied) {
       return zoneKeys.has(hexKey(h.q, h.r));
     });
     if (hasDest) return;
-    var pt = randomPointInZone(zone, occupied);
+    var pt = randomPointInZone(zone, occupied, null, dropHexes, 5);
     if (!pt) return;
     var hd = latLngToHex(pt.lat, pt.lng);
     occupied.add(hexKey(hd.q, hd.r));
+    dropHexes.push(hd);
     state.destinations.push(makeDrop(pt));
   });
 }
