@@ -275,7 +275,8 @@
     }
     #hud-bottom.collapsed #collapsible-hud { max-height: 0; opacity: 0; }
 
-    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #bbb; margin-bottom: 5px; }
+    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #bbb; margin-bottom: 4px; }
+    #drone-status     { font-size: 10px; letter-spacing: 2px; color: #555; margin-bottom: 6px; display: none; }
     #mission-detail   { font-size: 14px; color: #c8b8a0; line-height: 1.5; }
     #mission-distance { font-size: 11px; color: #6ab06a; margin-top: 5px; min-height: 16px; }
 
@@ -601,6 +602,7 @@
   <button id="hud-collapse-btn" onclick="toggleHUD()" aria-label="Toggle panel"></button>
   <div id="collapsible-hud">
     <div id="mission-status">STANDBY</div>
+    <div id="drone-status"></div>
     <div id="mission-detail">Acquiring GPS lock…</div>
     <div id="mission-distance"></div>
     <div id="inventory"></div>
@@ -768,13 +770,13 @@ const DROP_LAST_NAMES = [
 
 const PLAYER_UPGRADES = [
   { level: 10, text: 'Carry capacity +1 (4U)' },
-  { level: 15, text: 'Drone ability unlocked (3h cooldown)' },
+  { level: 15, text: 'Drone ability unlocked (3h cooldown · light packages only)' },
   { level: 20, text: 'Carry capacity +1 (5U)' },
-  { level: 25, text: 'Drone cooldown → 2h' },
+  { level: 25, text: 'Drone cooldown → 2h · standard & lighter packages' },
   { level: 30, text: 'Carry capacity +1 (6U)' },
-  { level: 35, text: 'Drone cooldown → 1h' },
+  { level: 35, text: 'Drone cooldown → 1h · all package weights' },
   { level: 40, text: 'Carry capacity +1 (7U)' },
-  { level: 45, text: 'Drone cooldown → 30m' },
+  { level: 45, text: 'Drone cooldown → 30m · all package weights' },
   { level: 50, text: 'Carry capacity +1 (8U) · MAX LEVEL' },
 ];
 
@@ -836,6 +838,28 @@ function getDroneStatus() {
   var elapsed = Date.now() - (state.droneLastUsed || 0);
   if (elapsed >= cdMs) return { available: true };
   return { available: false, locked: false, remainStr: formatDroneCooldown(cdMs - elapsed) };
+}
+function getDroneMaxWeight(level) {
+  if (level >= 35) return 3;
+  if (level >= 25) return 2;
+  return 1;
+}
+function updateDroneStatus() {
+  var el = document.getElementById('drone-status');
+  if (!el) return;
+  var level = getPlayerLevel();
+  if (level < 15) { el.style.display = 'none'; return; }
+  var drSt = getDroneStatus();
+  var maxW = getDroneMaxWeight(level);
+  var wLabel = maxW === 1 ? 'LIGHT ONLY' : maxW === 2 ? 'STANDARD & LIGHTER' : 'ALL WEIGHTS';
+  el.style.display = 'block';
+  if (drSt.available) {
+    el.textContent = '🚁 DRONE READY · ' + wLabel;
+    el.style.color = '#6aaa6a';
+  } else {
+    el.textContent = '🚁 DRONE · ' + drSt.remainStr + ' · ' + wLabel;
+    el.style.color = '#555';
+  }
 }
 
 function nextDropLabel() {
@@ -2407,9 +2431,15 @@ function attemptDroneLift() {
   if (!pkg) return;
   var drSt = getDroneStatus();
   if (!drSt.available) return;
+  var level = getPlayerLevel();
+  var maxW = getDroneMaxWeight(level);
+  if (pkg.weight > maxW) {
+    showToast('Drone can only carry ' + (maxW === 1 ? 'light' : 'standard & lighter') + ' packages at this tier');
+    return;
+  }
   var dest = state.destinations.find(function(d) { return d.id === pkg.destId; });
   var halfPts = Math.floor(pkg.pts / 2);
-  var cdStr = formatDroneCooldown(getDroneCooldownMs(getPlayerLevel()));
+  var cdStr = formatDroneCooldown(getDroneCooldownMs(level));
   if (!confirm('Drone lift to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? This ability has a ' + cdStr + ' cooldown.')) return;
 
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
@@ -3059,6 +3089,7 @@ function updateHUD() {
   // ── ACTIVE GAMEPLAY ───────────────────────────────────────
   var load = currentLoad(), cap = getCapacity();
   statusEl.textContent = 'LOAD ' + load + ' / ' + cap;
+  updateDroneStatus();
 
   var carrying  = state.carrying.length;
   var available = state.packages.filter(function(p) { return !p.picked; }).length;
@@ -3080,10 +3111,19 @@ function updateHUD() {
     btn.className = 'pickup ready'; btn.textContent = 'PICK UP PACKAGE'; btn.onclick = attemptPickup;
     var drSt = getDroneStatus();
     if (!drSt.locked) {
+      var maxW = getDroneMaxWeight(getPlayerLevel());
+      var tooHeavy = pickable.weight > maxW;
+      var canUse = drSt.available && !tooHeavy;
       secBtn.style.display = 'block';
-      secBtn.disabled = !drSt.available;
-      secBtn.onclick = drSt.available ? attemptDroneLift : null;
-      secBtn.textContent = drSt.available ? '🚁 DRONE LIFT' : '🚁 DRONE LIFT  (ready in ' + drSt.remainStr + ')';
+      secBtn.disabled = !canUse;
+      secBtn.onclick = canUse ? attemptDroneLift : null;
+      if (!drSt.available) {
+        secBtn.textContent = '🚁 DRONE LIFT  (ready in ' + drSt.remainStr + ')';
+      } else if (tooHeavy) {
+        secBtn.textContent = '🚁 DRONE LIFT  (' + (maxW === 1 ? 'light only' : 'standard & lighter only') + ')';
+      } else {
+        secBtn.textContent = '🚁 DRONE LIFT';
+      }
     }
   } else if (load >= cap && overweightInRange().length > 0) {
     detailEl.textContent = 'At capacity — deliver first, or find a lighter box.';
@@ -3256,6 +3296,7 @@ if (pruneEmptyDrops()) saveGameState();
 
 initDrawCanvas();
 updateHUD();
+setInterval(updateDroneStatus, 30000);
 if (!localStorage.getItem('porter_onboarded')) { obStep = 0; renderOnboardingStep(); }
 </script>
 </body>
