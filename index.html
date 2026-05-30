@@ -3319,7 +3319,7 @@ function updateHUD() {
     var _segs = '';
     for (var _i = 0; _i < cap; _i++) _segs += '<div class="cap-hbar-seg' + (_i < load ? ' filled' : '') + '"></div>';
     capStatusEl.innerHTML = '<div class="cap-hbar"><div class="cap-hbar-segs">' + _segs + '</div>' +
-      '<div class="cap-hbar-info">' + load + ' / ' + cap + '<img src="weight-icon.png" width="12" height="12" style="vertical-align:middle;opacity:0.8"></div></div>';
+      '<div class="cap-hbar-info">' + load + ' / ' + cap + '<img src="weight-icon.png" width="12" height="12" style="vertical-align:middle;filter:invert(1);opacity:0.8"></div></div>';
     capStatusEl.style.display = 'block';
   }
   updateDroneStatus();
