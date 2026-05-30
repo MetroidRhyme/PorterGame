@@ -1792,21 +1792,9 @@ function hexDist(q1, r1, q2, r2) {
   return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
 }
 
-// Returns false if placing an order at (q,r) would give (q,r) or any
-// existing order-neighbor more than 1 adjacent order.
+// Returns false if any neighbour of (q,r) is already in orderSet (orders or drops).
 function canPlaceOrder(q, r, orderSet) {
-  var nbrs = HEX_DIRS.filter(function(d) { return orderSet.has(hexKey(q + d.q, r + d.r)); });
-  if (nbrs.length > 1) return false;
-  if (nbrs.length === 1) {
-    var nq = q + nbrs[0].q, nr = r + nbrs[0].r;
-    var nk = hexKey(q, r);
-    var conflict = HEX_DIRS.some(function(d) {
-      var k = hexKey(nq + d.q, nr + d.r);
-      return orderSet.has(k) && k !== nk;
-    });
-    if (conflict) return false;
-  }
-  return true;
+  return HEX_DIRS.every(function(d) { return !orderSet.has(hexKey(q + d.q, r + d.r)); });
 }
 
 function hexVerticesPx(q, r) {
@@ -2082,7 +2070,6 @@ function randomPointInZone(zone, occupied, excludeNear, avoidHexes, avoidDist) {
   if (zone.cells && zone.cells.length) {
     var free = zone.cells.filter(function(c) {
       if (occupied.has(hexKey(c.q, c.r))) return false;
-      if (!canPlaceOrder(c.q, c.r, occupied)) return false;
       if (excludeNear && hexDist(c.q, c.r, excludeNear.q, excludeNear.r) < 2) return false;
       if (tooClose(c.q, c.r)) return false;
       return true;
@@ -2102,7 +2089,7 @@ function randomPointInZone(zone, occupied, excludeNear, avoidHexes, avoidDist) {
     var lng = minLng + Math.random() * (maxLng - minLng);
     if (pointInPolygon({ lat: lat, lng: lng }, poly)) {
       var h = latLngToHex(lat, lng), hk = hexKey(h.q, h.r);
-      if (!occupied.has(hk) && canPlaceOrder(h.q, h.r, occupied)) {
+      if (!occupied.has(hk)) {
         if (!excludeNear || hexDist(h.q, h.r, excludeNear.q, excludeNear.r) >= 2) {
           if (!tooClose(h.q, h.r)) {
             occupied.add(hk);
@@ -2128,8 +2115,55 @@ function orderCounts(activeZones) {
   return { pkgs: pkgs, dests: dests };
 }
 
-function spawnOrders(active, needDests, needPkgs, occupied) {
+function spawnPackagesForDropBanded(dest, active, occupied) {
+  if (isDropOrphaned(dest)) return;
+  var dh = latLngToHex(dest.loc.lat, dest.loc.lng);
+
+  var allCells = [];
+  active.forEach(function(z) { if (z.cells) allCells = allCells.concat(z.cells); });
+  if (!allCells.length) return;
+
+  var maxDist = 0;
+  allCells.forEach(function(c) {
+    var d = hexDist(dh.q, dh.r, c.q, c.r);
+    if (d > maxDist) maxDist = d;
+  });
+  if (maxDist === 0) return;
+
+  var existingBands = new Set();
+  state.packages.forEach(function(p) {
+    if (p.destId !== dest.id) return;
+    var ph = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+    var d = hexDist(dh.q, dh.r, ph.q, ph.r);
+    if (d <= maxDist * 0.33) existingBands.add(0);
+    else if (d <= maxDist * 0.66) existingBands.add(1);
+    else existingBands.add(2);
+  });
+
+  var bands = [
+    function(d) { return d <= maxDist * 0.33; },
+    function(d) { return d > maxDist * 0.33 && d <= maxDist * 0.66; },
+    function(d) { return d > maxDist * 0.66; }
+  ];
   var weightPool = WEIGHT_POOL;
+
+  bands.forEach(function(inBand, idx) {
+    if (existingBands.has(idx)) return;
+    var eligible = allCells.filter(function(c) {
+      if (!inBand(hexDist(dh.q, dh.r, c.q, c.r))) return false;
+      if (occupied.has(hexKey(c.q, c.r))) return false;
+      if (!canPlaceOrder(c.q, c.r, occupied)) return false;
+      return true;
+    });
+    if (!eligible.length) return;
+    var c = eligible[Math.floor(Math.random() * eligible.length)];
+    occupied.add(hexKey(c.q, c.r));
+    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
+    state.packages.push(makePackageOrder(hexCenter(c.q, c.r), dest, weight));
+  });
+}
+
+function spawnOrders(active, needDests, needPkgs, occupied) {
   var dropHexes = state.destinations.map(function(d) { return latLngToHex(d.loc.lat, d.loc.lng); });
   for (var i = 0; i < needDests; i++) {
     var dz = active[Math.floor(Math.random() * active.length)];
@@ -2144,15 +2178,7 @@ function spawnOrders(active, needDests, needPkgs, occupied) {
 
   var allDests = state.destinations.filter(function(d) { return !isDropOrphaned(d); });
   if (!allDests.length) return false;
-  for (var j = 0; j < needPkgs; j++) {
-    var dest = allDests[j % allDests.length];
-    var dh   = latLngToHex(dest.loc.lat, dest.loc.lng);
-    var pz   = active[Math.floor(Math.random() * active.length)];
-    var pt2  = randomPointInZone(pz, occupied, dh);
-    if (!pt2) continue;
-    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
-    state.packages.push(makePackageOrder(pt2, dest, weight));
-  }
+  allDests.forEach(function(dest) { spawnPackagesForDropBanded(dest, active, occupied); });
   return true;
 }
 
@@ -2330,21 +2356,9 @@ function pruneEmptyDrops() {
 }
 
 function spawnPackagesForDrop(dest) {
-  if (isDropOrphaned(dest)) return;
   var active = getActiveZones();
   if (!active.length) return;
-  var occupied = buildOccupiedSet();
-  var weightPool = WEIGHT_POOL;
-  var count = 1 + (Math.random() < 0.4 ? 1 : 0);
-  for (var i = 0; i < count; i++) {
-    var pz  = active[Math.floor(Math.random() * active.length)];
-    var pt  = randomPointInZone(pz, occupied);
-    if (!pt) continue;
-    var h = latLngToHex(pt.lat, pt.lng);
-    occupied.add(hexKey(h.q, h.r));
-    var weight = weightPool[Math.floor(Math.random() * weightPool.length)];
-    state.packages.push(makePackageOrder(pt, dest, weight));
-  }
+  spawnPackagesForDropBanded(dest, active, buildOccupiedSet());
 }
 
 function attemptDeliver() {
