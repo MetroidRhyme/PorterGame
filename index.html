@@ -728,7 +728,7 @@ const state = {
   droneLastUsed: parseInt(localStorage.getItem('porter_drone_last_used') || '0'),
 };
 
-const PROXIMITY_M   = 20;
+const PROXIMITY_M   = 30;
 const CELL_LAT_DEG  = 20 / 111111;
 var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 var   gridOffsetLat = parseFloat(localStorage.getItem('porter_grid_lat')) || 0;
