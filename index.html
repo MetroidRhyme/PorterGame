@@ -489,12 +489,16 @@
     .cap-seg { width:10px; height:26px; border-radius:1px; background:rgba(255,255,255,0.06); }
     .cap-seg.filled { background:#e8a030; }
     #cap-bar-label { font-size:9px; font-family:'Courier New',monospace; color:rgba(0,0,0,0.65); letter-spacing:0.5px; white-space:nowrap; }
-    #cap-status { display:none; margin-bottom:8px; }
-    .cap-hbar { display:flex; align-items:center; gap:8px; }
-    .cap-hbar-segs { display:flex; gap:2px; }
-    .cap-hbar-seg { height:6px; width:18px; border-radius:2px; background:rgba(255,255,255,0.12); }
-    .cap-hbar-seg.filled { background:#e8a030; }
-    .cap-hbar-info { font-size:11px; color:#e0d8c8; letter-spacing:1px; display:flex; align-items:center; gap:5px; }
+    #cap-status { display:none; margin-bottom:4px; }
+    #drone-status { margin-bottom:8px; }
+    .status-row { display:flex; align-items:center; gap:8px; }
+    .status-icon-cell { width:16px; height:16px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+    .status-bar-track { height:5px; background:rgba(255,255,255,0.12); border-radius:3px; overflow:hidden; width:100%; }
+    .status-bar-fill { height:100%; background:#e8a030; border-radius:3px; }
+    .status-value { font-size:11px; color:#e0d8c8; letter-spacing:1px; white-space:nowrap; flex-shrink:0; }
+    .status-col { flex:1; display:flex; flex-direction:column; gap:3px; }
+    .status-sub-text { font-size:10px; color:rgba(255,255,255,0.6); letter-spacing:1px; }
+    .status-sub-note { font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; }
     #drone-cd { display:flex; flex-direction:column; align-items:center; gap:2px; }
     #drone-cd.locked { display:none; }
     #drone-cd-ring { position:relative; width:24px; height:24px; }
@@ -892,17 +896,26 @@ function updateDroneStatus() {
   if (!el) return;
   var level = getPlayerLevel();
   if (level < 15) { el.style.display = 'none'; return; }
-  var drSt = getDroneStatus();
-  var maxW = getDroneMaxWeight(level);
-  var wLabel = maxW === 1 ? 'LIGHT ONLY' : maxW === 2 ? 'STANDARD & LIGHTER' : 'ALL WEIGHTS';
+  var drSt   = getDroneStatus();
+  var maxW   = getDroneMaxWeight(level);
+  var wLabel = maxW === 1 ? 'LIGHT ONLY' : maxW === 2 ? 'STD & LIGHTER' : 'ALL WEIGHTS';
+  var cdMs   = getDroneCooldownMs(level);
+  var elapsed = Date.now() - (state.droneLastUsed || 0);
+  var barPct  = drSt.available ? 100 : Math.min(99, Math.round(elapsed / cdMs * 100));
+  var barColor = drSt.available ? '#6aaa6a' : '#e8a030';
+  var subText  = drSt.available
+    ? '<div class="status-sub-text" style="color:#6aaa6a">READY</div>'
+    : '<div class="status-sub-text">' + formatRemainTime(cdMs - elapsed) + '</div>';
+  el.innerHTML =
+    '<div class="status-row" style="align-items:flex-start">' +
+      '<div class="status-icon-cell" style="font-size:14px;padding-top:1px">🚁</div>' +
+      '<div class="status-col">' +
+        '<div class="status-bar-track"><div class="status-bar-fill" style="width:' + barPct + '%;background:' + barColor + '"></div></div>' +
+        subText +
+        '<div class="status-sub-note">' + wLabel + '</div>' +
+      '</div>' +
+    '</div>';
   el.style.display = 'block';
-  if (drSt.available) {
-    el.textContent = '🚁 DRONE READY · ' + wLabel;
-    el.style.color = '#6aaa6a';
-  } else {
-    el.textContent = '🚁 DRONE · ' + drSt.remainStr + ' · ' + wLabel;
-    el.style.color = '#fff';
-  }
 }
 
 function nextDropLabel() {
@@ -3316,10 +3329,13 @@ function updateHUD() {
   statusEl.textContent = '';
   var capStatusEl = document.getElementById('cap-status');
   if (capStatusEl) {
-    var _segs = '';
-    for (var _i = 0; _i < cap; _i++) _segs += '<div class="cap-hbar-seg' + (_i < load ? ' filled' : '') + '"></div>';
-    capStatusEl.innerHTML = '<div class="cap-hbar"><div class="cap-hbar-segs">' + _segs + '</div>' +
-      '<div class="cap-hbar-info">' + load + ' / ' + cap + '<img src="weight-icon.png" width="12" height="12" style="vertical-align:middle;filter:invert(1);opacity:0.8"></div></div>';
+    var _pct = cap > 0 ? Math.round(load / cap * 100) : 0;
+    capStatusEl.innerHTML =
+      '<div class="status-row">' +
+        '<div class="status-icon-cell"><img src="weight-icon.png" width="14" height="14" style="filter:invert(1);opacity:0.75;vertical-align:middle"></div>' +
+        '<div class="status-bar-track" style="flex:1"><div class="status-bar-fill" style="width:' + _pct + '%"></div></div>' +
+        '<div class="status-value">' + load + ' / ' + cap + '</div>' +
+      '</div>';
     capStatusEl.style.display = 'block';
   }
   updateDroneStatus();
@@ -3467,7 +3483,7 @@ function updateDroneCd() {
 }
 function _startDroneCdInterval() {
   if (_droneCdInterval) return;
-  _droneCdInterval = setInterval(updateDroneCd, 1000);
+  _droneCdInterval = setInterval(function() { updateDroneCd(); updateDroneStatus(); }, 1000);
 }
 function _stopDroneCdInterval() {
   if (!_droneCdInterval) return;
