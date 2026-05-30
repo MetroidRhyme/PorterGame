@@ -940,14 +940,18 @@ function launchDrone(startLat, startLng, dest, halfPts) {
   var dlat = (destLat - startLat) * 111111;
   var dlng = (destLng - startLng) * 111111 * Math.cos(startLat * Math.PI / 180);
   var distM = Math.sqrt(dlat * dlat + dlng * dlng);
-  var durationMs = Math.max(2000, (distM / 0.5) * 1000);
+  var durationMs = Math.max(500, (distM / 2) * 1000);
   var sz = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
   var mk = L.marker([startLat, startLng], {
     icon: makeIcon('#1a3050', '🚁', sz),
     zIndexOffset: 900
   }).addTo(map);
+  var ln = L.polyline(
+    [[startLat, startLng], [destLat, destLng]],
+    { color: '#3080c0', weight: 1.5, opacity: 0.75, dashArray: '4 8', lineCap: 'round', interactive: false }
+  ).addTo(map);
   activeDroneMarkers.push({
-    marker: mk, destId: dest.id, halfPts: halfPts,
+    marker: mk, line: ln, destId: dest.id, halfPts: halfPts,
     startLat: startLat, startLng: startLng,
     destLat: destLat, destLng: destLng,
     startTime: Date.now(), durationMs: durationMs
@@ -963,12 +967,13 @@ function animateDrones() {
   var remaining = [];
   activeDroneMarkers.forEach(function(drone) {
     var t = Math.min(1, (now - drone.startTime) / drone.durationMs);
-    drone.marker.setLatLng([
-      drone.startLat + (drone.destLat - drone.startLat) * t,
-      drone.startLng + (drone.destLng - drone.startLng) * t
-    ]);
+    var lat = drone.startLat + (drone.destLat - drone.startLat) * t;
+    var lng = drone.startLng + (drone.destLng - drone.startLng) * t;
+    drone.marker.setLatLng([lat, lng]);
+    drone.line.setLatLngs([[lat, lng], [drone.destLat, drone.destLng]]);
     if (t >= 1) {
       map.removeLayer(drone.marker);
+      map.removeLayer(drone.line);
       completeDroneDelivery(drone);
     } else {
       remaining.push(drone);
