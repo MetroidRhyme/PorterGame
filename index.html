@@ -3158,7 +3158,7 @@ function renderOrderMarkers() {
     orderMarkers.push(m);
   });
   var _cb = document.getElementById('cap-bar');
-  if (_cb) _cb.classList.toggle('hidden', !!(selectedPkgId || viewingDropId) || !!state.drawing || state.phase === 'no_gps');
+  if (_cb) _cb.classList.toggle('hidden', !!(selectedPkgId || viewingDropId));
 }
 
 function showOrderInfo(pkg, dest) {
@@ -3355,7 +3355,7 @@ function updateHUD() {
 function updateCapBar() {
   var bar = document.getElementById('cap-bar');
   if (!bar) return;
-  var hide = !!(selectedPkgId || viewingDropId) || !!state.drawing || state.phase === 'no_gps';
+  var hide = !!(selectedPkgId || viewingDropId);
   bar.classList.toggle('hidden', hide);
   if (hide) return;
   var botH = (document.getElementById('hud-bottom') || {}).offsetHeight || 0;
@@ -3366,7 +3366,7 @@ function updateCapBar() {
     html += '<div class="cap-seg' + (i < load ? ' filled' : '') + '"></div>';
   }
   document.getElementById('cap-bar-sections').innerHTML = html;
-  document.getElementById('cap-bar-label').textContent = load + '/' + cap + ' ⚖️';
+  document.getElementById('cap-bar-label').textContent = load + '/' + cap + ' 🏋️';
 }
 
 // ═══════════════════════════════════════════════════════════
