@@ -961,7 +961,7 @@ function toggleFollow() {
   state.following = !state.following;
   if (state.following) {
     map.dragging.disable();
-    if (state.userPos) map.panTo([state.userPos.lat, state.userPos.lng], { animate: true, duration: 0.4 });
+    if (state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: true, duration: 0.4 });
   } else {
     map.dragging.enable();
   }
@@ -1025,6 +1025,19 @@ function toggleHUD() { document.getElementById('hud-bottom').classList.toggle('c
 const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 13 });
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 map.setView([20, 0], 3);
+
+// Returns a LatLng adjusted so that, when Leaflet centers on it (placing it
+// at the full-container centre), the original point lands at the visual
+// centre of the area between the top and bottom HUDs.
+function adjustLatLngForMenus(latlng, zoom) {
+  var z = zoom !== undefined ? zoom : map.getZoom();
+  var topH = (document.getElementById('hud-top')    || {}).offsetHeight || 0;
+  var botH = (document.getElementById('hud-bottom') || {}).offsetHeight || 0;
+  var offset = (topH - botH) / 2;   // px; negative when bottom HUD is taller
+  if (Math.abs(offset) < 1) return L.latLng(latlng);
+  var pt = map.project(L.latLng(latlng), z);
+  return map.unproject(L.point(pt.x, pt.y - offset), z);
+}
 
 function makeIcon(bg, emoji, size) {
   size = size || 48;
@@ -1123,11 +1136,11 @@ function onLocationUpdate(pos) {
   state.userPos = newPos;
   if (!userMarker) {
     userMarker = L.marker([lat, lng], { icon: icons.user, zIndexOffset: 1000 }).addTo(map);
-    map.setView([lat, lng], 17);
+    map.setView(adjustLatLngForMenus([lat, lng], 17), 17);
     onGpsLocked();
   } else {
     userMarker.setLatLng([lat, lng]);
-    if (state.following) map.panTo([lat, lng], { animate: true, duration: 0.4 });
+    if (state.following) map.panTo(adjustLatLngForMenus([lat, lng]), { animate: true, duration: 0.4 });
   }
   if (state.painting && state.paintZoneId) {
     var ph = latLngToHex(lat, lng), pk = hexKey(ph.q, ph.r);
@@ -3033,9 +3046,11 @@ function renderOrderMarkers() {
           tip.style.top  = pt.y + 'px';
           tip.style.display = 'block';
           preSelView = { center: map.getCenter(), zoom: map.getZoom() };
+          var _topPad = ((document.getElementById('hud-top')    || {}).offsetHeight || 0) + 24;
+          var _botPad = ((document.getElementById('hud-bottom') || {}).offsetHeight || 0) + 24;
           map.flyToBounds(
             L.latLngBounds([[latlng.lat, latlng.lng], [destLoc.lat, destLoc.lng]]),
-            { padding: [60, 60], paddingBottomRight: [60, 160], duration: 0.5 }
+            { paddingTopLeft: [24, _topPad], paddingBottomRight: [24, _botPad], duration: 0.5 }
           );
         } else {
           if (preSelView) { map.flyTo(preSelView.center, preSelView.zoom, { duration: 0.4 }); preSelView = null; }
