@@ -283,10 +283,11 @@
     #mission-distance { font-size: 11px; color: #6ab06a; margin-top: 5px; min-height: 16px; }
 
     #inventory { display: none; margin-top: 10px; }
-    .inv-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 9px 0; border-top: 1px solid rgba(255,255,255,0.05);
-    }
+    .inv-grid { display:grid; grid-template-columns:1fr auto auto; width:100%; }
+    .ig-cell { padding:9px 0; border-top:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; }
+    .ig-info  { flex-direction:column; align-items:flex-start; gap:3px; min-width:0; padding-right:8px; }
+    .ig-drone, .ig-action { justify-content:center; padding-left:8px; }
+    .ig-hdr   { border-top:none; padding:4px 0 8px; opacity:0.45; }
     .inv-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
     .inv-label { font-size: 13px; color: #e0d8c8; letter-spacing: 1px; }
     .inv-sub   { font-size: 10px; color: #fff; letter-spacing: 2px; }
@@ -295,7 +296,7 @@
       padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
       background: transparent; color: #c04040; border: 1px solid #502020;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-      white-space: nowrap; flex-shrink: 0; margin-left: 10px;
+      white-space: nowrap; flex-shrink: 0;
     }
     .inv-abandon:active { color: #e05050; border-color: #802020; background: rgba(60,10,10,0.4); }
     .inv-drone {
@@ -3477,17 +3478,13 @@ function updateHUD() {
     var _drSt    = getDroneStatus();
     var _drMaxW  = getDroneMaxWeight(_invLvl);
     var _drCdMs  = getDroneCooldownMs(_invLvl);
-    var _invHeader =
-      '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 2px;opacity:0.45">' +
-        '<div style="flex:1;display:flex;justify-content:center;font-size:16px;line-height:1">📦</div>' +
-        '<div style="display:flex;gap:6px;margin-left:10px">' +
-          '<div class="inv-drone" style="pointer-events:none;border-color:transparent;margin-left:0;display:flex;align-items:center;justify-content:center">' +
-            '<img src="' + getDroneIcon(_drMaxW) + '" width="14" height="14" style="filter:brightness(0) invert(1)">' +
-          '</div>' +
-          '<div class="inv-abandon" style="pointer-events:none;border-color:transparent;margin-left:0;display:flex;align-items:center;justify-content:center;font-size:15px">🗑</div>' +
-        '</div>' +
-      '</div>';
-    invEl.innerHTML = _invHeader + state.carrying.map(function(id) {
+    var _gridHdr =
+      '<div class="ig-cell ig-info ig-hdr" style="font-size:16px;line-height:1;justify-content:center">📦</div>' +
+      '<div class="ig-cell ig-drone ig-hdr" style="font-size:16px">' +
+        '<img src="' + getDroneIcon(_drMaxW) + '" width="16" height="16" style="filter:brightness(0) invert(1)">' +
+      '</div>' +
+      '<div class="ig-cell ig-action ig-hdr" style="font-size:16px">🗑</div>';
+    var _gridRows = state.carrying.map(function(id) {
       var p    = state.packages.find(function(p) { return p.id === id; });
       if (!p) return '';
       var dest = state.destinations.find(function(d) { return d.id === p.destId; });
@@ -3504,17 +3501,18 @@ function updateHUD() {
         droneLabel = 'DRONE'; droneActive = true;
       }
       var droneBtn = droneActive
-        ? '<button class="inv-drone" onclick="droneDeliverCarried(\'' + id + '\')">' + droneLabel + '</button>'
-        : '<button class="inv-drone" disabled style="opacity:0.35;cursor:not-allowed">' + droneLabel + '</button>';
-      return '<div class="inv-row">' +
-        '<div class="inv-info">' +
+        ? '<button class="inv-drone" style="width:100%" onclick="droneDeliverCarried(\'' + id + '\')">' + droneLabel + '</button>'
+        : '<button class="inv-drone" disabled style="width:100%;opacity:0.35;cursor:not-allowed">' + droneLabel + '</button>';
+      return (
+        '<div class="ig-cell ig-info">' +
           '<div class="inv-label">' + (p.item ? esc(p.item) + ' · ' : '') + wcfg.label + ' &rarr; ' + esc(destDisplayName(dest)).toUpperCase() + '</div>' +
           '<div class="inv-sub">' + p.pts + ' PTS</div>' +
         '</div>' +
-        '<div style="display:flex;gap:6px;margin-left:10px">' + droneBtn +
-        '<button class="inv-abandon" style="margin-left:0" onclick="abandonPackage(\'' + id + '\')">ABANDON</button></div>' +
-        '</div>';
+        '<div class="ig-cell ig-drone">' + droneBtn + '</div>' +
+        '<div class="ig-cell ig-action"><button class="inv-abandon" style="width:100%" onclick="abandonPackage(\'' + id + '\')">ABANDON</button></div>'
+      );
     }).join('');
+    invEl.innerHTML = '<div class="inv-grid">' + _gridHdr + _gridRows + '</div>';
     invEl.style.display = 'block';
   }
 }
