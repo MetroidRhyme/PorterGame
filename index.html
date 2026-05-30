@@ -1035,25 +1035,26 @@ function makeIcon(bg, emoji, size) {
   });
 }
 
-function makeDestIcon(bg, letter, size, level) {
+function makeDestIcon(bg, letter, size, level, borderColor) {
   var fs  = Math.round(size * 0.55);
   var lfs = Math.round(size * 0.28);
+  var bdr = borderColor ? '3px solid ' + borderColor : '2px solid rgba(255,255,255,0.25)';
   var lvlHtml = level > 0
     ? '<div style="font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 3px rgba(255,255,255,0.6);margin-top:2px;letter-spacing:1px">LV' + level + '</div>'
     : '';
   var h = level > 0 ? size + lfs + 4 : size;
   return L.divIcon({
     html: '<div style="display:flex;flex-direction:column;align-items:center;width:' + size + 'px">' +
-      '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;font-weight:bold;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.7);font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
+      '<div style="background:' + bg + ';border:' + bdr + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;font-weight:bold;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.7);font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
       lvlHtml +
     '</div>',
     iconSize: [size, h], iconAnchor: [size / 2, size / 2], className: ''
   });
 }
 
-function makePackageIcon(weight, size, isNext, tooHeavy) {
-  var bg   = isNext ? '#e8a030' : (tooHeavy ? '#2a1a1a' : '#2a1800');
-  var bdr  = '2px solid rgba(255,255,255,0.25)';
+function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy) {
+  var bg   = isNext ? '#e8a030' : (inRangeTooHeavy ? '#3a0808' : (tooHeavy ? '#2a1a1a' : '#2a1800'));
+  var bdr  = inRangeTooHeavy ? '2px solid #c04040' : '2px solid rgba(255,255,255,0.25)';
   var shd  = '0 2px 8px rgba(0,0,0,0.7)';
   var sub  = Math.round(size * 0.58);
   var fs   = Math.round(sub * 0.60);
@@ -1098,6 +1099,7 @@ const icons = {
 
 let userMarker    = null;
 let orderMarkers  = [];
+var selectedPkgId = null;
 let zoneMarkers   = [];
 let _userIconPx   = 0;
 let _lastRenderSig = '';
@@ -1935,6 +1937,7 @@ map.on('move', function() { document.getElementById('pkg-tip').style.display = '
 map.on('click', function(e) {
   document.getElementById('pkg-tip').style.display = 'none';
   if (state.movingDestId) { executeDropMove(e.latlng); return; }
+  if (selectedPkgId) { selectedPkgId = null; renderOrderMarkers(); }
   if (!state.drawing) return;
   toggleCell(e.latlng);
 });
@@ -2967,11 +2970,24 @@ function renderOrderMarkers() {
     return activeZoneCells.has(k) || !allZoneCells.has(k);
   }).map(function(d) { return d.id; }));
 
-  // Connection lines — added first so they land in overlayPane (below markerPane)
+  // Clear stale selection if the package was delivered/removed
+  if (selectedPkgId && !state.packages.find(function(p) { return p.id === selectedPkgId; })) {
+    selectedPkgId = null;
+  }
+  var overweightRangeIds = new Set(overweightInRange().map(function(p) { return p.id; }));
+  var selectedDestId = null;
+  if (selectedPkgId) {
+    var selPkg = state.packages.find(function(p) { return p.id === selectedPkgId; });
+    if (selPkg) selectedDestId = selPkg.destId;
+  }
+
+  // Connection lines — normal ones first, selected one last so it renders on top
+  var selectedLineInfo = null;
   state.packages.forEach(function(p) {
     var dest = state.destinations.find(function(d) { return d.id === p.destId; });
     if (!dest || !visibleDestIds.has(dest.id)) return;
     var origin = p.picked && state.userPos ? state.userPos : p.pickupLoc;
+    if (p.id === selectedPkgId) { selectedLineInfo = { origin: origin, dest: dest }; return; }
     var line = L.polyline(
       [[origin.lat, origin.lng], [dest.loc.lat, dest.loc.lng]],
       { color: p.picked ? '#3080c0' : '#e8a030', weight: 1.5,
@@ -2980,26 +2996,40 @@ function renderOrderMarkers() {
     ).addTo(map);
     orderMarkers.push(line);
   });
+  if (selectedLineInfo) {
+    orderMarkers.push(L.polyline(
+      [[selectedLineInfo.origin.lat, selectedLineInfo.origin.lng],
+       [selectedLineInfo.dest.loc.lat, selectedLineInfo.dest.loc.lng]],
+      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false }
+    ).addTo(map));
+  }
 
   state.packages.filter(function(p) { return !p.picked && visibleDestIds.has(p.destId); }).forEach(function(p) {
-    var dest     = state.destinations.find(function(d) { return d.id === p.destId; });
-    var isNext   = pickable && pickable.id === p.id;
-    var tooheavy = p.weight > rem;
-    var cfg      = WEIGHT[p.weight];
-    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy) }).addTo(map);
+    var dest            = state.destinations.find(function(d) { return d.id === p.destId; });
+    var isNext          = pickable && pickable.id === p.id;
+    var tooheavy        = p.weight > rem;
+    var inRangeTooHeavy = overweightRangeIds.has(p.id);
+    var cfg             = WEIGHT[p.weight];
+    var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy) }).addTo(map);
     var tipLabel = p.item ? p.item + ' (' + cfg.label + ')' : cfg.label;
-    var tipHtml  = esc(tipLabel) + '<br>&#x2192; ' + esc(destDisplayName(dest)) + '<br>' + p.pts + ' pts' + (tooheavy ? '<br>TOO HEAVY' : '');
-    (function(marker, html) {
+    var tipHtml  = esc(tipLabel) + '<br>&#x2192; ' + esc(destDisplayName(dest)) + '<br>' + p.pts + ' pts' +
+      (inRangeTooHeavy ? '<br><b>CAN\'T PICK UP · TOO HEAVY</b>' : (tooheavy ? '<br>too heavy' : ''));
+    (function(pid, latlng, marker, html) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
-        var pt = map.latLngToContainerPoint(marker.getLatLng());
-        var tip = document.getElementById('pkg-tip');
-        tip.innerHTML = html;
-        tip.style.left = pt.x + 'px';
-        tip.style.top  = pt.y + 'px';
-        tip.style.display = 'block';
+        var selecting = selectedPkgId !== pid;
+        selectedPkgId = selecting ? pid : null;
+        renderOrderMarkers();
+        if (selecting) {
+          var pt = map.latLngToContainerPoint([latlng.lat, latlng.lng]);
+          var tip = document.getElementById('pkg-tip');
+          tip.innerHTML = html;
+          tip.style.left = pt.x + 'px';
+          tip.style.top  = pt.y + 'px';
+          tip.style.display = 'block';
+        }
       });
-    })(m, tipHtml);
+    })(p.id, p.pickupLoc, m, tipHtml);
     orderMarkers.push(m);
   });
 
@@ -3011,7 +3041,7 @@ function renderOrderMarkers() {
     }).length;
     var isNext = !orphaned && deliverable && deliverable.id === d.id;
     var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
-    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0)) }).addTo(map);
+    var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), d.id === selectedDestId ? '#ffd060' : null) }).addTo(map);
     var tip = destDisplayName(d) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
@@ -3125,10 +3155,16 @@ function updateHUD() {
         secBtn.textContent = '🚁 DRONE LIFT';
       }
     }
-  } else if (load >= cap && overweightInRange().length > 0) {
-    detailEl.textContent = 'At capacity — deliver first, or find a lighter box.';
-    distEl.textContent   = load + '/' + cap + ' units used';
-    btn.className = 'pickup'; btn.textContent = 'AT CAPACITY'; btn.disabled = true;
+  } else if (overweightInRange().length > 0) {
+    if (load >= cap) {
+      detailEl.textContent = 'At capacity — deliver first, or find a lighter box.';
+      btn.textContent = 'AT CAPACITY';
+    } else {
+      detailEl.textContent = 'Nearby package exceeds your remaining carry capacity.';
+      btn.textContent = 'CAN\'T PICK UP · TOO HEAVY';
+    }
+    distEl.textContent = load + '/' + cap + ' units used';
+    btn.className = 'pickup'; btn.disabled = true;
   } else if (carrying > 0) {
     var nd = state.destinations
       .filter(function(d) { return state.carrying.some(function(id) { var p = state.packages.find(function(p) { return p.id === id; }); return p && p.destId === d.id; }); })
