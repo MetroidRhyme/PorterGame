@@ -300,10 +300,10 @@
     .inv-abandon:active { color: #e05050; border-color: #802020; background: rgba(60,10,10,0.4); }
     .inv-drone {
       font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
-      padding: 8px 10px; border-radius: 3px; cursor: pointer; min-height: 38px;
+      padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
       background: transparent; color: #e8a030; border: 1px solid #4a3000;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-      white-space: nowrap; flex-shrink: 0; margin-left: 10px;
+      white-space: nowrap; flex-shrink: 0;
     }
     .inv-drone:active { color: #ffd060; border-color: #8a6000; background: rgba(60,40,0,0.3); }
 
@@ -3488,8 +3488,8 @@ function updateHUD() {
           '<div class="inv-label">' + (p.item ? esc(p.item) + ' · ' : '') + wcfg.label + ' &rarr; ' + esc(destDisplayName(dest)).toUpperCase() + '</div>' +
           '<div class="inv-sub">' + p.pts + ' PTS &nbsp;·&nbsp; ' + Math.floor(p.pts / 2) + ' DRONE</div>' +
         '</div>' +
-        '<div style="display:flex;gap:0">' + droneBtn +
-        '<button class="inv-abandon" onclick="abandonPackage(\'' + id + '\')">ABANDON</button></div>' +
+        '<div style="display:flex;gap:6px;margin-left:10px">' + droneBtn +
+        '<button class="inv-abandon" style="margin-left:0" onclick="abandonPackage(\'' + id + '\')">ABANDON</button></div>' +
         '</div>';
     }).join('');
     invEl.style.display = 'block';
