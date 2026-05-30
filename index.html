@@ -29,6 +29,8 @@
     #game-title { font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; white-space: nowrap; flex-shrink: 0; padding-top: 3px; }
     #score-display { text-align: left; flex-shrink: 0; }
     #score-display .value { font-size: 22px; color: #e8a030; }
+    #top-lvl-bar-wrap { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,0.06); }
+    #top-lvl-bar { height: 3px; background: #e8a030; transition: width 0.4s; }
 
     #top-menu-btn {
       font-size: 20px; line-height: 1; padding: 10px 14px; border-radius: 4px;
@@ -481,6 +483,12 @@
     .ob-next:active { background: #0e1828; }
 
     #cap-progress { font-size: 9px; color: #9090a8; letter-spacing: 1px; text-align: left; margin-top: 2px; }
+    #cap-bar { position:fixed; right:12px; bottom:0; z-index:1500; display:flex; flex-direction:column; align-items:center; gap:5px; pointer-events:none; transition:opacity 0.2s; }
+    #cap-bar.hidden { opacity:0; }
+    #cap-bar-sections { display:flex; flex-direction:column-reverse; gap:2px; }
+    .cap-seg { width:10px; height:14px; border-radius:2px; background:rgba(255,255,255,0.12); }
+    .cap-seg.filled { background:#e8a030; }
+    #cap-bar-label { font-size:9px; font-family:'Courier New',monospace; color:rgba(255,255,255,0.55); letter-spacing:0.5px; white-space:nowrap; }
     .completion-level  { font-size: 11px; letter-spacing: 3px; color: #5ab05a; margin-top: 6px; }
     #toast {
       position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
@@ -515,6 +523,7 @@
     </div>
   </div>
   <button id="top-menu-btn" onclick="toggleTopMenu()">&#8942;</button>
+  <div id="top-lvl-bar-wrap"><div id="top-lvl-bar" style="width:0%"></div></div>
 </div>
 
 <div id="top-menu">
@@ -602,6 +611,11 @@
     <button id="secondary-btn"></button>
   </div>
   <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
+</div>
+
+<div id="cap-bar" class="hidden">
+  <div id="cap-bar-sections"></div>
+  <div id="cap-bar-label"></div>
 </div>
 
 <div id="completion-overlay">
@@ -2752,7 +2766,7 @@ function openDropPanel(destId) {
         '</div>' +
       '</div>' +
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">' +
-        '<button onclick="viewDropOrders(\'' + destId + '\')" style="padding:8px 14px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a3a4a;background:rgba(10,30,50,0.4);color:#5ab0e0">&#128065; VIEW</button>' +
+        '<button onclick="viewDropOrders(\'' + destId + '\')" style="padding:8px 14px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a3a4a;background:rgba(10,30,50,0.4);color:#5ab0e0">VIEW</button>' +
         '<div style="font-size:10px;color:#fff;letter-spacing:1px;opacity:0.6">' + pkgsWaiting + ' PENDING ORDER' + (pkgsWaiting !== 1 ? 'S' : '') + '</div>' +
       '</div>' +
     '</div>' +
@@ -3043,6 +3057,7 @@ function renderOrderMarkers() {
   }
 
   // Connection lines — normal first, drop-view and selected on top
+  var inViewMode       = !!(selectedPkgId || viewingDropId);
   var selectedLineInfo = null;
   var dropViewLines    = [];
   state.packages.forEach(function(p) {
@@ -3056,7 +3071,7 @@ function renderOrderMarkers() {
     var line = L.polyline(
       [[origin.lat, origin.lng], [dest.loc.lat, dest.loc.lng]],
       { color: p.picked ? '#3080c0' : '#e8a030', weight: 1.5,
-        opacity: p.picked ? 0.75 : 0.6, dashArray: '4 8',
+        opacity: inViewMode ? 0.3 : (p.picked ? 0.75 : 0.6), dashArray: '4 8',
         lineCap: 'round', interactive: false }
     ).addTo(map);
     orderMarkers.push(line);
@@ -3083,6 +3098,8 @@ function renderOrderMarkers() {
     var isDropViewPkg   = !!(viewingDropId && p.destId === viewingDropId);
     var cfg             = WEIGHT[p.weight];
     var m = L.marker([p.pickupLoc.lat, p.pickupLoc.lng], { icon: makePackageIcon(p.weight, iconPx, isNext, tooheavy, inRangeTooHeavy, isDropViewPkg) }).addTo(map);
+    if (selectedPkgId && p.id !== selectedPkgId) m.setOpacity(0.5);
+    else if (viewingDropId && !isDropViewPkg) m.setOpacity(0.5);
     (function(pid, latlng, destLoc, pkg, destObj, marker) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
@@ -3133,11 +3150,15 @@ function renderOrderMarkers() {
     var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
     var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId) ? '#ffd060' : null;
     var m = L.marker([d.loc.lat, d.loc.lng], { icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder) }).addTo(map);
+    if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
+    else if (viewingDropId && d.id !== viewingDropId) m.setOpacity(0.5);
     var tip = destDisplayName(d) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
   });
+  var _cb = document.getElementById('cap-bar');
+  if (_cb) _cb.classList.toggle('hidden', !!(selectedPkgId || viewingDropId) || !!state.drawing || state.phase === 'no_gps');
 }
 
 function showOrderInfo(pkg, dest) {
@@ -3177,17 +3198,22 @@ function updateHUD() {
   var btn      = document.getElementById('action-btn');
   var secBtn   = document.getElementById('secondary-btn');
 
-  scoreEl.textContent  = state.score + ' pts';
   var capNow = getCapacity();
   var capEl  = document.getElementById('cap-progress');
   var plevel = getPlayerLevel();
   var toNext = pointsToNextLevel(state.score, plevel);
-  capEl.textContent = 'LVL ' + plevel + ' · ' + (plevel >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LVL ' + (plevel + 1));
+  scoreEl.textContent = 'LVL ' + plevel;
+  capEl.textContent = plevel >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LVL ' + (plevel + 1);
+  var _prev = plevel > 0 ? Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, plevel) - 1)) : 0;
+  var _next = plevel < LEVEL_MAX ? Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, plevel + 1) - 1)) : state.score;
+  var _pct  = plevel >= LEVEL_MAX ? 100 : (_next <= _prev ? 100 : Math.round((state.score - _prev) / (_next - _prev) * 100));
+  document.getElementById('top-lvl-bar').style.width = Math.max(0, _pct) + '%';
   btn.className        = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display = 'none'; secBtn.onclick = null;
   document.getElementById('inventory').style.display = 'none';
   updateFollowBtn();
   updatePaintBtn();
+  updateCapBar();
 
   // ── DRAWING / EDITING ────────────────────────────────────
   if (state.drawing) {
@@ -3234,7 +3260,7 @@ function updateHUD() {
 
   // ── ACTIVE GAMEPLAY ───────────────────────────────────────
   var load = currentLoad(), cap = getCapacity();
-  statusEl.textContent = 'LOAD ' + load + ' / ' + cap;
+  statusEl.textContent = '';
   updateDroneStatus();
 
   var carrying  = state.carrying.length;
@@ -3324,6 +3350,23 @@ function updateHUD() {
     }).join('');
     invEl.style.display = 'block';
   }
+}
+
+function updateCapBar() {
+  var bar = document.getElementById('cap-bar');
+  if (!bar) return;
+  var hide = !!(selectedPkgId || viewingDropId) || !!state.drawing || state.phase === 'no_gps';
+  bar.classList.toggle('hidden', hide);
+  if (hide) return;
+  var botH = (document.getElementById('hud-bottom') || {}).offsetHeight || 0;
+  bar.style.bottom = (botH + 10) + 'px';
+  var load = currentLoad(), cap = getCapacity();
+  var html = '';
+  for (var i = 0; i < cap; i++) {
+    html += '<div class="cap-seg' + (i < load ? ' filled' : '') + '"></div>';
+  }
+  document.getElementById('cap-bar-sections').innerHTML = html;
+  document.getElementById('cap-bar-label').textContent = load + '/' + cap + ' ⚖️';
 }
 
 // ═══════════════════════════════════════════════════════════
