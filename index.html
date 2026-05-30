@@ -3472,21 +3472,34 @@ function updateHUD() {
 
   // ── INVENTORY ────────────────────────────────────────────
   if (state.carrying.length > 0) {
-    var invEl   = document.getElementById('inventory');
-    var _drSt   = getDroneStatus();
-    var _drMaxW = getDroneMaxWeight(getPlayerLevel());
+    var invEl    = document.getElementById('inventory');
+    var _invLvl  = getPlayerLevel();
+    var _drSt    = getDroneStatus();
+    var _drMaxW  = getDroneMaxWeight(_invLvl);
+    var _drCdMs  = getDroneCooldownMs(_invLvl);
     invEl.innerHTML = state.carrying.map(function(id) {
       var p    = state.packages.find(function(p) { return p.id === id; });
       if (!p) return '';
       var dest = state.destinations.find(function(d) { return d.id === p.destId; });
       var wcfg = WEIGHT[p.weight];
-      var droneBtn = (!_drSt.locked && _drSt.available && p.weight <= _drMaxW)
-        ? '<button class="inv-drone" onclick="droneDeliverCarried(\'' + id + '\')">DRONE</button>'
-        : '';
+      var droneLabel, droneActive;
+      if (_drSt.locked) {
+        droneLabel = 'DRONE'; droneActive = false;
+      } else if (!_drSt.available) {
+        var _rem = Math.max(0, _drCdMs - (Date.now() - (state.droneLastUsed || 0)));
+        droneLabel = formatRemainTime(_rem); droneActive = false;
+      } else if (p.weight > _drMaxW) {
+        droneLabel = 'TOO HEAVY'; droneActive = false;
+      } else {
+        droneLabel = 'DRONE'; droneActive = true;
+      }
+      var droneBtn = droneActive
+        ? '<button class="inv-drone" onclick="droneDeliverCarried(\'' + id + '\')">' + droneLabel + '</button>'
+        : '<button class="inv-drone" disabled style="opacity:0.35;cursor:not-allowed">' + droneLabel + '</button>';
       return '<div class="inv-row">' +
         '<div class="inv-info">' +
           '<div class="inv-label">' + (p.item ? esc(p.item) + ' · ' : '') + wcfg.label + ' &rarr; ' + esc(destDisplayName(dest)).toUpperCase() + '</div>' +
-          '<div class="inv-sub">' + p.pts + ' PTS &nbsp;·&nbsp; ' + Math.floor(p.pts / 2) + ' DRONE</div>' +
+          '<div class="inv-sub">' + p.pts + ' PTS</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;margin-left:10px">' + droneBtn +
         '<button class="inv-abandon" style="margin-left:0" onclick="abandonPackage(\'' + id + '\')">ABANDON</button></div>' +
