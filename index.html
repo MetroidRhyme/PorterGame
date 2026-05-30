@@ -677,7 +677,7 @@
 <div id="confirm-overlay">
   <div id="confirm-modal">
     <div class="cm-title">REFRESH ORDERS</div>
-    <div class="cm-body">All packages will be removed, including ones you are carrying. Your drops will remain.</div>
+    <div class="cm-body">All packages will be removed, including ones you are carrying. Your drops will remain. 1 minute cooldown applies.</div>
     <div class="cm-btns">
       <button class="cm-cancel" onclick="closeConfirmModal()">CANCEL</button>
       <button class="cm-confirm" onclick="executeRefresh()">REFRESH</button>
@@ -776,10 +776,12 @@ const state = {
   destinations:  JSON.parse(localStorage.getItem('porter_destinations')  || '[]'),
   carrying:      JSON.parse(localStorage.getItem('porter_carrying')      || '[]'),
   movingDestId:  null,
-  droneLastUsed: parseInt(localStorage.getItem('porter_drone_last_used') || '0'),
+  droneLastUsed:   parseInt(localStorage.getItem('porter_drone_last_used')   || '0'),
+  refreshLastUsed: parseInt(localStorage.getItem('porter_refresh_last_used') || '0'),
 };
 
-const PROXIMITY_M   = 30;
+const PROXIMITY_M        = 30;
+const REFRESH_COOLDOWN_MS = 60 * 1000;
 const CELL_LAT_DEG  = 20 / 111111;
 var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 var   gridOffsetLat = parseFloat(localStorage.getItem('porter_grid_lat')) || 0;
@@ -3128,6 +3130,16 @@ function deleteDropConfirm() {
 }
 
 function confirmRefresh() {
+  if (!state.userPos) { showToast('GPS required to refresh'); return; }
+  var nearDrop = state.destinations.some(function(d) {
+    return !isDropOrphaned(d) && haversine(state.userPos, d.loc) <= PROXIMITY_M;
+  });
+  if (!nearDrop) { showToast('Must be at a drop to refresh orders'); return; }
+  var elapsed = Date.now() - (state.refreshLastUsed || 0);
+  if (elapsed < REFRESH_COOLDOWN_MS) {
+    showToast('Refresh ready in ' + Math.ceil((REFRESH_COOLDOWN_MS - elapsed) / 1000) + 's');
+    return;
+  }
   document.getElementById('confirm-overlay').classList.add('open');
 }
 
@@ -3139,6 +3151,8 @@ function executeRefresh() {
   closeConfirmModal();
   state.packages = [];
   state.carrying = [];
+  state.refreshLastUsed = Date.now();
+  localStorage.setItem('porter_refresh_last_used', state.refreshLastUsed);
   // Drops (destinations) are permanent — not cleared on refresh
   saveGameState();
   renderOrderMarkers();
