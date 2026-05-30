@@ -1063,7 +1063,7 @@ function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy) {
 
   if (weight === 1) {
     return L.divIcon({
-      html: '<div style="animation:pkg-bob 2.8s ease-in-out infinite">' + circ + '</div>',
+      html: '<div style="animation:none">' + circ + '</div>',
       iconSize: [sub, sub], iconAnchor: [sub / 2, sub / 2], className: ''
     });
   }
@@ -1071,7 +1071,7 @@ function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy) {
   var w = 2 * sub + gap;
   if (weight === 2) {
     return L.divIcon({
-      html: '<div style="display:flex;gap:' + gap + 'px;animation:pkg-bob 2.8s ease-in-out infinite">' + circ + circ + '</div>',
+      html: '<div style="display:flex;gap:' + gap + 'px;animation:none">' + circ + circ + '</div>',
       iconSize: [w, sub], iconAnchor: [w / 2, sub / 2], className: ''
     });
   }
@@ -1079,7 +1079,7 @@ function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy) {
   // weight 3 — two on top, one centred below
   var h = 2 * sub + gap;
   return L.divIcon({
-    html: '<div style="display:flex;flex-direction:column;gap:' + gap + 'px;align-items:center;animation:pkg-bob 2.8s ease-in-out infinite">' +
+    html: '<div style="display:flex;flex-direction:column;gap:' + gap + 'px;align-items:center;animation:none">' +
       '<div style="display:flex;gap:' + gap + 'px">' + circ + circ + '</div>' + circ +
     '</div>',
     iconSize: [w, h], iconAnchor: [w / 2, h / 2], className: ''
@@ -1100,6 +1100,7 @@ const icons = {
 let userMarker    = null;
 let orderMarkers  = [];
 var selectedPkgId = null;
+var preSelView    = null;
 let zoneMarkers   = [];
 let _userIconPx   = 0;
 let _lastRenderSig = '';
@@ -1937,7 +1938,11 @@ map.on('move', function() { document.getElementById('pkg-tip').style.display = '
 map.on('click', function(e) {
   document.getElementById('pkg-tip').style.display = 'none';
   if (state.movingDestId) { executeDropMove(e.latlng); return; }
-  if (selectedPkgId) { selectedPkgId = null; renderOrderMarkers(); }
+  if (selectedPkgId) {
+    selectedPkgId = null;
+    renderOrderMarkers();
+    if (preSelView) { map.flyTo(preSelView.center, preSelView.zoom, { duration: 0.4 }); preSelView = null; }
+  }
   if (!state.drawing) return;
   toggleCell(e.latlng);
 });
@@ -3014,7 +3019,7 @@ function renderOrderMarkers() {
     var tipLabel = p.item ? p.item + ' (' + cfg.label + ')' : cfg.label;
     var tipHtml  = esc(tipLabel) + '<br>&#x2192; ' + esc(destDisplayName(dest)) + '<br>' + p.pts + ' pts' +
       (inRangeTooHeavy ? '<br><b>CAN\'T PICK UP · TOO HEAVY</b>' : (tooheavy ? '<br>too heavy' : ''));
-    (function(pid, latlng, marker, html) {
+    (function(pid, latlng, destLoc, marker, html) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
         var selecting = selectedPkgId !== pid;
@@ -3027,9 +3032,16 @@ function renderOrderMarkers() {
           tip.style.left = pt.x + 'px';
           tip.style.top  = pt.y + 'px';
           tip.style.display = 'block';
+          preSelView = { center: map.getCenter(), zoom: map.getZoom() };
+          map.flyToBounds(
+            L.latLngBounds([[latlng.lat, latlng.lng], [destLoc.lat, destLoc.lng]]),
+            { padding: [60, 60], paddingBottomRight: [60, 160], duration: 0.5 }
+          );
+        } else {
+          if (preSelView) { map.flyTo(preSelView.center, preSelView.zoom, { duration: 0.4 }); preSelView = null; }
         }
       });
-    })(p.id, p.pickupLoc, m, tipHtml);
+    })(p.id, p.pickupLoc, dest.loc, m, tipHtml);
     orderMarkers.push(m);
   });
 
