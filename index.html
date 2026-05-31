@@ -6,6 +6,7 @@
   <title>PORTER</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
+    :root { --hud-top-h: 70px; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       background: #0a0a0f; color: #e0d8c8;
@@ -42,9 +43,10 @@
     #paint-btn.active { color: #e8a030; }
 
     #top-menu {
-      position: fixed; top: 70px; right: 12px; z-index: 2500;
+      position: fixed; top: var(--hud-top-h); right: 12px; z-index: 2500;
       background: rgba(13,13,20,0.97); border: 1px solid rgba(255,255,255,0.1);
       border-radius: 6px; min-width: 180px; display: none;
+      max-height: 60vh; overflow-y: auto;
       backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     }
     #top-menu.open { display: block; }
@@ -62,7 +64,7 @@
     #paint-picker-backdrop { display: none; position: fixed; inset: 0; z-index: 1997; }
     #paint-picker-backdrop.open { display: block; }
     #paint-picker {
-      position: fixed; top: 70px; right: 12px; z-index: 1998;
+      position: fixed; top: var(--hud-top-h); right: 12px; z-index: 1998;
       background: rgba(13,13,20,0.97); border: 1px solid rgba(255,255,255,0.08);
       border-radius: 6px; min-width: 200px; max-height: 50vh; overflow-y: auto;
       display: none;
@@ -79,7 +81,7 @@
     .paint-zone-opt:active { background: rgba(40,40,60,0.8); }
 
     #gps-status {
-      position: fixed; top: 74px; right: 12px; z-index: 1999;
+      position: fixed; top: var(--hud-top-h); right: 12px; z-index: 1999;
       font-size: 10px; letter-spacing: 2px; padding: 4px 10px; border-radius: 2px;
       pointer-events: none;
     }
@@ -1230,6 +1232,11 @@ map.setView([20, 0], 3);
 // Returns a LatLng adjusted so that, when Leaflet centers on it (placing it
 // at the full-container centre), the original point lands at the visual
 // centre of the area between the top and bottom HUDs.
+function updateHudTopVar() {
+  var h = (document.getElementById('hud-top') || {}).offsetHeight || 0;
+  if (h > 0) document.documentElement.style.setProperty('--hud-top-h', h + 'px');
+}
+
 function adjustLatLngForMenus(latlng, zoom) {
   var z = zoom !== undefined ? zoom : map.getZoom();
   var topH = (document.getElementById('hud-top')    || {}).offsetHeight || 0;
@@ -1376,6 +1383,11 @@ function onGpsLocked() {
   expandHUD();
   updateHUD();
   restoreDronesInFlight();
+  // Re-centre after the bottom HUD expansion animation settles (0.28s transition)
+  setTimeout(function() {
+    updateHudTopVar();
+    if (state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
+  }, 320);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3901,6 +3913,17 @@ window.addEventListener('load', updateCapBar);
 setTimeout(updateCapBar, 300);
 setInterval(updateDroneStatus, 30000);
 if (!localStorage.getItem('porter_onboarded')) { obStep = 0; renderOnboardingStep(); }
+requestAnimationFrame(updateHudTopVar);
+window.addEventListener('resize', function() {
+  updateHudTopVar();
+  if (state.following && state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
+});
+window.addEventListener('orientationchange', function() {
+  setTimeout(function() {
+    updateHudTopVar();
+    if (state.following && state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
+  }, 150);
+});
 </script>
 </body>
 </html>
