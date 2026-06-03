@@ -2069,7 +2069,11 @@ function initDrawCanvas() {
   drawCtx.scale(dpr, dpr);
 }
 
-window.addEventListener('resize', function() { initDrawCanvas(); renderGridCanvas(); });
+var _canvasResizeTimer = null;
+function scheduleCanvasResize() {
+  clearTimeout(_canvasResizeTimer);
+  _canvasResizeTimer = setTimeout(function() { initDrawCanvas(); renderGridCanvas(); }, 200);
+}
 
 // ═══════════════════════════════════════════════════════════
 //  HEX GRID SYSTEM  (flat-top axial q,r coordinates)
@@ -2265,6 +2269,7 @@ function cancelDraw() {
   state.drawing       = false;
   state.gridCells     = null;
   state.editingZoneId = null;
+  initDrawCanvas();
   renderGridCanvas();
   renderOrderMarkers();
   updateHUD();
@@ -2276,7 +2281,7 @@ function finishDraw() {
   state.drawing = false;
 
   var baseName = prompt('Zone name (leave blank to auto-name):');
-  if (baseName === null) { state.gridCells = null; renderGridCanvas(); updateHUD(); return; }
+  if (baseName === null) { state.gridCells = null; initDrawCanvas(); renderGridCanvas(); updateHUD(); return; }
   baseName = baseName.trim();
 
   var cells = Array.from(state.gridCells).map(function(key) {
@@ -2290,6 +2295,7 @@ function finishDraw() {
 
   state.gridCells = null;
   saveZones();
+  initDrawCanvas();
   renderGridCanvas();
   if (state.phase === 'active') {
     generateOrdersForZone(z);
@@ -2357,6 +2363,7 @@ function finishEdit() {
     generateOrdersForZone(zone);
     saveGameState();
   }
+  initDrawCanvas();
   renderGridCanvas();
   renderZoneMarkers();
   renderOrderMarkers();
@@ -3938,13 +3945,16 @@ if (!localStorage.getItem('porter_onboarded')) { obStep = 0; renderOnboardingSte
 requestAnimationFrame(updateHudTopVar);
 window.addEventListener('resize', function() {
   updateHudTopVar();
+  scheduleCanvasResize();
   if (state.following && state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
 });
 window.addEventListener('orientationchange', function() {
   setTimeout(function() {
     updateHudTopVar();
+    initDrawCanvas();
+    renderGridCanvas();
     if (state.following && state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
-  }, 150);
+  }, 250);
 });
 </script>
 </body>
