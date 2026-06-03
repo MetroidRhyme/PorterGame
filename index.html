@@ -785,6 +785,7 @@ const state = {
 
 const PROXIMITY_M        = 30;
 const REFRESH_COOLDOWN_MS = 60 * 1000;
+const SPAWN_DELAY_MS      = 5 * 60 * 1000;
 const CELL_LAT_DEG  = 20 / 111111;
 var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 var   gridOffsetLat = parseFloat(localStorage.getItem('porter_grid_lat')) || 0;
@@ -1009,7 +1010,7 @@ function completeDroneDelivery(drone) {
   state.deliveries += 1;
   localStorage.setItem('porter_score', state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
-  if (dest) spawnPackagesForDrop(dest);
+  if (dest) { dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS; spawnPackagesForDrop(dest); }
   saveGameState();
   var msg = '🚁 Drone delivered! +' + drone.halfPts + ' pts';
   if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel();
@@ -2691,9 +2692,28 @@ function pruneEmptyDrops() {
   return removed.size;
 }
 
+var _spawnTimers = {};
+
+function scheduleDropSpawn(dest) {
+  if (_spawnTimers[dest.id]) return;
+  var delay = Math.max(0, (dest.nextSpawnAfter || 0) - Date.now());
+  _spawnTimers[dest.id] = setTimeout(function() {
+    delete _spawnTimers[dest.id];
+    dest.nextSpawnAfter = 0;
+    saveGameState();
+    spawnPackagesForDrop(dest);
+    renderOrderMarkers(); updateHUD();
+  }, delay);
+}
+
 function spawnPackagesForDrop(dest) {
   var active = getActiveZones();
   if (!active.length) return;
+  if (dest.nextSpawnAfter && Date.now() < dest.nextSpawnAfter) {
+    scheduleDropSpawn(dest);
+    return;
+  }
+  dest.nextSpawnAfter = 0;
   spawnPackagesForDropBanded(dest, active, buildOccupiedSet());
 }
 
@@ -2732,6 +2752,7 @@ function attemptDeliver() {
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
   vibrate(capUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
+  dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS;
   spawnPackagesForDrop(dest);
   saveGameState();
   showCompletion(pts, pkgs.length, destDisplayName(dest), capUp, level, bonusPts);
@@ -2812,6 +2833,7 @@ function abandonPackage(id) {
   if (!confirm('Abandon ' + wcfg.label.toLowerCase() + ' package for ' + destDisplayName(dest) + ' (' + p.pts + ' pts)? It will not be reassigned.')) return;
   state.carrying = state.carrying.filter(function(cid) { return cid !== id; });
   state.packages = state.packages.filter(function(p)   { return p.id  !== id; });
+  if (dest) { dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS; scheduleDropSpawn(dest); }
   saveGameState();
   checkRefresh();
   renderOrderMarkers();
