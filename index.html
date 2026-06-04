@@ -758,6 +758,13 @@ function getUserId() {
   return uid;
 }
 
+function safeParse(key, fallback) {
+  var raw = localStorage.getItem(key);
+  if (raw == null) return fallback;
+  try { return JSON.parse(raw); }
+  catch (e) { return fallback; }
+}
+
 const state = {
   userId:      getUserId(),
   score:       parseInt(localStorage.getItem('porter_score')       || '0'),
@@ -767,16 +774,16 @@ const state = {
   following:   false,
   userPos:     null,
 
-  zones:         JSON.parse(localStorage.getItem('porter_zones')        || '[]'),
+  zones:         safeParse('porter_zones', []),
   drawing:       false,
   gridCells:     null,
   editingZoneId: null,
   painting:      false,
   paintZoneId:   null,
 
-  packages:      JSON.parse(localStorage.getItem('porter_packages')      || '[]'),
-  destinations:  JSON.parse(localStorage.getItem('porter_destinations')  || '[]'),
-  carrying:      JSON.parse(localStorage.getItem('porter_carrying')      || '[]'),
+  packages:      safeParse('porter_packages', []),
+  destinations:  safeParse('porter_destinations', []),
+  carrying:      safeParse('porter_carrying', []),
   movingDestId:  null,
   droneLastUsed:   parseInt(localStorage.getItem('porter_drone_last_used')   || '0'),
   drone2LastUsed:  parseInt(localStorage.getItem('porter_drone2_last_used')  || '0'),
@@ -1415,7 +1422,7 @@ function saveDronesInFlight() {
   ));
 }
 function restoreDronesInFlight() {
-  var saved = JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]');
+  var saved = safeParse('porter_drones_in_flight', []);
   if (!saved.length) return;
   var now = Date.now();
   saved.forEach(function(d) {
