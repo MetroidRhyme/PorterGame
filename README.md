@@ -10,14 +10,21 @@ A location-based walking game played in your real neighborhood. Walk the streets
 
 1. **Grant GPS access** when prompted. The map will center on your location once locked.
 2. **Draw a zone** — tap ☰ → **+ ADD ZONE**, then tap hex cells on the map to define your play area. Tap **FINISH ZONE** when done.
-3. **Pick up packages** (📦) by walking within 20 m of them.
+3. **Pick up packages** (📦) by walking within 30 m of them.
 4. **Deliver** them to drop zones (🏠) to score points.
 
 Packages are scored by `distance × weight multiplier`. Each package carries a randomly assigned item name (Birthday Cake, Vintage Records, Medical Supplies, etc.) shown in the HUD and on the map.
 
-Your carry capacity starts at 3 units and grows by 1 for every 500 points, up to a max of 12. A **CAP X · Y TO ↑** indicator appears under the score so you always know how close the next upgrade is.
+### On-screen cues
 
-**Delivery streaks** — consecutive deliveries without abandoning a package build a streak counter shown in the completion flash. Abandoning any package resets the streak to zero.
+The game surfaces what you can do right now:
+
+- The nearest **pickable package** gently bobs once you're in range and have spare capacity for it.
+- The **action button** pulses — amber for pickup, blue for delivery — when an action is ready.
+- The **drop you're delivering to** lights up with a glow when you're carrying for it and within range.
+- Your **position marker** glides smoothly between GPS updates instead of jumping.
+
+Your carry capacity starts at 3 units and increases by 1 at player levels 10, 20, 30, 40, and 50 (max 8 units). The score display shows your current **level** and the points remaining to the next one — tap it to see the full upgrade track.
 
 ### Package weights
 
@@ -72,7 +79,8 @@ You can paint your entire accessible area, or place just a handful of hexes in s
 - **Single file** — the entire game is `index.html` with no build step.
 - **Dependencies** — [Leaflet 1.9.4](https://leafletjs.com/) loaded from CDN; [CartoDB light](https://carto.com/basemaps/) map tiles.
 - **Storage** — all state is in `localStorage` under `porter_*` keys. No backend.
+- **Reduced motion** — all animated cues, panel/modal transitions, and the marker glide honor the OS `prefers-reduced-motion` setting and fall back to a static UI.
 - **Hex grid** — flat-top axial coordinates (q, r). Cell size is ~20 m (~0.00018°) latitude; longitude is corrected for the player's latitude on first GPS lock.
-- **Proximity** — pickup and delivery both require being within 20 m (`PROXIMITY_M`).
+- **Proximity** — pickup and delivery both require being within 30 m (`PROXIMITY_M`).
 - **Auto-refresh** — if a zone is too small to fit new packages and destinations, the game schedules a 30-second retry rather than silently failing.
 - **Drop persistence** — delivery drops are permanent: they keep their level, points, and contributors even after their zone is deleted (they just go dormant). To keep saves bounded, never-used auto-generated drops (no deliveries, points, or contributors) whose zone is gone are pruned on load.
