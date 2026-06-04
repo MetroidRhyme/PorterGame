@@ -166,6 +166,7 @@
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 10px; padding: 24px 20px 18px; width: min(340px, calc(100vw - 40px));
       display: flex; flex-direction: column; gap: 10px; max-height: 80vh; overflow-y: auto;
+      animation: modal-in 0.22s ease-out;
     }
 
     #share-overlay {
@@ -177,6 +178,7 @@
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 10px; padding: 24px 20px 18px; width: min(360px, calc(100vw - 40px));
       display: flex; flex-direction: column; gap: 10px; max-height: 84vh; overflow-y: auto;
+      animation: modal-in 0.22s ease-out;
     }
     .share-textarea {
       width: 100%; box-sizing: border-box; resize: none;
@@ -345,6 +347,7 @@
     @media (prefers-reduced-motion: reduce) {
       #action-btn { animation: none !important; }
       .leaflet-marker-icon > div { animation: none !important; }
+      #confirm-modal, #share-modal, #merge-modal, #level-modal.open, .ob-card { animation: none !important; }
     }
 
     #completion-overlay {
@@ -359,6 +362,10 @@
       40%  { opacity: 1; transform: scale(1.03); }
       100% { opacity: 1; transform: scale(1); }
     }
+    @keyframes modal-in          { from { opacity:0; transform: scale(0.96); }
+                                   to   { opacity:1; transform: scale(1); } }
+    @keyframes modal-in-centered { from { opacity:0; transform: translate(-50%,-50%) scale(0.96); }
+                                   to   { opacity:1; transform: translate(-50%,-50%) scale(1); } }
     .completion-box {
       background: #fff; border-radius: 14px;
       padding: 28px 36px; text-align: center;
@@ -380,6 +387,7 @@
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 10px; padding: 28px 24px 20px; width: min(320px, calc(100vw - 48px));
       display: flex; flex-direction: column; gap: 12px;
+      animation: modal-in 0.22s ease-out;
     }
     #confirm-modal .cm-title {
       font-size: 11px; letter-spacing: 4px; color: #c04040; text-align: center;
@@ -434,7 +442,7 @@
       border-radius: 10px; padding: 20px; width: min(320px, calc(100vw - 40px));
       max-height: 80vh; overflow-y: auto; display: none;
     }
-    #level-modal.open { display: block; }
+    #level-modal.open { display: block; animation: modal-in-centered 0.22s ease-out; }
 
     /* ── MOVE MODE BANNER ── */
     #move-banner {
@@ -474,6 +482,7 @@
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 12px; padding: 32px 24px 24px;
       width: min(360px, 100%); display: flex; flex-direction: column; gap: 20px;
+      animation: modal-in 0.22s ease-out;
     }
     .ob-dots { display: flex; justify-content: center; gap: 8px; }
     .ob-dot {
