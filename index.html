@@ -3554,10 +3554,17 @@ function showOrderInfo(pkg, dest) {
   var label = pkg.item ? esc(pkg.item) + ' · ' + cfg.label : cfg.label;
   var rem = getCapacity() - currentLoad();
   var inRange = overweightInRange().some(function(p) { return p.id === pkg.id; });
+  var hexes = null;
+  if (dest && dest.loc) {
+    var ph = latLngToHex(pkg.pickupLoc.lat, pkg.pickupLoc.lng);
+    var dh = latLngToHex(dest.loc.lat, dest.loc.lng);
+    hexes = Math.round(hexDist(ph.q, ph.r, dh.q, dh.r));
+  }
   el.innerHTML =
     '<div style="font-size:9px;letter-spacing:2px;color:rgba(255,255,255,0.5);margin-bottom:6px">ORDER</div>' +
     '<div style="font-size:13px;color:#e0d8c8;line-height:1.4;margin-bottom:4px">' + label + '</div>' +
     '<div style="font-size:11px;color:#e8a030;letter-spacing:1px;margin-bottom:4px">→ ' + esc(destDisplayName(dest)) + '</div>' +
+    (hexes != null ? '<div style="font-size:10px;color:rgba(255,255,255,0.6);letter-spacing:1px;margin-bottom:4px">' + hexes + ' hex to drop</div>' : '') +
     '<div style="font-size:11px;color:#fff">' + pkg.pts + ' pts</div>' +
     (inRange ? '<div style="font-size:10px;color:#c04040;margin-top:6px;letter-spacing:1px">CAN\'T PICK UP · TOO HEAVY</div>'
              : (pkg.weight > rem ? '<div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:6px">too heavy</div>' : ''));
