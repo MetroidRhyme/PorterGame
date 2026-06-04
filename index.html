@@ -3054,8 +3054,6 @@ function openDropPanel(destId) {
     : Math.round((totalPts - prevNeeded) / (nextNeeded - prevNeeded) * 100));
   var pkgsWaiting = state.packages.filter(function(p) { return p.destId === destId && !p.picked; }).length;
 
-  var contribHtml = '';
-
   var btnStyle = 'padding:13px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid';
 
   var renameSt = getRenameStatus(dest);
@@ -3116,7 +3114,6 @@ function openDropPanel(destId) {
           '<div style="height:4px;background:#1a1a2a;border-radius:2px"><div style="height:4px;background:#e8a030;border-radius:2px;width:' + Math.max(2, pct) + '%"></div></div>' +
         '</div>'
       : '<div style="font-size:11px;color:#5ab05a;letter-spacing:3px;margin-bottom:14px">MAX LEVEL</div>') +
-    contribHtml +
     renameHtml +
     iconHtml +
     moveHtml +
