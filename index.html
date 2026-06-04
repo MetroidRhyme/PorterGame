@@ -17,6 +17,9 @@
     #map         { position: fixed; inset: 0; }
     #draw-canvas { position: fixed; inset: 0; z-index: 350; pointer-events: none; }
 
+    .user-marker           { transition: transform 0.4s linear; }
+    .user-marker.no-smooth { transition: none; }
+
     /* ── TOP HUD ── */
     #hud-top {
       position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
@@ -347,6 +350,7 @@
     @media (prefers-reduced-motion: reduce) {
       #action-btn { animation: none !important; }
       .leaflet-marker-icon > div { animation: none !important; }
+      .user-marker { transition: none !important; }
       #confirm-modal, #share-modal, #merge-modal, #level-modal.open, .ob-card { animation: none !important; }
       #settings-overlay.open, #drop-overlay.open, #confirm-overlay.open, #share-overlay.open,
       #merge-overlay.open, #level-overlay.open, #onboarding-overlay.open { animation: none !important; }
@@ -1282,12 +1286,12 @@ function adjustLatLngForMenus(latlng, zoom) {
   return map.unproject(L.point(pt.x, pt.y - offset), z);
 }
 
-function makeIcon(bg, emoji, size) {
+function makeIcon(bg, emoji, size, className) {
   size = size || 48;
   var fs = Math.round(size * 0.65);
   return L.divIcon({
     html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + emoji + '</div>',
-    iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: ''
+    iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: className || ''
   });
 }
 
@@ -1354,7 +1358,7 @@ function getCellPixelWidth() {
 }
 
 const icons = {
-  user: makeIcon('#1a3050', '🧍', 44),
+  user: makeIcon('#1a3050', '🧍', 44, 'user-marker'),
 };
 
 let userMarker    = null;
@@ -2274,6 +2278,8 @@ function renderGridCanvas() {
 }
 
 map.on('move zoom', scheduleGridRender);
+map.on('zoomstart', function() { var el = userMarker && userMarker.getElement(); if (el) el.classList.add('no-smooth'); });
+map.on('zoomend',   function() { requestAnimationFrame(function() { var el = userMarker && userMarker.getElement(); if (el) el.classList.remove('no-smooth'); }); });
 map.on('zoomend',  renderOrderMarkers);
 map.on('zoomend', function() {
   if (state.following && state.userPos) {
@@ -3398,7 +3404,7 @@ function renderOrderMarkers() {
   var rem         = getCapacity() - currentLoad();
   var iconPx      = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
   if (userMarker && iconPx !== _userIconPx) {
-    userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx));
+    userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx, 'user-marker'));
     _userIconPx = iconPx;
   }
 
