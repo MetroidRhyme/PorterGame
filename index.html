@@ -1072,6 +1072,9 @@ function destDisplayName(dest) {
   return dest.title || ('Drop ' + dest.label);
 }
 function safeColor(c) { return /^#[0-9a-fA-F]{3,6}$/.test(c) ? c : '#e8a030'; }
+// Normalize free-text fields arriving from shared codes: cap length, coerce to string.
+function cleanText(s, max) { return s == null ? s : String(s).slice(0, max || 40); }
+function cleanIcon(s) { return s == null ? s : (Array.from(String(s))[0] || ''); }
 
 function vibrate(p)    { if (navigator.vibrate) navigator.vibrate(p); }
 
@@ -2939,8 +2942,8 @@ function importDropCode(code) {
     var existing = state.destinations.find(function(d) { return d.id === data.dropId; });
     if (existing) {
       mergeDropContributions(existing, data.contributions);
-      if (data.title) existing.title = data.title;
-      if (data.icon)  existing.icon  = data.icon;
+      if (data.title) existing.title = cleanText(data.title, 40);
+      if (data.icon)  existing.icon  = cleanIcon(data.icon);
       if (data.loc) {
         var newH = latLngToHex(data.loc.lat, data.loc.lng);
         var newK = hexKey(newH.q, newH.r);
@@ -2971,8 +2974,8 @@ function importDropCode(code) {
     // New drop
     var newDrop = {
       id: data.dropId, loc: data.loc,
-      label: nextDropLabel(), name: data.name || 'Unknown',
-      title: data.title, icon: data.icon, ownerId: data.ownerId,
+      label: nextDropLabel(), name: cleanText(data.name, 40) || 'Unknown',
+      title: cleanText(data.title, 40), icon: cleanIcon(data.icon), ownerId: data.ownerId,
       contributions: [], deliveries: 0, level: 0
     };
     mergeDropContributions(newDrop, data.contributions);
@@ -3498,7 +3501,7 @@ function renderOrderMarkers() {
     }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
     else if (viewingDropId && d.id !== viewingDropId) m.setOpacity(0.5);
-    var tip = destDisplayName(d) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
+    var tip = esc(destDisplayName(d)) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
     m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
