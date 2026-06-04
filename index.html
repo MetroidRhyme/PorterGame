@@ -2016,7 +2016,7 @@ function generateOrdersForZone(zone) {
   var needPkgs  = Math.max(0, counts.pkgs  - state.packages.length);
   if (needDests === 0 && needPkgs === 0) return;
 
-  spawnOrders(activeZones, needDests, needPkgs, occupied);
+  spawnOrders(activeZones, needDests, occupied);
 }
 
 function toggleZoneActive(id) {
@@ -2517,7 +2517,7 @@ function spawnPackagesForDropBanded(dest, active, occupied) {
   });
 }
 
-function spawnOrders(active, needDests, needPkgs, occupied) {
+function spawnOrders(active, needDests, occupied) {
   var dropHexes = state.destinations.map(function(d) { return latLngToHex(d.loc.lat, d.loc.lng); });
   for (var i = 0; i < needDests; i++) {
     var dz = active[Math.floor(Math.random() * active.length)];
@@ -2583,9 +2583,8 @@ function generateOrders() {
 
   var counts    = orderCounts(active);
   var needDests = Math.max(0, counts.dests - state.destinations.length);
-  var needPkgs  = Math.max(0, counts.pkgs  - state.packages.length);
 
-  if (!spawnOrders(active, needDests, needPkgs, occupied)) {
+  if (!spawnOrders(active, needDests, occupied)) {
     if (!refreshTimer) {
       refreshTimer = setTimeout(function() { refreshTimer = null; generateOrders(); }, 30000);
     }
