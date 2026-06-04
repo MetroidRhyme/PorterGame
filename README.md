@@ -93,7 +93,7 @@ Tap a drop to open its panel, see its level and progress, and use level-gated up
 
 ## Zones
 
-Zones are made of hex grid cells (~20 m circumradius). You can define multiple named zones in different colors; packages and drops only spawn in **active** zones. For zones with fewer total hexes the order count scales more generously per hex to keep play density reasonable.
+Zones are made of hex grid cells (~20 m circumradius, ~1,040 m² each). You can define multiple named zones in different colors; packages and drops only spawn in **active** zones. For zones with fewer total hexes the order count scales more generously per hex to keep play density reasonable.
 
 You can paint your entire accessible area, or place just a handful of hexes in specific spots — orders only spawn on painted cells, giving you full control over where the action is.
 

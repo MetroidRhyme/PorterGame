@@ -3611,7 +3611,7 @@ function updateHUD() {
       ? 'Tap cells to add or remove from zone. Pan freely.'
       : 'Tap squares to select your zone. Tap again to deselect. Pan freely.';
     var cellCount = state.gridCells ? state.gridCells.size : 0;
-    distEl.textContent  = cellCount + ' cell' + (cellCount !== 1 ? 's' : '') + ' selected (~' + (cellCount * 400) + ' m²)';
+    distEl.textContent  = cellCount + ' cell' + (cellCount !== 1 ? 's' : '') + ' selected (~' + (cellCount * 1040) + ' m²)';
 
     var hasCells = cellCount > 0;
     btn.className   = hasCells ? 'pickup ready' : 'generate';
