@@ -943,7 +943,7 @@ function launchDrone(startLat, startLng, dest, halfPts) {
   var dlat = (destLat - startLat) * 111111;
   var dlng = (destLng - startLng) * 111111 * Math.cos(startLat * Math.PI / 180);
   var distM = Math.sqrt(dlat * dlat + dlng * dlng);
-  var durationMs = Math.max(500, (distM / 2) * 1000);
+  var durationMs = Math.max(500, (distM / 4) * 1000);
   var sz = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
   var mk = L.marker([startLat, startLng], {
     icon: makeIcon('#1a3050', '🚁', sz),
