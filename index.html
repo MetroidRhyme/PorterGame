@@ -330,10 +330,22 @@
     #action-btn.generate { background: #111820; color: #6aaa6a; border: 1px solid #1e3020; }
     #action-btn.draw     { background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; }
     #action-btn.pickup   { background: #1a1000; color: #c07820; border: 1px solid #2e1e00; }
-    #action-btn.pickup.ready  { background: #e8a030; color: #0a0a0f; border-color: #e8a030; }
+    #action-btn.pickup.ready  { background: #e8a030; color: #0a0a0f; border-color: #e8a030; animation: btn-pulse-amber 1.8s ease-in-out infinite; }
     #action-btn.deliver  { background: #00101a; color: #4090c0; border: 1px solid #001e30; }
-    #action-btn.deliver.ready { background: #3080c0; color: #0a0a0f; border-color: #3080c0; }
-    #action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    #action-btn.deliver.ready { background: #3080c0; color: #0a0a0f; border-color: #3080c0; animation: btn-pulse-blue 1.8s ease-in-out infinite; }
+    #action-btn:disabled { opacity: 0.35; cursor: not-allowed; animation: none; }
+    @keyframes btn-pulse-amber {
+      0%,100% { box-shadow: 0 0 0 0 rgba(232,160,48,0); }
+      50%     { box-shadow: 0 0 18px 2px rgba(232,160,48,0.55); }
+    }
+    @keyframes btn-pulse-blue {
+      0%,100% { box-shadow: 0 0 0 0 rgba(48,128,192,0); }
+      50%     { box-shadow: 0 0 18px 2px rgba(48,128,192,0.55); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #action-btn { animation: none !important; }
+      .leaflet-marker-icon > div { animation: none !important; }
+    }
 
     #completion-overlay {
       display: none; position: fixed; inset: 0; z-index: 9999;
