@@ -1183,6 +1183,23 @@ function closeTopMenu() {
   document.getElementById('top-menu').classList.remove('open');
 }
 
+// True while inspecting a package order or a drop's orders — follow mode must
+// not fight the camera during these.
+function inViewMode() { return !!(selectedPkgId || viewingDropId); }
+
+// When leaving a view, return the camera. In follow mode, snap back to the live
+// user position (reasserting follow) at the pre-view zoom; otherwise restore the
+// exact frame that was on screen before the view was entered.
+function restoreViewCamera(preView, dur) {
+  dur = dur || 0.4;
+  if (state.following && state.userPos) {
+    map.flyTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]),
+              preView ? preView.zoom : map.getZoom(), { duration: dur });
+  } else if (preView) {
+    map.flyTo(preView.center, preView.zoom, { duration: dur });
+  }
+}
+
 function toggleFollow() {
   closeTopMenu();
   state.following = !state.following;
@@ -1395,7 +1412,7 @@ function onLocationUpdate(pos) {
     onGpsLocked();
   } else {
     userMarker.setLatLng([lat, lng]);
-    if (state.following) map.panTo(adjustLatLngForMenus([lat, lng]), { animate: true, duration: 0.4 });
+    if (state.following && !inViewMode()) map.panTo(adjustLatLngForMenus([lat, lng]), { animate: true, duration: 0.4 });
   }
   if (state.painting && state.paintZoneId) {
     var ph = latLngToHex(lat, lng), pk = hexKey(ph.q, ph.r);
@@ -2282,7 +2299,7 @@ map.on('zoomstart', function() { var el = userMarker && userMarker.getElement();
 map.on('zoomend',   function() { requestAnimationFrame(function() { var el = userMarker && userMarker.getElement(); if (el) el.classList.remove('no-smooth'); }); });
 map.on('zoomend',  renderOrderMarkers);
 map.on('zoomend', function() {
-  if (state.following && state.userPos) {
+  if (state.following && state.userPos && !inViewMode()) {
     map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
   }
 });
@@ -2294,7 +2311,7 @@ map.on('click', function(e) {
     selectedPkgId = null;
     hideOrderInfo();
     renderOrderMarkers();
-    if (preSelView) { map.flyTo(preSelView.center, preSelView.zoom, { duration: 0.4 }); preSelView = null; }
+    restoreViewCamera(preSelView, 0.4); preSelView = null;
   }
   if (!state.drawing) return;
   toggleCell(e.latlng);
@@ -3066,7 +3083,7 @@ function exitDropView() {
   var vid = viewingDropId;
   viewingDropId = null;
   renderOrderMarkers();
-  if (preDropView) { map.flyTo(preDropView.center, preDropView.zoom, { duration: 0.3 }); preDropView = null; }
+  restoreViewCamera(preDropView, 0.3); preDropView = null;
   openDropPanel(vid);
 }
 
@@ -3515,7 +3532,7 @@ function renderOrderMarkers() {
           });
         } else {
           hideOrderInfo();
-          if (preSelView) { map.flyTo(preSelView.center, preSelView.zoom, { duration: 0.4 }); preSelView = null; }
+          restoreViewCamera(preSelView, 0.4); preSelView = null;
         }
       });
     })(p.id, p.pickupLoc, dest.loc, p, dest, m);
@@ -3992,14 +4009,14 @@ requestAnimationFrame(updateHudTopVar);
 window.addEventListener('resize', function() {
   updateHudTopVar();
   scheduleCanvasResize();
-  if (state.following && state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
+  if (state.following && state.userPos && !inViewMode()) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
 });
 window.addEventListener('orientationchange', function() {
   setTimeout(function() {
     updateHudTopVar();
     initDrawCanvas();
     renderGridCanvas();
-    if (state.following && state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
+    if (state.following && state.userPos && !inViewMode()) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
   }, 250);
 });
 </script>
