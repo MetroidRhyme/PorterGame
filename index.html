@@ -1292,10 +1292,11 @@ function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy, isDrop
   var fs   = Math.round(sub * 0.60);
   var gap  = Math.max(2, Math.round(size * 0.06));
   var circ = '<div style="background:' + bg + ';border:' + bdr + ';border-radius:50%;width:' + sub + 'px;height:' + sub + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:' + shd + ';flex-shrink:0">📦</div>';
+  var anim = isNext ? 'pkg-bob 1.6s ease-in-out infinite' : 'none';
 
   if (weight === 1) {
     return L.divIcon({
-      html: '<div style="animation:none">' + circ + '</div>',
+      html: '<div style="animation:' + anim + '">' + circ + '</div>',
       iconSize: [sub, sub], iconAnchor: [sub / 2, sub / 2], className: ''
     });
   }
@@ -1303,7 +1304,7 @@ function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy, isDrop
   var w = 2 * sub + gap;
   if (weight === 2) {
     return L.divIcon({
-      html: '<div style="display:flex;gap:' + gap + 'px;animation:none">' + circ + circ + '</div>',
+      html: '<div style="display:flex;gap:' + gap + 'px;animation:' + anim + '">' + circ + circ + '</div>',
       iconSize: [w, sub], iconAnchor: [w / 2, sub / 2], className: ''
     });
   }
@@ -1311,7 +1312,7 @@ function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy, isDrop
   // weight 3 — two on top, one centred below
   var h = 2 * sub + gap;
   return L.divIcon({
-    html: '<div style="display:flex;flex-direction:column;gap:' + gap + 'px;align-items:center;animation:none">' +
+    html: '<div style="display:flex;flex-direction:column;gap:' + gap + 'px;align-items:center;animation:' + anim + '">' +
       '<div style="display:flex;gap:' + gap + 'px">' + circ + circ + '</div>' + circ +
     '</div>',
     iconSize: [w, h], iconAnchor: [w / 2, h / 2], className: ''
