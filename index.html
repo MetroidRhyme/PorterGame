@@ -1078,7 +1078,7 @@ function destDisplayName(dest) {
   if (!dest) return '?';
   return dest.title || ('Drop ' + dest.label);
 }
-function safeColor(c) { return /^#[0-9a-fA-F]{3,6}$/.test(c) ? c : '#e8a030'; }
+function safeColor(c) { return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c) ? c : '#e8a030'; }
 // Normalize free-text fields arriving from shared codes: cap length, coerce to string.
 function cleanText(s, max) { return s == null ? s : String(s).slice(0, max || 40); }
 function cleanIcon(s) { return s == null ? s : (Array.from(String(s))[0] || ''); }
