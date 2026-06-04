@@ -93,7 +93,7 @@
       display: none; position: fixed; inset: 0; z-index: 4000;
       background: rgba(0,0,0,0.55);
     }
-    #settings-overlay.open { display: block; }
+    #settings-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
     #settings-drawer {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 4001;
       background: #0d0d14; border-top: 1px solid rgba(255,255,255,0.08);
@@ -161,7 +161,7 @@
       display: none; position: fixed; inset: 0; z-index: 7000;
       background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
     }
-    #merge-overlay.open { display: flex; }
+    #merge-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     #merge-modal {
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 10px; padding: 24px 20px 18px; width: min(340px, calc(100vw - 40px));
@@ -173,7 +173,7 @@
       display: none; position: fixed; inset: 0; z-index: 7000;
       background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
     }
-    #share-overlay.open { display: flex; }
+    #share-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     #share-modal {
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 10px; padding: 24px 20px 18px; width: min(360px, calc(100vw - 40px));
@@ -348,6 +348,8 @@
       #action-btn { animation: none !important; }
       .leaflet-marker-icon > div { animation: none !important; }
       #confirm-modal, #share-modal, #merge-modal, #level-modal.open, .ob-card { animation: none !important; }
+      #settings-overlay.open, #drop-overlay.open, #confirm-overlay.open, #share-overlay.open,
+      #merge-overlay.open, #level-overlay.open, #onboarding-overlay.open { animation: none !important; }
     }
 
     #completion-overlay {
@@ -366,6 +368,7 @@
                                    to   { opacity:1; transform: scale(1); } }
     @keyframes modal-in-centered { from { opacity:0; transform: translate(-50%,-50%) scale(0.96); }
                                    to   { opacity:1; transform: translate(-50%,-50%) scale(1); } }
+    @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
     .completion-box {
       background: #fff; border-radius: 14px;
       padding: 28px 36px; text-align: center;
@@ -382,7 +385,7 @@
       display: none; position: fixed; inset: 0; z-index: 8000;
       background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
     }
-    #confirm-overlay.open { display: flex; }
+    #confirm-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     #confirm-modal {
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 10px; padding: 28px 24px 20px; width: min(320px, calc(100vw - 48px));
@@ -419,7 +422,7 @@
       display: none; position: fixed; inset: 0; z-index: 5000;
       background: rgba(0,0,0,0.55);
     }
-    #drop-overlay.open { display: block; }
+    #drop-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
     #drop-panel {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 5001;
       background: #0d0d14; border-top: 1px solid rgba(255,255,255,0.08);
@@ -435,7 +438,7 @@
       display: none; position: fixed; inset: 0; z-index: 6000;
       background: rgba(0,0,0,0.65);
     }
-    #level-overlay.open { display: block; }
+    #level-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
     #level-modal {
       position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
       z-index: 6001; background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
@@ -477,7 +480,7 @@
       background: rgba(0,0,0,0.9); align-items: center; justify-content: center;
       padding: 24px;
     }
-    #onboarding-overlay.open { display: flex; }
+    #onboarding-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     .ob-card {
       background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
       border-radius: 12px; padding: 32px 24px 24px;
