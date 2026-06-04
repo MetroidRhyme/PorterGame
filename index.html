@@ -1279,17 +1279,20 @@ function makeIcon(bg, emoji, size) {
   });
 }
 
-function makeDestIcon(bg, letter, size, level, borderColor) {
+function makeDestIcon(bg, letter, size, level, borderColor, glow) {
   var fs  = Math.round(size * 0.55);
   var lfs = Math.round(size * 0.37);
   var bdr = borderColor ? '3px solid ' + borderColor : '2px solid rgba(255,255,255,0.25)';
+  var shadow = glow
+    ? '0 2px 12px rgba(0,0,0,0.7), 0 0 16px 3px rgba(48,128,192,0.7)'
+    : '0 2px 12px rgba(0,0,0,0.7)';
   var lvlHtml = level > 0
     ? '<div style="font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 3px rgba(255,255,255,0.6);margin-top:2px;letter-spacing:1px">LV' + level + '</div>'
     : '';
   var h = level > 0 ? size + lfs + 4 : size;
   return L.divIcon({
     html: '<div style="display:flex;flex-direction:column;align-items:center;width:' + size + 'px">' +
-      '<div style="background:' + bg + ';border:' + bdr + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;font-weight:bold;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.7);font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
+      '<div style="background:' + bg + ';border:' + bdr + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;font-weight:bold;color:#fff;box-shadow:' + shadow + ';font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
       lvlHtml +
     '</div>',
     iconSize: [size, h], iconAnchor: [size / 2, size / 2], className: ''
@@ -3512,7 +3515,7 @@ function renderOrderMarkers() {
     var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId) ? '#ffd060' : null;
     var isFocusedDest = (selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId);
     var m = L.marker([d.loc.lat, d.loc.lng], {
-      icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder),
+      icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder, isNext),
       pane: isFocusedDest ? 'highlightMarkerPane' : 'markerPane'
     }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
