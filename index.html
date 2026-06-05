@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.2</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.3</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1075,7 +1075,7 @@ const ABILITY_TUTORIALS = {
       'All three drones run independently; each shows its own ring on the capacity bar.'
   },
   30: {
-    icon: '🤖',
+    icon: '<img src="bot.png" width="46" height="46" style="filter:brightness(0) invert(1)">',
     title: 'PORTER-BOT',
     body: 'A <b>porter-bot</b> joins your network — it shuttles stored packages between depots on its own.<br><br>' +
       'Whenever a package sits in a depot but <b>another depot is closer to its destination</b>, an idle bot ' +
@@ -3798,7 +3798,7 @@ function renderDepotPanel(depot) {
     '</div></div>';
   }).join('');
   var botSection = getMaxBots() > 0
-    ? '<div class="depot-divider"><span>&#x1F916;</span></div>' +
+    ? '<div class="depot-divider"><span><img src="bot.png" width="16" height="16" style="filter:brightness(0) invert(1);opacity:0.85;vertical-align:middle"></span></div>' +
       '<div class="depot-section-hdr">PORTER-BOTS · ' + botsHere.length + ' HERE</div>' +
       '<div class="depot-list">' + (botRows || '<div class="depot-empty">No bots parked here</div>') + '</div>'
     : '';
@@ -4171,7 +4171,7 @@ function showNextTutorial() {
   var lvl = _tutorialQueue[0];
   var t = ABILITY_TUTORIALS[lvl];
   if (!t) { _tutorialQueue.shift(); return showNextTutorial(); }
-  document.getElementById('tutorial-icon').textContent = t.icon || '✨';
+  document.getElementById('tutorial-icon').innerHTML = t.icon || '✨';
   document.getElementById('tutorial-title').textContent = t.title + ' · LV' + lvl;
   document.getElementById('tutorial-body').innerHTML = t.body;
   document.getElementById('tutorial-overlay').classList.add('open');
@@ -4461,7 +4461,7 @@ function renderOrderMarkers() {
     if (inViewMode) dm.setOpacity(0.5);
     var botsHere = state.bots.filter(function(b) { return !b.trip && b.depotId === dp.id; }).length;
     dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + DEPOT_CAPACITY + 'U' +
-      (botsHere ? ' · 🤖' + botsHere : '') + (inRng ? ' · in range' : ''));
+      (botsHere ? ' · <img src="bot.png" width="11" height="11" style="vertical-align:middle">' + botsHere : '') + (inRng ? ' · in range' : ''));
     (function(id) { dm.on('click', function(e) { L.DomEvent.stopPropagation(e); openDepotPanel(id); }); })(dp.id);
     orderMarkers.push(dm);
   });
