@@ -695,7 +695,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.3.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.3.2</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1021,6 +1021,11 @@ const DROP_LAST_NAMES = [
   'Moreau','Tanaka','Reyes','Fischer','Diallo','Nguyen','Eriksson','Yamamoto'
 ];
 
+// Storage depots: unlock one more at each of these levels; each holds
+// DEPOT_CAPACITY weight units. Declared here so ABILITY_TUTORIALS can use them.
+const DEPOT_UNLOCK_LEVELS = [10, 20, 30, 40, 50];
+const DEPOT_CAPACITY = 10;
+
 const PLAYER_UPGRADES = [
   { level: 5,  text: 'Grapple hook unlocked (pull any-size package from ' + GRAPPLE_RANGE_HEX + ' hexes · ' + (GRAPPLE_COOLDOWN_MS < 60000 ? Math.round(GRAPPLE_COOLDOWN_MS / 1000) + 's' : Math.round(GRAPPLE_COOLDOWN_MS / 60000) + 'min') + ' cooldown)' },
   { level: 10, text: 'Carry capacity +1 (4U) · Storage depot unlocked (10U storage)' },
@@ -1178,11 +1183,8 @@ function pickDroneFor(pkg, dest) {
 }
 
 // ── STORAGE DEPOTS ──────────────────────────────────────────
-// At each of these levels the player unlocks one more storage depot they can
-// place on an unoccupied hex. A depot holds up to DEPOT_CAPACITY packages;
-// stored packages still block their drop from spawning new orders.
-const DEPOT_UNLOCK_LEVELS = [10, 20, 30, 40, 50];
-const DEPOT_CAPACITY = 10;
+// Helpers; DEPOT_UNLOCK_LEVELS / DEPOT_CAPACITY are declared earlier (near
+// PLAYER_UPGRADES) so the ability tutorial text can reference the capacity.
 function getMaxDepots()   { return DEPOT_UNLOCK_LEVELS.filter(function(l) { return getPlayerLevel() >= l; }).length; }
 function depotsPlaced()   { return state.depots.length; }
 function depotsAvailable(){ return Math.max(0, getMaxDepots() - depotsPlaced()); }
