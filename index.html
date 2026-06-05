@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.5.4</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.5.5</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1756,7 +1756,7 @@ function getCellPixelWidth() {
 }
 
 const icons = {
-  user: makeIcon('#1a3050', '🧍', 44, 'user-marker'),
+  user: makeIcon('#1a3050', '🧍', 57, 'user-marker'),
 };
 
 let userMarker    = null;
@@ -4393,7 +4393,7 @@ function renderOrderMarkers() {
   _destBaseCellPx = getCellPixelWidth();
   _destHexHalfH   = Math.round(destHexPx * SQ3 / 2) / 2;
   if (userMarker && iconPx !== _userIconPx) {
-    userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx, 'user-marker'));
+    userMarker.setIcon(makeIcon('#1a3050', '🧍', Math.round(iconPx * 1.3), 'user-marker'));
     _userIconPx = iconPx;
   }
 
