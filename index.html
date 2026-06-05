@@ -647,7 +647,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.1.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.1.1</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1226,7 +1226,7 @@ function launchGrapple(pkg) {
   }).addTo(map);
   vibrate(40);
   var t0 = Date.now();
-  var SHOOT = 240, PULL = 460;
+  var SHOOT = 480, PULL = 920;   // fixed-duration phases; doubled to halve the pull speed
   function frame() {
     var now = Date.now();
     var a = state.userPos || sp;   // rope stays anchored to the player as they move
