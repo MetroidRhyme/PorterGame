@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.4</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.5</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -772,7 +772,7 @@
   </div>
 </div>
 
-<div id="hud-bottom">
+<div id="hud-bottom" class="collapsed">
   <button id="hud-collapse-btn" onclick="toggleHUD()" aria-label="Toggle panel"></button>
   <div id="collapsible-hud">
     <div id="mission-status">STANDBY</div>
@@ -1633,10 +1633,6 @@ function updatePaintBtn() {
 //  HUD COLLAPSE
 // ═══════════════════════════════════════════════════════════
 
-function expandHUD() {
-  document.getElementById('hud-bottom').classList.remove('collapsed');
-  updateCapBar();
-}
 function toggleHUD() {
   var hud = document.getElementById('hud-bottom');
   hud.classList.toggle('collapsed');
@@ -1814,10 +1810,10 @@ function onGpsLocked() {
   vibrate(30);
   renderZoneMarkers();
   generateOrders();
-  expandHUD();
+  updateCapBar();   // bottom menu defaults to collapsed; don't auto-expand on lock
   updateHUD();
   restoreDronesInFlight();
-  // Re-centre after the bottom HUD expansion animation settles (0.28s transition)
+  // Re-centre once layout settles
   setTimeout(function() {
     updateHudTopVar();
     if (state.userPos) map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
