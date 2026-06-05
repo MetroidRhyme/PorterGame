@@ -21,7 +21,8 @@ The game surfaces what you can do right now:
 
 - The nearest **pickable package** gently bobs once you're in range and have spare capacity for it.
 - The **action button** pulses — amber for pickup, blue for delivery — when an action is ready.
-- The **drop you're delivering to** lights up with a glow when you're carrying for it and within range.
+- **Drops** appear as flat-top hex icons that fill their map cell; the one you're delivering to gains a blue glow when you're in range.
+- **Depots** appear as hex icons too; a green border shows when you're close enough to use one.
 - Your **position marker** glides smoothly between GPS updates instead of jumping.
 
 ### Package weights
@@ -42,15 +43,15 @@ Carry capacity starts at 3 units and grows by 1 at levels 10, 20, 30, 40, and 50
 
 | Level | Unlock |
 |-------|--------|
-| 10 | Carry capacity +1 (4 u) |
+| 10 | Carry capacity +1 (4 u) · **Storage depot** unlocked (10 u storage) |
 | 15 | **Drone** unlocked — light packages, 10-hex range, 3 h cooldown |
-| 20 | Carry capacity +1 (5 u) |
+| 20 | Carry capacity +1 (5 u) · +1 storage depot |
 | 25 | Drone upgrade — standard & lighter, 20-hex range, 2 h cooldown |
-| 30 | Carry capacity +1 (6 u) |
+| 30 | Carry capacity +1 (6 u) · +1 storage depot · **Porter-bot** unlocked |
 | 35 | Drone upgrade — all weights, 30-hex range, 1 h cooldown |
-| 40 | Carry capacity +1 (7 u) |
+| 40 | Carry capacity +1 (7 u) · +1 storage depot · +1 porter-bot |
 | 45 | Second drone slot (both share a 1 h cooldown) |
-| 50 | Carry capacity +1 (8 u) · max level |
+| 50 | Carry capacity +1 (8 u) · +1 storage depot · +1 porter-bot · max level |
 
 ---
 
@@ -70,6 +71,22 @@ Once unlocked at level 15, a drone can deliver a package for you without walking
 | 45 | (adds a second drone, shared 1 h cooldown) | | |
 
 Drones in flight are saved, so they keep traveling — and complete — even if you close the game.
+
+---
+
+## Depots
+
+Storage depots are physical stash points you place on the map. The first unlocks at level 10; you get one more at each subsequent 10-level milestone (20, 30, 40, 50), for a maximum of five.
+
+To place one, tap **⋮ → PLACE DEPOT** and confirm at your current location. Walk within range and tap its hex icon to open the **transfer menu** — move packages between your inventory and the depot's storage (10 weight units per depot).
+
+Depots appear on the map as hex icons, matching the same style as drops. A **green border** indicates you're within range.
+
+### Porter-bots
+
+Porter-bots unlock at level 30 (one more at 40 and 50). An idle bot automatically shuttles packages from any depot to whichever other depot is closer to each package's destination — no input needed. Each bot carries up to **3 weight units** at a time.
+
+Idle bots rest inside a depot; tap any depot to see how many are stationed there.
 
 ---
 
