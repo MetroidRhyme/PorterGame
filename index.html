@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.5.3</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.5.4</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -4386,7 +4386,7 @@ function renderOrderMarkers() {
   var pickable    = nearestPickable();
   var deliverable = nearestDeliverable();
   var rem         = getCapacity() - currentLoad();
-  var iconPx      = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
+  var iconPx      = Math.max(4, Math.round(getCellPixelWidth() * 0.95));
   // Exactly the hex width (left vertex → right vertex), no large floor, so the
   // structure never grows larger than its cell when zoomed out.
   var destHexPx   = Math.max(2, Math.round(getCellPixelWidth() * 2));
@@ -4561,7 +4561,7 @@ function renderOrderMarkers() {
         { color: '#c89bff', weight: 2, opacity: 0.85, dashArray: '3 7', lineCap: 'round',
           interactive: false, pane: 'highlightLinePane' }
       ).addTo(map));
-      var _retPx = Math.max(42, Math.round(iconPx * 1.75));
+      var _retPx = Math.round(iconPx * 1.75);
       var _retM  = L.marker([grPkg.pickupLoc.lat, grPkg.pickupLoc.lng], {
         icon: makeGrappleReticle(_retPx), interactive: false,
         pane: 'highlightMarkerPane', zIndexOffset: 800
