@@ -648,7 +648,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.1.2</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.1.3</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -913,11 +913,11 @@ const REFRESH_COOLDOWN_MS = 60 * 1000;
 const SPAWN_DELAY_MS      = 5 * 60 * 1000;
 
 // Grapple hook — unlocks at level 5, pulls the nearest in-range package (any
-// size) to the player and picks it up. TESTING VALUES: range 5 hex / 15s
-// cooldown. For release, set GRAPPLE_RANGE_HEX = 2 and GRAPPLE_COOLDOWN_MS = 15m.
+// size) to the player and picks it up. Release values: range 2 hex / 15 min
+// cooldown. (Testing values were 5 hex / 15s.)
 const GRAPPLE_UNLOCK_LEVEL = 5;
-const GRAPPLE_RANGE_HEX     = 5;          // release: 2
-const GRAPPLE_COOLDOWN_MS   = 15 * 1000;  // release: 15 * 60 * 1000
+const GRAPPLE_RANGE_HEX     = 2;
+const GRAPPLE_COOLDOWN_MS   = 15 * 60 * 1000;
 const CELL_LAT_DEG  = 20 / 111111;
 var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 var   gridOffsetLat = parseFloat(localStorage.getItem('porter_grid_lat')) || 0;
