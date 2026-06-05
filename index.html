@@ -543,22 +543,6 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* ── DEPOT PLACEMENT BANNER ── */
-    #depot-banner {
-      display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 4999;
-      background: #0d1a14; border-top: 1px solid #1e4030;
-      padding: 14px 16px max(14px, env(safe-area-inset-bottom));
-      flex-direction: column; align-items: center; gap: 10px;
-    }
-    #depot-banner.open { display: flex; }
-    #depot-banner-text { font-size: 11px; letter-spacing: 2px; color: #5ab07a; text-align: center; }
-    #depot-banner-cancel {
-      padding: 10px 28px; border-radius: 4px; cursor: pointer; touch-action: manipulation;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
-      background: transparent; border: 1px solid #602020; color: #c04040;
-      -webkit-tap-highlight-color: transparent;
-    }
-
     /* ── DEPOT PANEL ── */
     #depot-overlay {
       display: none; position: fixed; inset: 0; z-index: 5000; background: rgba(0,0,0,0.55);
@@ -695,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.3.2</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.3.3</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -889,12 +873,6 @@
   <button id="move-banner-cancel" onclick="cancelMoveMode()">CANCEL</button>
 </div>
 
-<!-- ── DEPOT PLACEMENT BANNER ── -->
-<div id="depot-banner">
-  <div id="depot-banner-text">Tap an empty hex in your zone to place a storage depot</div>
-  <button id="depot-banner-cancel" onclick="cancelDepotPlacement()">CANCEL</button>
-</div>
-
 <!-- ── ONBOARDING OVERLAY ── -->
 <div id="onboarding-overlay">
   <div class="ob-card" id="onboarding-card"></div>
@@ -962,7 +940,6 @@ const state = {
   carrying:      safeParse('porter_carrying', []),
   depots:        safeParse('porter_depots', []),
   movingDestId:  null,
-  placingDepot:  false,
   droneLightLastUsed:  parseInt(localStorage.getItem('porter_drone_light_last_used')  || '0'),
   droneMediumLastUsed: parseInt(localStorage.getItem('porter_drone_medium_last_used') || '0'),
   droneHeavyLastUsed:  parseInt(localStorage.getItem('porter_drone_heavy_last_used')  || '0'),
@@ -1055,8 +1032,8 @@ const ABILITY_TUTORIALS = {
     icon: '🏬',
     title: 'STORAGE DEPOT',
     body: 'You can now build a <b>storage depot</b> to stash packages for later.<br><br>' +
-      'Open the <b>⋮ menu → PLACE DEPOT</b>, then tap an <b>empty hex</b> in your zone. ' +
-      'Walk into a depot\'s range and tap it to open a <b>transfer menu</b> — move packages ' +
+      'Stand on an <b>empty hex</b> in your zone and use <b>⋮ menu → PLACE DEPOT</b> to drop one ' +
+      'at your location. Walk into a depot\'s range and tap it to open a <b>transfer menu</b> — move packages ' +
       'between your inventory and its storage (holds up to <b>' + DEPOT_CAPACITY + ' weight units</b>).<br><br>' +
       'Depots stay put until you delete them (<b>deleting destroys stored packages</b>). ' +
       'Stored packages keep their drop from spawning new orders until delivered or deleted. ' +
@@ -2387,7 +2364,7 @@ function resetProfile() {
   state.packages     = [];
   state.destinations = [];
   state.carrying = [];
-  state.depots = []; state.placingDepot = false;
+  state.depots = [];
   state.droneLightLastUsed = 0; state.droneMediumLastUsed = 0; state.droneHeavyLastUsed = 0;
   state.grappleLastUsed = 0; state.seenTutorials = [];
   if (state.userPos) {
@@ -2695,7 +2672,6 @@ map.on('zoomend', function() {
 });
 
 map.on('click', function(e) {
-  if (state.placingDepot) { placeDepot(e.latlng); return; }
   if (state.movingDestId) { executeDropMove(e.latlng); return; }
   if (viewingDropId) { exitDropView(); return; }
   if (selectedPkgId) {
@@ -3680,33 +3656,25 @@ function updateDepotMenu() {
   el.innerHTML = '\u{1F3EC} PLACE DEPOT (' + avail + '/' + getMaxDepots() + ')';
 }
 
+// Depots are placed on the hex the player is currently standing in.
 function startDepotPlacement() {
   if (getMaxDepots() <= 0) { showToast('Storage depots unlock at level 10'); return; }
   if (depotsAvailable() <= 0) { showToast('All ' + getMaxDepots() + ' depots placed — delete one to move it'); return; }
-  if (!getActiveZones().length) { showToast('Need an active zone to place a depot'); return; }
-  state.placingDepot = true;
-  if (state.following) { state.following = false; map.dragging.enable(); updateFollowBtn(); }
-  document.getElementById('depot-banner').classList.add('open');
-}
-function cancelDepotPlacement() {
-  state.placingDepot = false;
-  document.getElementById('depot-banner').classList.remove('open');
-}
-function placeDepot(latlng) {
-  var nh = latLngToHex(latlng.lat, latlng.lng);
+  if (!state.userPos) { showToast('GPS required to place a depot'); return; }
+  var nh = latLngToHex(state.userPos.lat, state.userPos.lng);
   var nk = hexKey(nh.q, nh.r);
   var inZone = state.zones.some(function(z) {
     return z.active && (z.cells || []).some(function(c) { return hexKey(c.q, c.r) === nk; });
   });
-  if (!inZone) { showToast('Depot must be inside an active zone'); return; }
-  if (buildOccupiedSet().has(nk)) { showToast('That hex is occupied — pick an empty one'); return; }
+  if (!inZone) { showToast('Stand inside an active zone to place a depot'); return; }
+  if (buildOccupiedSet().has(nk)) { showToast('Your hex is occupied — move to an empty hex'); return; }
+  if (!confirm('Place a storage depot on your current hex? It stays here until you delete it.')) return;
   var center = hexCenter(nh.q, nh.r);
   state.depots.push({
     id: 'depot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
     loc: { lat: center.lat, lng: center.lng },
     storage: []
   });
-  cancelDepotPlacement();
   saveGameState();
   renderOrderMarkers(); updateHUD();
   showToast('Depot placed');
