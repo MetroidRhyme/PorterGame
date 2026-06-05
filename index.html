@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.7</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.8</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -3460,7 +3460,7 @@ function viewDropOrders(destId) {
     map.flyTo(adjustLatLngForMenus(dest.loc, 17), 17, { duration: 0.5 });
   } else {
     map.flyToBounds(L.latLngBounds(points), {
-      paddingTopLeft: [24, topPad], paddingBottomRight: [24, botPad], duration: 0.5
+      paddingTopLeft: [24, topPad], paddingBottomRight: [24, botPad], maxZoom: 17, duration: 0.5
     });
   }
 }
@@ -4417,7 +4417,7 @@ function renderOrderMarkers() {
           var _botPad = ((document.getElementById('hud-bottom') || {}).offsetHeight || 0) + 24;
           map.flyToBounds(
             L.latLngBounds([[latlng.lat, latlng.lng], [destLoc.lat, destLoc.lng]]),
-            { paddingTopLeft: [24, _topPad], paddingBottomRight: [24, _botPad], duration: 0.5 }
+            { paddingTopLeft: [24, _topPad], paddingBottomRight: [24, _botPad], maxZoom: 17, duration: 0.5 }
           );
           map.once('moveend', function() {
             if (selectedPkgId !== pid) return;
