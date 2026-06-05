@@ -30,7 +30,8 @@
       display: flex; justify-content: space-between; align-items: center; gap: 12px;
     }
     #hud-top-left { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 0; }
-    #game-title { font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; white-space: nowrap; flex-shrink: 0; padding-top: 3px; }
+    #game-title { display: flex; flex-direction: column; font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; white-space: nowrap; flex-shrink: 0; padding-top: 3px; }
+    #game-version { font-size: 9px; font-weight: normal; letter-spacing: 2px; color: rgba(255,255,255,0.4); margin-top: 1px; }
     #score-display { text-align: left; flex-shrink: 0; }
     #score-display .value { font-size: 22px; color: #e8a030; }
     #top-lvl-bar-wrap { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,0.06); }
@@ -599,7 +600,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER</div>
+    <div id="game-title">PORTER<span id="game-version">v1.0.0</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
