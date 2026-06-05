@@ -695,7 +695,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.3.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.3.1</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1023,7 +1023,7 @@ const DROP_LAST_NAMES = [
 
 const PLAYER_UPGRADES = [
   { level: 5,  text: 'Grapple hook unlocked (pull any-size package from ' + GRAPPLE_RANGE_HEX + ' hexes · ' + (GRAPPLE_COOLDOWN_MS < 60000 ? Math.round(GRAPPLE_COOLDOWN_MS / 1000) + 's' : Math.round(GRAPPLE_COOLDOWN_MS / 60000) + 'min') + ' cooldown)' },
-  { level: 10, text: 'Carry capacity +1 (4U) · Storage depot unlocked (10-package storage)' },
+  { level: 10, text: 'Carry capacity +1 (4U) · Storage depot unlocked (10U storage)' },
   { level: 15, text: 'Light drone unlocked (light packages · 10 hex range · 1h cooldown)' },
   { level: 20, text: 'Carry capacity +1 (5U) · +1 storage depot' },
   { level: 25, text: 'Medium drone unlocked (standard & lighter · 20 hex range · 2h cooldown)' },
@@ -1052,7 +1052,7 @@ const ABILITY_TUTORIALS = {
     body: 'You can now build a <b>storage depot</b> to stash packages for later.<br><br>' +
       'Open the <b>⋮ menu → PLACE DEPOT</b>, then tap an <b>empty hex</b> in your zone. ' +
       'Walk into a depot\'s range and tap it to open a <b>transfer menu</b> — move packages ' +
-      'between your inventory and its storage (holds up to <b>' + DEPOT_CAPACITY + '</b>).<br><br>' +
+      'between your inventory and its storage (holds up to <b>' + DEPOT_CAPACITY + ' weight units</b>).<br><br>' +
       'Depots stay put until you delete them (<b>deleting destroys stored packages</b>). ' +
       'Stored packages keep their drop from spawning new orders until delivered or deleted. ' +
       'You unlock <b>another depot</b> every 10 levels.'
@@ -1194,6 +1194,9 @@ function depotStoredPkgs(depot) {
   return (depot.storage || []).map(function(id) {
     return state.packages.find(function(p) { return p.id === id; });
   }).filter(Boolean);
+}
+function depotLoad(depot) {
+  return depotStoredPkgs(depot).reduce(function(s, p) { return s + p.weight; }, 0);
 }
 
 // ── GRAPPLE HOOK ────────────────────────────────────────────
@@ -3726,6 +3729,8 @@ function renderDepotPanel(depot) {
   var inRng   = depotInRange(depot);
   var stored  = depotStoredPkgs(depot);
   var nStored = stored.length;
+  var dLoad   = depotLoad(depot);
+  var dRem    = DEPOT_CAPACITY - dLoad;
   var rem     = getCapacity() - currentLoad();
   var bb = 'font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1px;padding:0 12px;border-radius:3px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;white-space:nowrap;flex-shrink:0;height:36px;';
 
@@ -3745,7 +3750,7 @@ function renderDepotPanel(depot) {
     var p = state.packages.find(function(x) { return x.id === id; });
     if (!p) return '';
     var dest = state.destinations.find(function(d) { return d.id === p.destId; });
-    var can  = inRng && nStored < DEPOT_CAPACITY;
+    var can  = inRng && p.weight <= dRem;
     var btn  = can
       ? '<button onclick="depotStore(\'' + depot.id + '\',\'' + p.id + '\')" style="' + bb + 'border:1px solid #1a5a3a;background:rgba(10,40,25,0.5);color:#5ab07a">STORE &darr;</button>'
       : '<button disabled style="' + disabledBtnStyle() + '">STORE &darr;</button>';
@@ -3772,7 +3777,7 @@ function renderDepotPanel(depot) {
         '<div style="width:44px;height:44px;border-radius:10px;background:#1a3a2a;border:2px solid #2a6a4a;display:flex;align-items:center;justify-content:center;font-size:22px">🏬</div>' +
         '<div>' +
           '<div style="font-size:13px;letter-spacing:3px;color:#e0d8c8">STORAGE DEPOT</div>' +
-          '<div style="font-size:11px;color:#5ab07a;letter-spacing:2px;margin-top:3px">' + nStored + ' / ' + DEPOT_CAPACITY + ' STORED</div>' +
+          '<div style="font-size:11px;color:#5ab07a;letter-spacing:2px;margin-top:3px">' + dLoad + ' / ' + DEPOT_CAPACITY + 'U STORED · ' + nStored + ' PKG' + (nStored !== 1 ? 'S' : '') + '</div>' +
         '</div>' +
       '</div>' +
       '<button onclick="closeDepotPanel()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
@@ -3781,7 +3786,7 @@ function renderDepotPanel(depot) {
     '<div class="depot-section-hdr">YOUR INVENTORY · ' + currentLoad() + '/' + getCapacity() + 'U</div>' +
     '<div class="depot-list">' + invRows + '</div>' +
     '<div class="depot-divider"><span>&#x21C5;</span></div>' +
-    '<div class="depot-section-hdr">DEPOT STORAGE · ' + nStored + '/' + DEPOT_CAPACITY + '</div>' +
+    '<div class="depot-section-hdr">DEPOT STORAGE · ' + dLoad + '/' + DEPOT_CAPACITY + 'U</div>' +
     '<div class="depot-list">' + storeRows + '</div>' +
     '<button onclick="deleteDepotConfirm(\'' + depot.id + '\')" style="width:100%;margin-top:14px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #502020;background:rgba(60,10,10,0.4);color:#c04040">&#x1F5D1; DELETE DEPOT</button>';
 }
@@ -3791,7 +3796,7 @@ function depotStore(depotId, pkgId) {
   var p     = state.packages.find(function(x) { return x.id === pkgId; });
   if (!depot || !p) return;
   if (!depotInRange(depot)) { showToast('Move closer to the depot'); return; }
-  if ((depot.storage || []).length >= DEPOT_CAPACITY) { showToast('Depot is full'); return; }
+  if (depotLoad(depot) + p.weight > DEPOT_CAPACITY) { showToast('Not enough depot space'); return; }
   if (state.carrying.indexOf(pkgId) === -1) return;
   state.carrying = state.carrying.filter(function(id) { return id !== pkgId; });
   p.stored = true; p.depotId = depotId; p.picked = true;
@@ -4149,7 +4154,6 @@ function renderOrderMarkers() {
 
   // ── DEPOTS ───────────────────────────────────────────────
   state.depots.forEach(function(dp) {
-    var n      = (dp.storage || []).length;
     var inRng  = depotInRange(dp);
     var bg     = inRng ? '#1a3a2a' : '#14241c';
     var dm = L.marker([dp.loc.lat, dp.loc.lng], {
@@ -4157,7 +4161,7 @@ function renderOrderMarkers() {
       pane: 'markerPane'
     }).addTo(map);
     if (inViewMode) dm.setOpacity(0.5);
-    dm.bindTooltip('DEPOT · ' + n + '/' + DEPOT_CAPACITY + (inRng ? ' · in range' : ''));
+    dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + DEPOT_CAPACITY + 'U' + (inRng ? ' · in range' : ''));
     (function(id) { dm.on('click', function(e) { L.DomEvent.stopPropagation(e); openDepotPanel(id); }); })(dp.id);
     orderMarkers.push(dm);
   });
