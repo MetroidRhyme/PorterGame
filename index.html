@@ -327,25 +327,34 @@
 
     #action-row { display: flex; align-items: stretch; gap: 10px; margin: 10px 16px 0; }
     #grapple-btn {
+      position: relative; overflow: hidden;
       flex: 0 0 auto; width: 58px; min-height: 58px; padding: 0;
       border-radius: 6px; border: 1px solid #3a2a55;
       background: #1a1228; color: #c89bff; font-size: 24px; line-height: 1;
       display: flex; align-items: center; justify-content: center; cursor: pointer;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
-      animation: btn-pulse-violet 1.8s ease-in-out infinite;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s, color 0.15s;
     }
+    #grapple-fill {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+      background: rgba(160,110,255,0.30); pointer-events: none;
+      transition: height 0.2s linear;
+    }
+    #grapple-glyph { position: relative; z-index: 1; }
+    #grapple-btn.ready { animation: btn-pulse-violet 1.8s ease-in-out infinite; }
+    #grapple-btn.cooling { background: #191920; border-color: #33333f; color: #6a6a78; cursor: not-allowed; }
     #grapple-btn:active { background: #2a1c40; border-color: #6a4ab0; }
-    #grapple-btn:disabled { opacity: 0.35; cursor: not-allowed; animation: none; }
+    #grapple-btn:disabled { opacity: 0.4; cursor: not-allowed; animation: none; }
+    #grapple-btn.cooling:disabled { opacity: 1; }
     #grapple-btn.hidden { display: none; }
     .grapple-reticle {
       display: flex; align-items: center; justify-content: center;
-      filter: drop-shadow(0 0 4px rgba(160,110,255,0.7));
-      animation: reticle-pulse 1.6s ease-in-out infinite;
+      filter: drop-shadow(0 0 3px rgba(255,255,255,0.55));
+      animation: reticle-pulse 2.8s ease-in-out infinite;
     }
     @keyframes reticle-pulse {
-      0%,100% { transform: scale(0.82); opacity: 0.65; }
-      50%     { transform: scale(1.05); opacity: 1; }
+      0%,100% { transform: scale(0.85); opacity: 0.7; }
+      50%     { transform: scale(1.08); opacity: 1; }
     }
     @keyframes btn-pulse-violet {
       0%,100% { box-shadow: 0 0 0 0 rgba(160,110,255,0); }
@@ -600,7 +609,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.0.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.0.1</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -703,7 +712,7 @@
     <button id="secondary-btn"></button>
   </div>
   <div id="action-row">
-    <button id="grapple-btn" class="hidden" aria-label="Grapple nearest package">🪝</button>
+    <button id="grapple-btn" class="hidden" aria-label="Grapple nearest package"><span id="grapple-fill"></span><span id="grapple-glyph">🪝</span></button>
     <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
   </div>
 </div>
@@ -1035,28 +1044,66 @@ function nearestGrappable() {
   });
 }
 function makeGrappleReticle(size) {
+  var C = '#4a1d8f';   // deep purple — darker than the line/button for visibility
   var html = '<div class="grapple-reticle">' +
     '<svg viewBox="0 0 100 100" width="' + size + '" height="' + size + '">' +
-      '<circle cx="50" cy="50" r="38" fill="none" stroke="#c89bff" stroke-width="5" stroke-dasharray="46 13.7" stroke-linecap="round"/>' +
-      '<line x1="50" y1="3"  x2="50" y2="22" stroke="#c89bff" stroke-width="5" stroke-linecap="round"/>' +
-      '<line x1="50" y1="78" x2="50" y2="97" stroke="#c89bff" stroke-width="5" stroke-linecap="round"/>' +
-      '<line x1="3"  y1="50" x2="22" y2="50" stroke="#c89bff" stroke-width="5" stroke-linecap="round"/>' +
-      '<line x1="78" y1="50" x2="97" y2="50" stroke="#c89bff" stroke-width="5" stroke-linecap="round"/>' +
-      '<circle cx="50" cy="50" r="4" fill="#c89bff"/>' +
+      '<circle cx="50" cy="50" r="37" fill="none" stroke="' + C + '" stroke-width="7" stroke-dasharray="45 13.1" stroke-linecap="round"/>' +
+      '<line x1="50" y1="2"  x2="50" y2="23" stroke="' + C + '" stroke-width="7" stroke-linecap="round"/>' +
+      '<line x1="50" y1="77" x2="50" y2="98" stroke="' + C + '" stroke-width="7" stroke-linecap="round"/>' +
+      '<line x1="2"  y1="50" x2="23" y2="50" stroke="' + C + '" stroke-width="7" stroke-linecap="round"/>' +
+      '<line x1="77" y1="50" x2="98" y2="50" stroke="' + C + '" stroke-width="7" stroke-linecap="round"/>' +
+      '<circle cx="50" cy="50" r="6" fill="' + C + '"/>' +
     '</svg></div>';
   return L.divIcon({ html: html, iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: '' });
 }
+var _grappleCdInterval = null, _grappleCooling = false;
+function _startGrappleCdInterval() { if (!_grappleCdInterval) _grappleCdInterval = setInterval(updateGrappleBtn, 200); }
+function _stopGrappleCdInterval()  { if (_grappleCdInterval) { clearInterval(_grappleCdInterval); _grappleCdInterval = null; } }
+
+// The grapple button stays visible during gameplay once unlocked. On cooldown
+// it greys out and a fill rises from the bottom as it recharges; when ready it
+// pulses if a reachable package is in range, else sits dimmed.
 function updateGrappleBtn() {
   var gb = document.getElementById('grapple-btn');
   if (!gb) return;
-  var st  = getGrappleStatus();
-  var pkg = st.available ? nearestGrappable() : null;
-  if (!pkg) { gb.classList.add('hidden'); gb.disabled = true; gb.onclick = null; return; }
-  var fits = (getCapacity() - currentLoad()) >= pkg.weight;
+  var fill = document.getElementById('grapple-fill');
+  var activeZones = state.zones.filter(function(z) { return z.active; }).length;
+  if (getPlayerLevel() < GRAPPLE_UNLOCK_LEVEL || state.drawing || state.phase !== 'active' || !activeZones) {
+    gb.classList.add('hidden'); gb.classList.remove('cooling', 'ready');
+    gb.disabled = true; gb.onclick = null;
+    _stopGrappleCdInterval();
+    return;
+  }
   gb.classList.remove('hidden');
-  gb.disabled = !fits;
-  gb.onclick  = fits ? attemptGrapple : null;
-  gb.title    = fits ? 'Grapple nearest package' : 'No carry space for that package';
+
+  var st = getGrappleStatus();
+  if (!st.available) {
+    var pct = Math.max(0, Math.min(1, (Date.now() - (state.grappleLastUsed || 0)) / GRAPPLE_COOLDOWN_MS));
+    if (fill) fill.style.height = (pct * 100) + '%';
+    gb.classList.add('cooling'); gb.classList.remove('ready');
+    gb.disabled = true; gb.onclick = null;
+    gb.title = 'Grapple recharging…';
+    _grappleCooling = true;
+    _startGrappleCdInterval();
+    return;
+  }
+
+  // Charged.
+  _stopGrappleCdInterval();
+  if (fill) fill.style.height = '100%';
+  gb.classList.remove('cooling');
+  if (_grappleCooling) { _grappleCooling = false; renderOrderMarkers(); }  // reveal the reticle the moment it's ready
+  var pkg  = nearestGrappable();
+  var fits = pkg && (getCapacity() - currentLoad()) >= pkg.weight;
+  if (pkg && fits) {
+    gb.classList.add('ready');
+    gb.disabled = false; gb.onclick = attemptGrapple;
+    gb.title = 'Grapple nearest package';
+  } else {
+    gb.classList.remove('ready');
+    gb.disabled = true; gb.onclick = null;
+    gb.title = pkg ? 'No carry space for that package' : 'No package in range';
+  }
 }
 function attemptGrapple() {
   var st = getGrappleStatus();
@@ -1080,7 +1127,7 @@ function launchGrapple(pkg) {
   var pLat = pkg.pickupLoc.lat, pLng = pkg.pickupLoc.lng;
   var sz   = Math.max(18, Math.round(getCellPixelWidth() * 0.55));
   var rope = L.polyline([[sp.lat, sp.lng], [sp.lat, sp.lng]], {
-    color: '#dfe6ee', weight: 2.5, opacity: 0.92, lineCap: 'round',
+    color: '#c89bff', weight: 2.5, opacity: 0.95, lineCap: 'round',
     interactive: false, pane: 'highlightLinePane'
   }).addTo(map);
   var pkgMk = L.marker([pLat, pLng], {
@@ -3725,7 +3772,7 @@ function renderOrderMarkers() {
         { color: '#c89bff', weight: 2, opacity: 0.85, dashArray: '3 7', lineCap: 'round',
           interactive: false, pane: 'highlightLinePane' }
       ).addTo(map));
-      var _retPx = Math.max(26, Math.round(iconPx * 1.15));
+      var _retPx = Math.max(42, Math.round(iconPx * 1.75));
       orderMarkers.push(L.marker([grPkg.pickupLoc.lat, grPkg.pickupLoc.lng], {
         icon: makeGrappleReticle(_retPx), interactive: false,
         pane: 'highlightMarkerPane', zIndexOffset: 800
