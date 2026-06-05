@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.8</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.5.0</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1682,23 +1682,36 @@ function makeIcon(bg, emoji, size, className) {
   });
 }
 
+// `size` is the full width (left vertex → right vertex) of the flat-top hex
+// the structure fills. The black background is clipped to the hex outline so
+// the marker reads as the whole cell being filled by that structure.
 function makeDestIcon(bg, letter, size, level, borderColor, glow) {
-  var fs  = Math.round(size * 0.55);
-  var lfs = Math.round(size * 0.37);
-  var bdr = borderColor ? '3px solid ' + borderColor : '2px solid rgba(255,255,255,0.25)';
+  var w   = size;
+  var h   = Math.round(size * SQ3 / 2);   // flat-top hex height = √3/2 · width
+  var fs  = Math.round(h * 0.46);
+  var lfs = Math.round(size * 0.26);
+  var bdrW   = borderColor ? 3 : 2;
+  var bdrCol = borderColor || 'rgba(255,255,255,0.3)';
+  // Flat-top hexagon: top/bottom edges horizontal, points left & right.
+  var clip = 'clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
   var shadow = glow
-    ? '0 2px 12px rgba(0,0,0,0.7), 0 0 16px 3px rgba(48,128,192,0.7)'
-    : '0 2px 12px rgba(0,0,0,0.7)';
+    ? 'filter:drop-shadow(0 2px 6px rgba(0,0,0,0.7)) drop-shadow(0 0 7px rgba(48,128,192,0.9))'
+    : 'filter:drop-shadow(0 2px 6px rgba(0,0,0,0.7))';
   var lvlHtml = level > 0
-    ? '<div style="font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 3px rgba(255,255,255,0.6);margin-top:2px;letter-spacing:1px">LV' + level + '</div>'
+    ? '<div style="font-size:' + lfs + 'px;color:#fff;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,0.9);margin-top:1px;letter-spacing:1px">LV' + level + '</div>'
     : '';
-  var h = level > 0 ? size + lfs + 4 : size;
+  var totalH = level > 0 ? h + lfs + 3 : h;
   return L.divIcon({
-    html: '<div style="display:flex;flex-direction:column;align-items:center;width:' + size + 'px">' +
-      '<div style="background:' + bg + ';border:' + bdr + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;font-weight:bold;color:#fff;box-shadow:' + shadow + ';font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
+    html: '<div style="display:flex;flex-direction:column;align-items:center;width:' + w + 'px">' +
+      '<div style="position:relative;width:' + w + 'px;height:' + h + 'px;' + shadow + '">' +
+        '<div style="position:absolute;inset:0;background:' + bdrCol + ';' + clip + '"></div>' +
+        '<div style="position:absolute;inset:' + bdrW + 'px;background:' + bg + ';' + clip +
+          ';display:flex;align-items:center;justify-content:center;font-size:' + fs +
+          'px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
+      '</div>' +
       lvlHtml +
     '</div>',
-    iconSize: [size, h], iconAnchor: [size / 2, size / 2], className: ''
+    iconSize: [w, totalH], iconAnchor: [w / 2, h / 2], className: ''
   });
 }
 
@@ -4323,6 +4336,7 @@ function renderOrderMarkers() {
   var deliverable = nearestDeliverable();
   var rem         = getCapacity() - currentLoad();
   var iconPx      = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
+  var destHexPx   = Math.max(28, Math.round(getCellPixelWidth() * 2));
   if (userMarker && iconPx !== _userIconPx) {
     userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx, 'user-marker'));
     _userIconPx = iconPx;
@@ -4454,7 +4468,7 @@ function renderOrderMarkers() {
     var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId) ? '#ffd060' : null;
     var isFocusedDest = (selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId);
     var m = L.marker([d.loc.lat, d.loc.lng], {
-      icon: makeDestIcon(destBg, d.icon || d.label, iconPx, orphaned ? 0 : (d.level || 0), highlightBorder, isNext),
+      icon: makeDestIcon(destBg, d.icon || d.label, destHexPx, orphaned ? 0 : (d.level || 0), highlightBorder, isNext),
       pane: isFocusedDest ? 'highlightMarkerPane' : 'markerPane'
     }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
