@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.3.3</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.3.4</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1036,7 +1036,6 @@ const ABILITY_TUTORIALS = {
       'at your location. Walk into a depot\'s range and tap it to open a <b>transfer menu</b> — move packages ' +
       'between your inventory and its storage (holds up to <b>' + DEPOT_CAPACITY + ' weight units</b>).<br><br>' +
       'Depots stay put until you delete them (<b>deleting destroys stored packages</b>). ' +
-      'Stored packages keep their drop from spawning new orders until delivered or deleted. ' +
       'You unlock <b>another depot</b> every 10 levels.'
   },
   15: {
@@ -1320,6 +1319,7 @@ function completeGrapple(pkgId) {
   if (pkg && !pkg.picked) {
     pkg.picked = true;
     state.carrying.push(pkg.id);
+    scheduleRespawnAfterPickup(pkg.destId);
     vibrate(60);
     saveGameState();
     showToast('🪝 Package grappled in!', 2500);
@@ -1488,6 +1488,7 @@ function getActiveZones() {
 function buildOccupiedSet() {
   var occupied = new Set();
   state.packages.forEach(function(p) {
+    if (p.picked) return;   // picked-up/stored packages have left their pickup hex
     var h = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
     occupied.add(hexKey(h.q, h.r));
   });
@@ -2904,7 +2905,7 @@ function spawnPackagesForDropBanded(dest, active, occupied) {
 
   var existingBands = new Set();
   state.packages.forEach(function(p) {
-    if (p.destId !== dest.id) return;
+    if (p.destId !== dest.id || p.picked) return;   // only available orders hold a band
     var ph = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
     var d = hexDist(dh.q, dh.r, ph.q, ph.r);
     if (d <= maxDist * 0.33) existingBands.add(0);
@@ -3079,9 +3080,18 @@ function attemptPickup() {
   if (!pkg) return;
   pkg.picked = true;
   state.carrying.push(pkg.id);
+  scheduleRespawnAfterPickup(pkg.destId);
   vibrate(60);
   saveGameState();
   checkRefresh(); renderOrderMarkers(); updateHUD();
+}
+
+// Picking an order up frees its band; let the drop spawn a replacement after a delay.
+function scheduleRespawnAfterPickup(destId) {
+  var dest = state.destinations.find(function(d) { return d.id === destId; });
+  if (!dest) return;
+  dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS;
+  scheduleDropSpawn(dest);
 }
 
 function isDropOrphaned(dest) {
