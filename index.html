@@ -324,8 +324,26 @@
     }
     #secondary-btn:active { color: #c04040; border-color: #602020; }
 
+    #action-row { display: flex; align-items: stretch; gap: 10px; margin: 10px 16px 0; }
+    #grapple-btn {
+      flex: 0 0 auto; width: 58px; min-height: 58px; padding: 0;
+      border-radius: 6px; border: 1px solid #3a2a55;
+      background: #1a1228; color: #c89bff; font-size: 24px; line-height: 1;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+      animation: btn-pulse-violet 1.8s ease-in-out infinite;
+    }
+    #grapple-btn:active { background: #2a1c40; border-color: #6a4ab0; }
+    #grapple-btn:disabled { opacity: 0.35; cursor: not-allowed; animation: none; }
+    #grapple-btn.hidden { display: none; }
+    @keyframes btn-pulse-violet {
+      0%,100% { box-shadow: 0 0 0 0 rgba(160,110,255,0); }
+      50%     { box-shadow: 0 0 16px 2px rgba(160,110,255,0.5); }
+    }
+
     #action-btn {
-      display: block; width: calc(100% - 32px); margin: 10px 16px 0;
+      flex: 1 1 auto; display: block; width: auto; margin: 0;
       padding: 18px; border: none; border-radius: 6px;
       font-family: 'Courier New', monospace; font-size: 15px; font-weight: bold;
       letter-spacing: 4px; cursor: pointer; min-height: 58px;
@@ -348,7 +366,7 @@
       50%     { box-shadow: 0 0 18px 2px rgba(48,128,192,0.55); }
     }
     @media (prefers-reduced-motion: reduce) {
-      #action-btn { animation: none !important; }
+      #action-btn, #grapple-btn { animation: none !important; }
       .leaflet-marker-icon > div { animation: none !important; }
       .user-marker { transition: none !important; }
       #confirm-modal, #share-modal, #merge-modal, #level-modal.open, .ob-card { animation: none !important; }
@@ -674,7 +692,10 @@
     <div id="inventory"></div>
     <button id="secondary-btn"></button>
   </div>
-  <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
+  <div id="action-row">
+    <button id="grapple-btn" class="hidden" aria-label="Grapple nearest package">🪝</button>
+    <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
+  </div>
 </div>
 
 <div id="cap-bar" class="hidden">
@@ -815,12 +836,20 @@ const state = {
   movingDestId:  null,
   droneLastUsed:   parseInt(localStorage.getItem('porter_drone_last_used')   || '0'),
   drone2LastUsed:  parseInt(localStorage.getItem('porter_drone2_last_used')  || '0'),
+  grappleLastUsed: parseInt(localStorage.getItem('porter_grapple_last_used') || '0'),
   refreshLastUsed: parseInt(localStorage.getItem('porter_refresh_last_used') || '0'),
 };
 
 const PROXIMITY_M        = 30;
 const REFRESH_COOLDOWN_MS = 60 * 1000;
 const SPAWN_DELAY_MS      = 5 * 60 * 1000;
+
+// Grapple hook — unlocks at level 5, pulls the nearest in-range package (any
+// size) to the player and picks it up. TESTING VALUES: range 5 hex / 15s
+// cooldown. For release, set GRAPPLE_RANGE_HEX = 2 and GRAPPLE_COOLDOWN_MS = 15m.
+const GRAPPLE_UNLOCK_LEVEL = 5;
+const GRAPPLE_RANGE_HEX     = 5;          // release: 2
+const GRAPPLE_COOLDOWN_MS   = 15 * 1000;  // release: 15 * 60 * 1000
 const CELL_LAT_DEG  = 20 / 111111;
 var   CELL_LNG_DEG  = parseFloat(localStorage.getItem('porter_cell_lng')) || CELL_LAT_DEG;
 var   gridOffsetLat = parseFloat(localStorage.getItem('porter_grid_lat')) || 0;
@@ -862,6 +891,7 @@ const DROP_LAST_NAMES = [
 ];
 
 const PLAYER_UPGRADES = [
+  { level: 5,  text: 'Grapple hook unlocked (pull any-size package from ' + GRAPPLE_RANGE_HEX + ' hexes · ' + (GRAPPLE_COOLDOWN_MS < 60000 ? Math.round(GRAPPLE_COOLDOWN_MS / 1000) + 's' : Math.round(GRAPPLE_COOLDOWN_MS / 60000) + 'min') + ' cooldown)' },
   { level: 10, text: 'Carry capacity +1 (4U)' },
   { level: 15, text: 'Drone ability unlocked (light packages · 10 hex range · 3h cooldown)' },
   { level: 20, text: 'Carry capacity +1 (5U)' },
@@ -971,6 +1001,110 @@ function droneInRange(dest) {
   var bh    = latLngToHex(dest.loc.lat, dest.loc.lng);
   var dist  = Math.round(hexDist(ah.q, ah.r, bh.q, bh.r));
   return { ok: dist <= range, dist: dist, range: range };
+}
+
+// ── GRAPPLE HOOK ────────────────────────────────────────────
+function formatGrappleCooldown(ms) {
+  if (ms < 60000) return Math.round(ms / 1000) + 's';
+  return Math.round(ms / 60000) + ' min';
+}
+function getGrappleStatus() {
+  if (getPlayerLevel() < GRAPPLE_UNLOCK_LEVEL) return { locked: true, available: false };
+  var elapsed = Date.now() - (state.grappleLastUsed || 0);
+  if (elapsed >= GRAPPLE_COOLDOWN_MS) return { locked: false, available: true };
+  return { locked: false, available: false, remainStr: formatRemainTime(GRAPPLE_COOLDOWN_MS - elapsed) };
+}
+// Closest unpicked package within grapple range, any weight.
+function nearestGrappable() {
+  if (!state.userPos) return null;
+  var ah = latLngToHex(state.userPos.lat, state.userPos.lng);
+  var cands = state.packages.filter(function(p) {
+    if (p.picked) return false;
+    var bh = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
+    return Math.round(hexDist(ah.q, ah.r, bh.q, bh.r)) <= GRAPPLE_RANGE_HEX;
+  });
+  if (!cands.length) return null;
+  return cands.reduce(function(b, p) {
+    return haversine(state.userPos, p.pickupLoc) < haversine(state.userPos, b.pickupLoc) ? p : b;
+  });
+}
+function updateGrappleBtn() {
+  var gb = document.getElementById('grapple-btn');
+  if (!gb) return;
+  var st  = getGrappleStatus();
+  var pkg = st.available ? nearestGrappable() : null;
+  if (!pkg) { gb.classList.add('hidden'); gb.disabled = true; gb.onclick = null; return; }
+  var fits = (getCapacity() - currentLoad()) >= pkg.weight;
+  gb.classList.remove('hidden');
+  gb.disabled = !fits;
+  gb.onclick  = fits ? attemptGrapple : null;
+  gb.title    = fits ? 'Grapple nearest package' : 'No carry space for that package';
+}
+function attemptGrapple() {
+  var st = getGrappleStatus();
+  if (!st.available) return;
+  var pkg = nearestGrappable();
+  if (!pkg) return;
+  if ((getCapacity() - currentLoad()) < pkg.weight) { showToast('Not enough carry space for that package'); return; }
+  if (!confirm('Grapple the nearest package to you? This ability has a ' + formatGrappleCooldown(GRAPPLE_COOLDOWN_MS) + ' cooldown.')) return;
+  state.grappleLastUsed = Date.now();
+  localStorage.setItem('porter_grapple_last_used', state.grappleLastUsed);
+  saveGameState();
+  launchGrapple(pkg);
+  updateHUD();
+}
+// Animate a rope shooting out to the package, then yank it to the player.
+var grapplingPkgId = null;
+function launchGrapple(pkg) {
+  var sp = state.userPos;
+  if (!sp) { completeGrapple(pkg.id); return; }
+  grapplingPkgId = pkg.id;
+  renderOrderMarkers();   // hides the real package marker while it's in flight
+  var pLat = pkg.pickupLoc.lat, pLng = pkg.pickupLoc.lng;
+  var sz   = Math.max(18, Math.round(getCellPixelWidth() * 0.55));
+  var rope = L.polyline([[sp.lat, sp.lng], [sp.lat, sp.lng]], {
+    color: '#dfe6ee', weight: 2.5, opacity: 0.92, lineCap: 'round',
+    interactive: false, pane: 'highlightLinePane'
+  }).addTo(map);
+  var pkgMk = L.marker([pLat, pLng], {
+    icon: makeIcon('#2a1800', '📦', sz), zIndexOffset: 950,
+    interactive: false, pane: 'highlightMarkerPane'
+  }).addTo(map);
+  vibrate(40);
+  var t0 = Date.now();
+  var SHOOT = 240, PULL = 460;
+  function frame() {
+    var now = Date.now();
+    var a = state.userPos || sp;   // rope stays anchored to the player as they move
+    if (now - t0 < SHOOT) {
+      var t = (now - t0) / SHOOT;
+      rope.setLatLngs([[a.lat, a.lng], [a.lat + (pLat - a.lat) * t, a.lng + (pLng - a.lng) * t]]);
+      requestAnimationFrame(frame);
+    } else if (now - t0 < SHOOT + PULL) {
+      var t2  = (now - t0 - SHOOT) / PULL;
+      var e   = t2 * t2;           // accelerate inward
+      var lat = pLat + (a.lat - pLat) * e, lng = pLng + (a.lng - pLng) * e;
+      pkgMk.setLatLng([lat, lng]);
+      rope.setLatLngs([[a.lat, a.lng], [lat, lng]]);
+      requestAnimationFrame(frame);
+    } else {
+      map.removeLayer(rope); map.removeLayer(pkgMk);
+      completeGrapple(pkg.id);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+function completeGrapple(pkgId) {
+  grapplingPkgId = null;
+  var pkg = state.packages.find(function(p) { return p.id === pkgId; });
+  if (pkg && !pkg.picked) {
+    pkg.picked = true;
+    state.carrying.push(pkg.id);
+    vibrate(60);
+    saveGameState();
+    showToast('🪝 Package grappled in!', 2500);
+  }
+  checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
 function launchDrone(startLat, startLng, dest, halfPts) {
@@ -1887,6 +2021,7 @@ async function exportData() {
     carrying:       state.carrying,
     droneLastUsed:  state.droneLastUsed,
     drone2LastUsed: state.drone2LastUsed,
+    grappleLastUsed: state.grappleLastUsed,
     refreshLastUsed: state.refreshLastUsed,
     dronesInFlight: JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]'),
     cellLngDeg:     CELL_LNG_DEG,
@@ -1943,9 +2078,11 @@ function importData(input) {
       if (data.playerName) { state.playerName = data.playerName; localStorage.setItem('porter_name', state.playerName); }
       state.droneLastUsed  = data.droneLastUsed  || 0;
       state.drone2LastUsed = data.drone2LastUsed || 0;
+      state.grappleLastUsed = data.grappleLastUsed || 0;
       state.refreshLastUsed = data.refreshLastUsed || 0;
       localStorage.setItem('porter_drone_last_used',   state.droneLastUsed);
       localStorage.setItem('porter_drone2_last_used',  state.drone2LastUsed);
+      localStorage.setItem('porter_grapple_last_used', state.grappleLastUsed);
       localStorage.setItem('porter_refresh_last_used', state.refreshLastUsed);
       migrateDestinations();
       if (data.cellLngDeg) CELL_LNG_DEG = data.cellLngDeg;
@@ -3458,6 +3595,7 @@ function renderOrderMarkers() {
   state.packages.forEach(function(p) {
     var dest = state.destinations.find(function(d) { return d.id === p.destId; });
     if (!dest || !visibleDestIds.has(dest.id)) return;
+    if (p.id === grapplingPkgId) return;
     var origin = p.picked && state.userPos ? state.userPos : p.pickupLoc;
     if (viewingDropId && p.destId === viewingDropId && !p.picked) {
       dropViewLines.push({ origin: origin, dest: dest }); return;
@@ -3485,7 +3623,7 @@ function renderOrderMarkers() {
     ).addTo(map));
   }
 
-  state.packages.filter(function(p) { return !p.picked && visibleDestIds.has(p.destId); }).forEach(function(p) {
+  state.packages.filter(function(p) { return !p.picked && p.id !== grapplingPkgId && visibleDestIds.has(p.destId); }).forEach(function(p) {
     var dest            = state.destinations.find(function(d) { return d.id === p.destId; });
     var isNext          = pickable && pickable.id === p.id;
     var tooheavy        = p.weight > rem;
@@ -3620,6 +3758,8 @@ function updateHUD() {
   document.getElementById('top-lvl-bar').style.width = Math.max(0, _pct) + '%';
   btn.className        = ''; btn.onclick = null; btn.disabled = false;
   secBtn.style.display = 'none'; secBtn.onclick = null;
+  var _grBtn = document.getElementById('grapple-btn');
+  if (_grBtn) { _grBtn.classList.add('hidden'); _grBtn.disabled = true; _grBtn.onclick = null; }
   document.getElementById('inventory').style.display = 'none';
   document.getElementById('cap-status').style.display = 'none';
   updateFollowBtn();
@@ -3760,6 +3900,8 @@ function updateHUD() {
     }
     btn.className = 'pickup'; btn.textContent = 'PICK UP  (get closer)'; btn.disabled = true;
   }
+
+  updateGrappleBtn();
 
   // ── INVENTORY ────────────────────────────────────────────
   if (state.carrying.length > 0) {
