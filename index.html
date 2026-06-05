@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.5.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.5.1</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -2619,13 +2619,15 @@ function toggleCell(latlng) {
 }
 
 
-function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
+function renderZoneCells(cells, color, fillOpacity, strokeOpacity, skip) {
   var cellSet = new Set(cells.map(function(c) { return hexKey(c.q, c.r); }));
+  function isDrop(q, r) { return skip && skip.has(hexKey(q, r)); }
   drawCtx.fillStyle = color; drawCtx.strokeStyle = color; drawCtx.lineWidth = 1.5;
 
   drawCtx.globalAlpha = fillOpacity;
   drawCtx.beginPath();
   cells.forEach(function(c) {
+    if (isDrop(c.q, c.r)) return;            // leave the drop's cell empty
     var verts = hexVerticesPx(c.q, c.r);
     if (!hexOnScreen(verts)) return;
     drawCtx.moveTo(verts[0].x, verts[0].y);
@@ -2638,10 +2640,12 @@ function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
   drawCtx.lineWidth = 0.8;
   drawCtx.beginPath();
   cells.forEach(function(c) {
+    if (isDrop(c.q, c.r)) return;
     var verts = hexVerticesPx(c.q, c.r);
     if (!hexOnScreen(verts)) return;
     for (var e = 0; e < 6; e++) {
-      if (cellSet.has(hexKey(c.q + HEX_NEIGHBORS[e][0], c.r + HEX_NEIGHBORS[e][1]))) {
+      var nq = c.q + HEX_NEIGHBORS[e][0], nr = c.r + HEX_NEIGHBORS[e][1];
+      if (cellSet.has(hexKey(nq, nr)) && !isDrop(nq, nr)) {  // no lines bordering a drop cell
         drawCtx.moveTo(verts[e].x, verts[e].y);
         drawCtx.lineTo(verts[(e + 1) % 6].x, verts[(e + 1) % 6].y);
       }
@@ -2653,6 +2657,7 @@ function renderZoneCells(cells, color, fillOpacity, strokeOpacity) {
   drawCtx.lineWidth = 1.5;
   drawCtx.beginPath();
   cells.forEach(function(c) {
+    if (isDrop(c.q, c.r)) return;
     var verts = hexVerticesPx(c.q, c.r);
     if (!hexOnScreen(verts)) return;
     for (var e = 0; e < 6; e++) {
@@ -2670,7 +2675,7 @@ var _rafPending = false;
 function scheduleGridRender() {
   if (_rafPending) return;
   _rafPending = true;
-  requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); });
+  requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); rescaleDestIcons(); });
 }
 
 
@@ -2682,10 +2687,18 @@ function renderGridCanvas() {
   var fillOp   = state.drawing ? 0.18 : 0.1;
   var strokeOp = state.drawing ? 0.9  : 0.7;
 
+  // Leave each drop's cell empty so its (lower z-index) hex marker shows in
+  // front of the zone fill and grid lines rather than being painted over.
+  var dropKeys = new Set();
+  (state.destinations || []).forEach(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    dropKeys.add(hexKey(h.q, h.r));
+  });
+
   state.zones.forEach(function(zone) {
     if (!zone.cells || !zone.cells.length || !zone.active) return;
     if (zone.id === editingId) return; // replaced by gridCells below
-    renderZoneCells(zone.cells, zone.color, fillOp, strokeOp);
+    renderZoneCells(zone.cells, zone.color, fillOp, strokeOp, dropKeys);
   });
 
   if (state.drawing && state.gridCells && state.gridCells.size) {
@@ -2695,7 +2708,7 @@ function renderGridCanvas() {
       var p = key.split(',');
       return { q: parseInt(p[0]), r: parseInt(p[1]) };
     });
-    renderZoneCells(cells, color, 0.25, 1.0);
+    renderZoneCells(cells, color, 0.25, 1.0, dropKeys);
   }
 
 }
@@ -4325,7 +4338,29 @@ function showCompletion(pts, count, zoneLabel, capUp, level, bonusPts) {
 //  ORDER MARKERS
 // ═══════════════════════════════════════════════════════════
 
-function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; }
+function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; _destScaleMarkers = []; }
+
+// Drop markers are sized to fill their hex at the moment they're built. To make
+// them grow/shrink smoothly with the hex grid during a zoom (instead of snapping
+// only at zoomend), we CSS-scale each one every frame by how much the cell has
+// changed size since it was built. Driven from the same rAF as the grid canvas.
+var _destScaleMarkers = [];
+var _destBaseCellPx   = 0;
+var _destHexHalfH     = 0;
+function rescaleDestIcons() {
+  if (!_destScaleMarkers.length || !_destBaseCellPx) return;
+  var s = getCellPixelWidth() / _destBaseCellPx;
+  if (!(s > 0)) return;
+  var origin = '50% ' + _destHexHalfH + 'px';
+  for (var i = 0; i < _destScaleMarkers.length; i++) {
+    var el = _destScaleMarkers[i].getElement();
+    if (!el) continue;
+    var c = el.firstElementChild;
+    if (!c) continue;
+    c.style.transformOrigin = origin;
+    c.style.transform = 'scale(' + s + ')';
+  }
+}
 
 function renderOrderMarkers() {
   clearMarkers();
@@ -4336,7 +4371,11 @@ function renderOrderMarkers() {
   var deliverable = nearestDeliverable();
   var rem         = getCapacity() - currentLoad();
   var iconPx      = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
-  var destHexPx   = Math.max(28, Math.round(getCellPixelWidth() * 2));
+  // Exactly the hex width (left vertex → right vertex), no large floor, so the
+  // structure never grows larger than its cell when zoomed out.
+  var destHexPx   = Math.max(2, Math.round(getCellPixelWidth() * 2));
+  _destBaseCellPx = getCellPixelWidth();
+  _destHexHalfH   = Math.round(destHexPx * SQ3 / 2) / 2;
   if (userMarker && iconPx !== _userIconPx) {
     userMarker.setIcon(makeIcon('#1a3050', '🧍', iconPx, 'user-marker'));
     _userIconPx = iconPx;
@@ -4475,6 +4514,7 @@ function renderOrderMarkers() {
     else if (viewingDropId && d.id !== viewingDropId) m.setOpacity(0.5);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
+    _destScaleMarkers.push(m);
   });
 
   // ── DEPOTS ───────────────────────────────────────────────
