@@ -388,9 +388,9 @@
       #action-btn, #grapple-btn, .grapple-reticle { animation: none !important; }
       .leaflet-marker-icon > div { animation: none !important; }
       .user-marker { transition: none !important; }
-      #confirm-modal, #share-modal, #merge-modal, #level-modal.open, .ob-card { animation: none !important; }
+      #confirm-modal, #share-modal, #merge-modal, #level-modal.open, #tutorial-modal.open, .ob-card { animation: none !important; }
       #settings-overlay.open, #drop-overlay.open, #confirm-overlay.open, #share-overlay.open,
-      #merge-overlay.open, #level-overlay.open, #onboarding-overlay.open { animation: none !important; }
+      #merge-overlay.open, #level-overlay.open, #tutorial-overlay.open, #onboarding-overlay.open { animation: none !important; }
     }
 
     #completion-overlay {
@@ -487,6 +487,44 @@
       max-height: 80vh; overflow-y: auto; display: none;
     }
     #level-modal.open { display: block; animation: modal-in-centered 0.22s ease-out; }
+
+    /* ── ABILITY TUTORIAL ── */
+    #tutorial-overlay {
+      display: none; position: fixed; inset: 0; z-index: 6200; background: rgba(0,0,0,0.72);
+    }
+    #tutorial-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
+    #tutorial-modal {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 6201; display: none; text-align: center;
+      background: #0d0d14; border: 1px solid #3a2a55; border-radius: 12px;
+      padding: 24px 22px; width: min(330px, calc(100vw - 40px));
+      max-height: 86vh; overflow-y: auto;
+      box-shadow: 0 0 40px 4px rgba(160,110,255,0.25);
+    }
+    #tutorial-modal.open { display: block; animation: modal-in-centered 0.24s ease-out; }
+    #tutorial-icon { font-size: 46px; line-height: 1; margin-bottom: 12px; }
+    #tutorial-badge {
+      font-size: 9px; letter-spacing: 3px; color: #c89bff;
+      border: 1px solid #3a2a55; border-radius: 20px; padding: 4px 12px;
+      display: inline-block; margin-bottom: 14px;
+    }
+    #tutorial-title {
+      font-size: 16px; font-weight: bold; letter-spacing: 2px; color: #e8a030;
+      margin-bottom: 12px;
+    }
+    #tutorial-body {
+      font-size: 13px; line-height: 1.6; color: #c8b8a0; text-align: left;
+      margin-bottom: 20px;
+    }
+    #tutorial-body b { color: #e0d8c8; }
+    #tutorial-ok {
+      width: 100%; padding: 14px; border-radius: 6px; cursor: pointer;
+      background: #2a1c40; color: #c89bff; border: 1px solid #6a4ab0;
+      font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold;
+      letter-spacing: 3px; min-height: 50px;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    #tutorial-ok:active { background: #3a2858; }
 
     /* ── MOVE MODE BANNER ── */
     #move-banner {
@@ -609,7 +647,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.0.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.1.0</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -781,6 +819,15 @@
   <div id="level-modal-content"></div>
 </div>
 
+<div id="tutorial-overlay"></div>
+<div id="tutorial-modal">
+  <div id="tutorial-icon"></div>
+  <div id="tutorial-badge">NEW ABILITY UNLOCKED</div>
+  <div id="tutorial-title"></div>
+  <div id="tutorial-body"></div>
+  <button id="tutorial-ok" onclick="dismissTutorial()">GOT IT</button>
+</div>
+
 <!-- ── MOVE MODE BANNER ── -->
 <div id="move-banner">
   <div id="move-banner-text">Tap the map to relocate Drop</div>
@@ -857,6 +904,7 @@ const state = {
   drone2LastUsed:  parseInt(localStorage.getItem('porter_drone2_last_used')  || '0'),
   grappleLastUsed: parseInt(localStorage.getItem('porter_grapple_last_used') || '0'),
   refreshLastUsed: parseInt(localStorage.getItem('porter_refresh_last_used') || '0'),
+  seenTutorials:   safeParse('porter_seen_tutorials', []),
 };
 
 const PROXIMITY_M        = 30;
@@ -921,6 +969,48 @@ const PLAYER_UPGRADES = [
   { level: 45, text: 'Second drone slot unlocked · both share 1h cooldown' },
   { level: 50, text: 'Carry capacity +1 (8U) · MAX LEVEL' },
 ];
+
+// Tutorial pop-ups shown the first time an ability is unlocked on level-up.
+// Keyed by player level. Body may contain <b> for emphasis.
+const ABILITY_TUTORIALS = {
+  5: {
+    icon: '🪝',
+    title: 'GRAPPLE HOOK',
+    body: 'Pull a package straight to you — no walking required.<br><br>' +
+      'When it\'s ready, a <b>🪝 button</b> sits to the left of the pickup button. A ' +
+      '<b>dotted purple line and reticle</b> mark the closest package in range (up to <b>' +
+      GRAPPLE_RANGE_HEX + ' hexes</b>). Tap the button to fire the hook and reel it in — ' +
+      '<b>any size works</b>, as long as you have free carry space.<br><br>' +
+      'After use it goes on cooldown; the button greys out and <b>fills back up</b> as it recharges.'
+  },
+  15: {
+    icon: '🚁',
+    title: 'DRONE DISPATCH',
+    body: 'Send a package by air instead of carrying it.<br><br>' +
+      'Stand near a package and tap <b>DRONE LIFT</b> to fly it straight to its drop for ' +
+      '<b>half points</b> — great for far-off deliveries. At first it carries <b>light packages</b> ' +
+      'within range; later levels unlock heavier loads, longer range, and shorter cooldowns.<br><br>' +
+      'The cooldown ring shows on the <b>capacity bar</b> at the bottom-right.'
+  },
+  25: {
+    icon: '🚁',
+    title: 'DRONE UPGRADED',
+    body: 'Your drone is stronger: it now hauls <b>standard &amp; lighter</b> packages, ' +
+      'reaches up to <b>20 hexes</b>, and its cooldown drops to <b>2 hours</b>.'
+  },
+  35: {
+    icon: '🚁',
+    title: 'DRONE UPGRADED',
+    body: 'Top-tier drone: carries <b>any weight</b>, ranges out to <b>30 hexes</b>, ' +
+      'and recharges in just <b>1 hour</b>.'
+  },
+  45: {
+    icon: '🚁',
+    title: 'SECOND DRONE',
+    body: 'A <b>second drone slot</b> is online — you can have <b>two lifts</b> in the air, ' +
+      'sharing the 1-hour cooldown. Each slot shows its own ring on the capacity bar.'
+  },
+};
 
 const DROP_UPGRADES = [
   { level: 5,  text: 'Rename drop' },
@@ -1248,6 +1338,7 @@ function completeDroneDelivery(drone) {
   var msg = '🚁 Drone delivered! +' + drone.halfPts + ' pts';
   if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel();
   showToast(msg, 4000);
+  queueAbilityTutorials(plvlBefore, getPlayerLevel(), 1200);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -2087,6 +2178,7 @@ async function exportData() {
     drone2LastUsed: state.drone2LastUsed,
     grappleLastUsed: state.grappleLastUsed,
     refreshLastUsed: state.refreshLastUsed,
+    seenTutorials:   state.seenTutorials,
     dronesInFlight: JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]'),
     cellLngDeg:     CELL_LNG_DEG,
     gridOffsetLat:  gridOffsetLat,
@@ -2144,10 +2236,12 @@ function importData(input) {
       state.drone2LastUsed = data.drone2LastUsed || 0;
       state.grappleLastUsed = data.grappleLastUsed || 0;
       state.refreshLastUsed = data.refreshLastUsed || 0;
+      state.seenTutorials   = Array.isArray(data.seenTutorials) ? data.seenTutorials : [];
       localStorage.setItem('porter_drone_last_used',   state.droneLastUsed);
       localStorage.setItem('porter_drone2_last_used',  state.drone2LastUsed);
       localStorage.setItem('porter_grapple_last_used', state.grappleLastUsed);
       localStorage.setItem('porter_refresh_last_used', state.refreshLastUsed);
+      localStorage.setItem('porter_seen_tutorials',    JSON.stringify(state.seenTutorials));
       migrateDestinations();
       if (data.cellLngDeg) CELL_LNG_DEG = data.cellLngDeg;
       if (data.gridOffsetLat != null) gridOffsetLat = data.gridOffsetLat;
@@ -3024,6 +3118,7 @@ function attemptDeliver() {
   spawnPackagesForDrop(dest);
   saveGameState();
   showCompletion(pts, pkgs.length, destDisplayName(dest), capUp, level, bonusPts);
+  queueAbilityTutorials(plvlBefore, getPlayerLevel(), (capUp ? 3500 : 2800) + 300);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -3498,6 +3593,47 @@ function closeDrop() {
 function closeLevelBreakdown() {
   document.getElementById('level-overlay').classList.remove('open');
   document.getElementById('level-modal').classList.remove('open');
+}
+
+// ── ABILITY TUTORIALS ──────────────────────────────────────
+var _tutorialQueue = [];
+function markTutorialSeen(level) {
+  if (state.seenTutorials.indexOf(level) === -1) {
+    state.seenTutorials.push(level);
+    localStorage.setItem('porter_seen_tutorials', JSON.stringify(state.seenTutorials));
+  }
+}
+// Queue tutorials for any ability unlocked when crossing from fromLvl to toLvl.
+function queueAbilityTutorials(fromLvl, toLvl, delayMs) {
+  var added = false;
+  for (var lvl = fromLvl + 1; lvl <= toLvl; lvl++) {
+    if (ABILITY_TUTORIALS[lvl] && state.seenTutorials.indexOf(lvl) === -1 &&
+        _tutorialQueue.indexOf(lvl) === -1) {
+      _tutorialQueue.push(lvl);
+      added = true;
+    }
+  }
+  if (added) setTimeout(showNextTutorial, delayMs || 0);
+}
+function showNextTutorial() {
+  if (document.getElementById('tutorial-modal').classList.contains('open')) return;
+  if (!_tutorialQueue.length) return;
+  var lvl = _tutorialQueue[0];
+  var t = ABILITY_TUTORIALS[lvl];
+  if (!t) { _tutorialQueue.shift(); return showNextTutorial(); }
+  document.getElementById('tutorial-icon').textContent = t.icon || '✨';
+  document.getElementById('tutorial-title').textContent = t.title + ' · LV' + lvl;
+  document.getElementById('tutorial-body').innerHTML = t.body;
+  document.getElementById('tutorial-overlay').classList.add('open');
+  document.getElementById('tutorial-modal').classList.add('open');
+  vibrate(40);
+}
+function dismissTutorial() {
+  var lvl = _tutorialQueue.shift();
+  if (lvl != null) markTutorialSeen(lvl);
+  document.getElementById('tutorial-overlay').classList.remove('open');
+  document.getElementById('tutorial-modal').classList.remove('open');
+  if (_tutorialQueue.length) setTimeout(showNextTutorial, 350);
 }
 
 function _levelBreakdownRows(upgrades, currentLevel) {
