@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.3.5</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.0</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -939,6 +939,7 @@ const state = {
   destinations:  safeParse('porter_destinations', []),
   carrying:      safeParse('porter_carrying', []),
   depots:        safeParse('porter_depots', []),
+  bots:          safeParse('porter_bots', []),
   movingDestId:  null,
   droneLightLastUsed:  parseInt(localStorage.getItem('porter_drone_light_last_used')  || '0'),
   droneMediumLastUsed: parseInt(localStorage.getItem('porter_drone_medium_last_used') || '0'),
@@ -1003,16 +1004,25 @@ const DROP_LAST_NAMES = [
 const DEPOT_UNLOCK_LEVELS = [10, 20, 30, 40, 50];
 const DEPOT_CAPACITY = 10;
 
+// Porter-bots: autonomous couriers that relay depot-stored packages toward
+// the depot closest to each package's destination. One unlocks at L30/40/50.
+// BOT_TEST_DEFAULT extra bots are granted regardless of level for testing.
+const BOT_UNLOCK_LEVELS = [30, 40, 50];
+const BOT_TEST_DEFAULT   = 2;                 // TODO: set to 0 before shipping
+const BOT_CAPACITY       = 3;                 // max weight a bot carries at once
+const BOT_RECHARGE_MS     = 15 * 60 * 1000;   // rest after each delivery trip
+const BOT_SPEED_MPS       = 1;                // drone ≈ 4 m/s; bot is 1/4 of that
+
 const PLAYER_UPGRADES = [
   { level: 5,  text: 'Grapple hook unlocked (pull any-size package from ' + GRAPPLE_RANGE_HEX + ' hexes · ' + (GRAPPLE_COOLDOWN_MS < 60000 ? Math.round(GRAPPLE_COOLDOWN_MS / 1000) + 's' : Math.round(GRAPPLE_COOLDOWN_MS / 60000) + 'min') + ' cooldown)' },
   { level: 10, text: 'Carry capacity +1 (4U) · Storage depot unlocked (10U storage)' },
   { level: 15, text: 'Light drone unlocked (light packages · 10 hex range · 1h cooldown)' },
   { level: 20, text: 'Carry capacity +1 (5U) · +1 storage depot' },
   { level: 25, text: 'Medium drone unlocked (standard & lighter · 20 hex range · 2h cooldown)' },
-  { level: 30, text: 'Carry capacity +1 (6U) · +1 storage depot' },
+  { level: 30, text: 'Carry capacity +1 (6U) · +1 storage depot · Porter-bot unlocked (auto-relays packages between depots)' },
   { level: 35, text: 'Heavy drone unlocked (all weights · 30 hex range · 3h cooldown)' },
-  { level: 40, text: 'Carry capacity +1 (7U) · +1 storage depot' },
-  { level: 50, text: 'Carry capacity +1 (8U) · +1 storage depot · MAX LEVEL' },
+  { level: 40, text: 'Carry capacity +1 (7U) · +1 storage depot · +1 porter-bot' },
+  { level: 50, text: 'Carry capacity +1 (8U) · +1 storage depot · +1 porter-bot · MAX LEVEL' },
 ];
 
 // Tutorial pop-ups shown the first time an ability is unlocked on level-up.
@@ -1062,6 +1072,17 @@ const ABILITY_TUTORIALS = {
     body: 'Your <b>third drone</b> is online — it carries <b>any weight</b>, ranges out to ' +
       '<b>30 hexes</b>, and has a <b>3-hour cooldown</b>.<br><br>' +
       'All three drones run independently; each shows its own ring on the capacity bar.'
+  },
+  30: {
+    icon: '🤖',
+    title: 'PORTER-BOT',
+    body: 'A <b>porter-bot</b> joins your network — it shuttles stored packages between depots on its own.<br><br>' +
+      'Whenever a package sits in a depot but <b>another depot is closer to its destination</b>, an idle bot ' +
+      'drives over, picks it up, and relays it to that closer depot. Bots carry up to <b>' + BOT_CAPACITY +
+      ' weight</b>, move at <b>a quarter of drone speed</b>, and <b>recharge for ' +
+      Math.round(BOT_RECHARGE_MS / 60000) + ' minutes</b> after each delivery.<br><br>' +
+      'Idle bots are stored inside a depot (tap a depot to see them). You unlock <b>another bot</b> at ' +
+      'levels 40 and 50. New bots report to the depot nearest you.'
   },
 };
 
@@ -1812,6 +1833,7 @@ function saveGameState() {
   localStorage.setItem('porter_packages',     JSON.stringify(state.packages));
   localStorage.setItem('porter_destinations', JSON.stringify(state.destinations));
   localStorage.setItem('porter_depots',       JSON.stringify(state.depots));
+  localStorage.setItem('porter_bots',         JSON.stringify(state.bots));
 }
 function saveDronesInFlight() {
   localStorage.setItem('porter_drones_in_flight', JSON.stringify(
@@ -2239,6 +2261,7 @@ async function exportData() {
     destinations:   state.destinations,
     carrying:       state.carrying,
     depots:         state.depots,
+    bots:           state.bots,
     droneLightLastUsed:  state.droneLightLastUsed,
     droneMediumLastUsed: state.droneMediumLastUsed,
     droneHeavyLastUsed:  state.droneHeavyLastUsed,
@@ -2298,6 +2321,8 @@ function importData(input) {
       state.destinations = data.destinations || [];
       state.carrying     = data.carrying     || [];
       state.depots       = Array.isArray(data.depots) ? data.depots : [];
+      clearBotMarkers();
+      state.bots         = Array.isArray(data.bots) ? data.bots : [];
       if (data.playerName) { state.playerName = data.playerName; localStorage.setItem('porter_name', state.playerName); }
       state.droneLightLastUsed  = data.droneLightLastUsed  || 0;
       state.droneMediumLastUsed = data.droneMediumLastUsed || 0;
@@ -2330,6 +2355,7 @@ function importData(input) {
       if (_droneAnimInterval) { clearInterval(_droneAnimInterval); _droneAnimInterval = null; }
       localStorage.setItem('porter_drones_in_flight', JSON.stringify(data.dronesInFlight || []));
       if (state.phase === 'active') restoreDronesInFlight();
+      resumeBots();
 
       renderZoneMarkers();
       renderGridCanvas();
@@ -2351,7 +2377,7 @@ function resetProfile() {
 
   ['porter_score','porter_deliveries',
    'porter_zones','porter_packages','porter_destinations','porter_carrying','porter_cell_lng',
-   'porter_grid_lat','porter_grid_lng','porter_depots',
+   'porter_grid_lat','porter_grid_lng','porter_depots','porter_bots',
    'porter_drone_light_last_used','porter_drone_medium_last_used','porter_drone_heavy_last_used',
    'porter_grapple_last_used','porter_seen_tutorials','porter_refresh_last_used','porter_drones_in_flight']
     .forEach(function(k) { localStorage.removeItem(k); });
@@ -2366,6 +2392,7 @@ function resetProfile() {
   state.destinations = [];
   state.carrying = [];
   state.depots = [];
+  clearBotMarkers(); state.bots = [];
   state.droneLightLastUsed = 0; state.droneMediumLastUsed = 0; state.droneHeavyLastUsed = 0;
   state.grappleLastUsed = 0; state.seenTutorials = [];
   if (state.userPos) {
@@ -2477,6 +2504,7 @@ function deleteZone(id) {
 
 function clearAllZones() {
   state.zones = []; state.packages = []; state.destinations = []; state.carrying = []; state.depots = [];
+  clearBotMarkers(); state.bots = [];
   saveZones(); saveGameState(); renderZoneMarkers(); renderOrderMarkers(); updateHUD();
 }
 
@@ -3688,7 +3716,9 @@ function startDepotPlacement() {
     loc: { lat: center.lat, lng: center.lng },
     storage: []
   });
+  reconcileBots();   // assign any pending bots to this (possibly first) depot
   saveGameState();
+  botTick();
   renderOrderMarkers(); updateHUD();
   showToast('Depot placed');
 }
@@ -3754,6 +3784,24 @@ function renderDepotPanel(depot) {
   var notice = inRng ? '' :
     '<div style="font-size:10px;letter-spacing:1px;color:#c08040;text-align:center;margin:2px 0 10px">Move within range to transfer packages</div>';
 
+  // Porter-bots currently parked / recharging at this depot.
+  var botsHere = state.bots.filter(function(b) { return !b.trip && b.depotId === depot.id; });
+  var botRows = botsHere.map(function(b) {
+    var charging = (b.rechargeUntil || 0) > Date.now();
+    var status = charging
+      ? '<span style="color:#e8a030">RECHARGING · ' + formatRemainTime(b.rechargeUntil - Date.now()) + '</span>'
+      : '<span style="color:#5ab07a">READY</span>';
+    return '<div class="depot-row"><div class="depot-row-info">' +
+      '<div class="inv-label">🤖 PORTER-BOT</div>' +
+      '<div class="inv-sub">' + status + '</div>' +
+    '</div></div>';
+  }).join('');
+  var botSection = getMaxBots() > 0
+    ? '<div class="depot-divider"><span>&#x1F916;</span></div>' +
+      '<div class="depot-section-hdr">PORTER-BOTS · ' + botsHere.length + ' HERE</div>' +
+      '<div class="depot-list">' + (botRows || '<div class="depot-empty">No bots parked here</div>') + '</div>'
+    : '';
+
   document.getElementById('depot-panel-content').innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
       '<div style="display:flex;align-items:center;gap:12px">' +
@@ -3771,6 +3819,7 @@ function renderDepotPanel(depot) {
     '<div class="depot-divider"><span>&#x21C5;</span></div>' +
     '<div class="depot-section-hdr">DEPOT STORAGE · ' + dLoad + '/' + DEPOT_CAPACITY + 'U</div>' +
     '<div class="depot-list">' + storeRows + '</div>' +
+    botSection +
     '<button onclick="deleteDepotConfirm(\'' + depot.id + '\')" style="width:100%;margin-top:14px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #502020;background:rgba(60,10,10,0.4);color:#c04040">&#x1F5D1; DELETE DEPOT</button>';
 }
 
@@ -3787,6 +3836,7 @@ function depotStore(depotId, pkgId) {
   depot.storage.push(pkgId);
   vibrate(40);
   saveGameState();
+  botTick();
   renderDepotPanel(depot); renderOrderMarkers(); updateHUD();
 }
 function depotTake(depotId, pkgId) {
@@ -3810,11 +3860,13 @@ function deleteDepotConfirm(depotId) {
     ? 'Delete this depot? Its ' + n + ' stored package' + (n > 1 ? 's' : '') + ' will be destroyed.'
     : 'Delete this depot?';
   if (!confirm(msg)) return;
+  handleDepotDeletionForBots(depotId);
   var storedIds = new Set(depot.storage || []);
   var affected = {};
   state.packages.forEach(function(p) { if (storedIds.has(p.id)) affected[p.destId] = true; });
   state.packages = state.packages.filter(function(p) { return !storedIds.has(p.id); });
   state.depots   = state.depots.filter(function(d) { return d.id !== depotId; });
+  reconcileBots();   // re-home any bots that lived here
   Object.keys(affected).forEach(function(destId) {
     var dest = state.destinations.find(function(d) { return d.id === destId; });
     if (dest) spawnPackagesForDrop(dest);
@@ -3823,6 +3875,266 @@ function deleteDepotConfirm(depotId) {
   saveGameState();
   renderOrderMarkers(); updateHUD();
   showToast('Depot deleted');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PORTER-BOTS
+// ═══════════════════════════════════════════════════════════
+// Bots live "inside" a depot when idle (not drawn on the map). When a
+// depot-stored package's nearest depot is some *other* depot, an idle bot is
+// dispatched to relay it there. Bots carry up to BOT_CAPACITY weight, move at
+// BOT_SPEED_MPS, and recharge for BOT_RECHARGE_MS after each delivery.
+
+var botRuntime     = {};    // botId -> { marker, line }  (in-flight visuals only)
+var _botAnimInterval = null;
+
+function saveBots() { localStorage.setItem('porter_bots', JSON.stringify(state.bots)); }
+function getMaxBots() {
+  return BOT_TEST_DEFAULT + BOT_UNLOCK_LEVELS.filter(function(l) { return getPlayerLevel() >= l; }).length;
+}
+function botIdle(b)    { return !b.trip && (b.rechargeUntil || 0) <= Date.now(); }
+function botHomeLoc(b) { var d = state.depots.find(function(x) { return x.id === b.depotId; }); return d ? d.loc : null; }
+function botPayloadCount(b) { return state.packages.filter(function(p) { return p.onBot && p.botId === b.id; }).length; }
+function botLegDurationMs(a, b) { return Math.max(2000, haversine(a, b) / BOT_SPEED_MPS * 1000); }
+function closestDepotTo(loc) {
+  var best = null, bd = Infinity;
+  state.depots.forEach(function(dp) { var d = haversine(loc, dp.loc); if (d < bd) { bd = d; best = dp; } });
+  return best;
+}
+
+// Ensure state.bots holds exactly getMaxBots() entries and every idle bot has a
+// home depot (closest to the player, or the first depot, or none if no depots).
+function reconcileBots() {
+  if (!Array.isArray(state.bots)) state.bots = [];
+  var changed = false;
+  while (state.bots.length < getMaxBots()) {
+    state.bots.push({
+      id: 'bot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      depotId: null, rechargeUntil: 0, trip: null
+    });
+    changed = true;
+  }
+  state.bots.forEach(function(b) {
+    if (b.trip) return;
+    var homed = b.depotId && state.depots.find(function(d) { return d.id === b.depotId; });
+    if (!homed && state.depots.length) {
+      var home = state.userPos ? closestDepotTo(state.userPos) : state.depots[0];
+      b.depotId = home ? home.id : null;
+      changed = true;
+    } else if (!homed && b.depotId) {
+      b.depotId = null; changed = true;
+    }
+  });
+  if (changed) saveBots();
+  return changed;
+}
+
+function makeLeg(phase, from, to, sourceId, targetId, startTime) {
+  return { phase: phase, fromLat: from.lat, fromLng: from.lng, toLat: to.lat, toLng: to.lng,
+           sourceDepotId: sourceId, targetDepotId: targetId,
+           startTime: startTime, durationMs: botLegDurationMs(from, to) };
+}
+
+// Move this bot's reserved packages out of the source depot and onto the bot.
+function loadBotPackages(bot, source) {
+  state.packages.forEach(function(p) {
+    if (p.botId === bot.id && p.depotId === source.id) {
+      source.storage = (source.storage || []).filter(function(id) { return id !== p.id; });
+      p.stored = false; p.depotId = null; p.onBot = true; p.picked = true;
+    }
+  });
+}
+function releaseBotReservations(bot) {
+  state.packages.forEach(function(p) {
+    if (p.botId === bot.id) { delete p.botId; delete p.transitTarget; if (p.onBot) p.onBot = false; }
+  });
+}
+
+function startBotTrip(bot, source, target) {
+  if (bot.depotId === source.id) {
+    loadBotPackages(bot, source);
+    bot.depotId = null;
+    bot.trip = makeLeg('toDropoff', source.loc, target.loc, source.id, target.id, Date.now());
+  } else {
+    var from = botHomeLoc(bot) || source.loc;
+    bot.depotId = null;
+    bot.trip = makeLeg('toPickup', from, source.loc, source.id, target.id, Date.now());
+  }
+  startBotAnim();
+}
+
+// A leg finished: advance toPickup → toDropoff, or finish a delivery.
+function advanceBotTrip(bot) {
+  var tr = bot.trip, arrival = tr.startTime + tr.durationMs;
+  if (tr.phase === 'toPickup') {
+    var source = state.depots.find(function(d) { return d.id === tr.sourceDepotId; });
+    var target = state.depots.find(function(d) { return d.id === tr.targetDepotId; });
+    if (source) loadBotPackages(bot, source);
+    var carried = state.packages.filter(function(p) { return p.onBot && p.botId === bot.id; });
+    if (!carried.length || !target) {           // nothing to haul or target vanished
+      releaseBotReservations(bot);
+      bot.depotId = source ? source.id : (state.depots[0] ? state.depots[0].id : null);
+      bot.trip = null;
+      removeBotMarker(bot.id);
+      return;
+    }
+    removeBotMarker(bot.id);   // recreate next tick so tooltip shows the payload
+    bot.trip = makeLeg('toDropoff', source.loc, target.loc, source.id, target.id, arrival);
+  } else {
+    deliverBotPackages(bot, tr.targetDepotId, arrival);
+  }
+}
+
+function deliverBotPackages(bot, targetId, arrival) {
+  var target = state.depots.find(function(d) { return d.id === targetId; });
+  if (!target) target = closestDepotTo({ lat: bot.trip.toLat, lng: bot.trip.toLng });
+  state.packages.filter(function(p) { return p.onBot && p.botId === bot.id; }).forEach(function(p) {
+    p.onBot = false; delete p.botId; delete p.transitTarget;
+    if (target) {
+      p.stored = true; p.depotId = target.id; p.picked = true;
+      target.storage = target.storage || []; target.storage.push(p.id);
+    } else {
+      p.stored = false; p.depotId = null; p.picked = true;   // no depots left — package falls out of transit
+    }
+  });
+  bot.depotId = target ? target.id : null;
+  bot.trip = null;
+  bot.rechargeUntil = arrival + BOT_RECHARGE_MS;
+  removeBotMarker(bot.id);
+}
+
+// Find relay jobs and assign idle, charged bots to them.
+function dispatchBots() {
+  if (state.depots.length < 2) return;
+  var avail = state.bots.filter(botIdle);
+  if (!avail.length) return;
+
+  var dispatched = false;
+  var groups = {};   // "sourceId>targetId" -> { source, target, pkgs:[] }
+  state.packages.forEach(function(p) {
+    if (!p.stored || !p.depotId || p.botId) return;
+    var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+    if (!dest) return;
+    var target = closestDepotTo(dest.loc);
+    if (!target || target.id === p.depotId) return;
+    var key = p.depotId + '>' + target.id;
+    (groups[key] || (groups[key] = { source: p.depotId, target: target.id, pkgs: [] })).pkgs.push(p);
+  });
+
+  Object.keys(groups).forEach(function(key) {
+    if (!avail.length) return;
+    var g = groups[key];
+    var source = state.depots.find(function(d) { return d.id === g.source; });
+    var target = state.depots.find(function(d) { return d.id === g.target; });
+    if (!source || !target) return;
+    var incoming = state.packages
+      .filter(function(p) { return p.botId && p.transitTarget === target.id; })
+      .reduce(function(s, p) { return s + p.weight; }, 0);
+    var room = DEPOT_CAPACITY - depotLoad(target) - incoming;
+    if (room <= 0) return;
+
+    // Prefer a bot already at the source; otherwise the one nearest to it.
+    avail.sort(function(a, b) {
+      var ah = a.depotId === source.id ? 0 : 1, bh = b.depotId === source.id ? 0 : 1;
+      if (ah !== bh) return ah - bh;
+      var al = botHomeLoc(a), bl = botHomeLoc(b);
+      return (al ? haversine(al, source.loc) : 1e12) - (bl ? haversine(bl, source.loc) : 1e12);
+    });
+    var bot = avail[0];
+    if (!bot.depotId) return;
+
+    var cap = Math.min(BOT_CAPACITY, room), load = 0, taken = [];
+    g.pkgs.sort(function(a, b) { return b.weight - a.weight; });
+    g.pkgs.forEach(function(p) { if (load + p.weight <= cap) { taken.push(p); load += p.weight; } });
+    if (!taken.length) return;
+    taken.forEach(function(p) { p.botId = bot.id; p.transitTarget = target.id; });
+    startBotTrip(bot, source, target);
+    avail.shift();
+    dispatched = true;
+  });
+  if (dispatched) { saveBots(); saveGameState(); }
+}
+
+function botTick() {
+  if (state.phase !== 'active') return;
+  reconcileBots();
+  dispatchBots();
+}
+
+// ── BOT VISUALS ─────────────────────────────────────────────
+function startBotAnim() { if (!_botAnimInterval) _botAnimInterval = setInterval(animateBots, 50); }
+function ensureBotMarker(bot, lat, lng) {
+  if (botRuntime[bot.id]) return botRuntime[bot.id];
+  var sz = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
+  var mk = L.marker([lat, lng], { icon: makeIcon('#14323a', '🤖', sz), zIndexOffset: 850 }).addTo(map);
+  var ln = L.polyline([[lat, lng], [bot.trip.toLat, bot.trip.toLng]],
+    { color: '#2fae9b', weight: 1.5, opacity: 0.7, dashArray: '2 7', lineCap: 'round', interactive: false }
+  ).addTo(map);
+  var n = botPayloadCount(bot);
+  mk.bindTooltip('PORTER-BOT' + (n ? ' · ' + n + ' pkg' : '') + (bot.trip.phase === 'toPickup' ? ' · to pickup' : ' · to depot'));
+  botRuntime[bot.id] = { marker: mk, line: ln };
+  return botRuntime[bot.id];
+}
+function removeBotMarker(id) {
+  var rt = botRuntime[id];
+  if (rt) { map.removeLayer(rt.marker); map.removeLayer(rt.line); delete botRuntime[id]; }
+}
+function clearBotMarkers() {
+  Object.keys(botRuntime).forEach(removeBotMarker);
+  if (_botAnimInterval) { clearInterval(_botAnimInterval); _botAnimInterval = null; }
+}
+
+function animateBots() {
+  var now = Date.now(), changed = false;
+  state.bots.forEach(function(bot) {
+    if (!bot.trip) return;
+    var tr = bot.trip;
+    var t   = Math.min(1, (now - tr.startTime) / tr.durationMs);
+    var lat = tr.fromLat + (tr.toLat - tr.fromLat) * t;
+    var lng = tr.fromLng + (tr.toLng - tr.fromLng) * t;
+    var rt  = ensureBotMarker(bot, lat, lng);
+    rt.marker.setLatLng([lat, lng]);
+    rt.line.setLatLngs([[lat, lng], [tr.toLat, tr.toLng]]);
+    if (t >= 1) { advanceBotTrip(bot); changed = true; }
+  });
+  Object.keys(botRuntime).forEach(function(id) {
+    var b = state.bots.find(function(x) { return x.id === id; });
+    if (!b || !b.trip) removeBotMarker(id);
+  });
+  if (!state.bots.some(function(b) { return !!b.trip; })) {
+    clearInterval(_botAnimInterval); _botAnimInterval = null;
+  }
+  if (changed) {
+    saveBots(); saveGameState(); renderOrderMarkers();
+    if (depotPanelId) { var dp = state.depots.find(function(d) { return d.id === depotPanelId; }); if (dp) renderDepotPanel(dp); }
+  }
+}
+
+// Recreate visuals for any in-flight bots and fast-forward legs completed while away.
+function resumeBots() {
+  reconcileBots();
+  if (state.bots.some(function(b) { return !!b.trip; })) startBotAnim();
+}
+
+// Called before a depot is removed: rescue any bot whose trip touches it.
+function handleDepotDeletionForBots(depotId) {
+  var survive = state.depots.filter(function(d) { return d.id !== depotId; });
+  state.bots.forEach(function(bot) {
+    if (!bot.trip || (bot.trip.sourceDepotId !== depotId && bot.trip.targetDepotId !== depotId)) return;
+    var here = { lat: bot.trip.toLat, lng: bot.trip.toLng };
+    var near = survive.reduce(function(best, d) {
+      return (!best || haversine(here, d.loc) < haversine(here, best.loc)) ? d : best;
+    }, null);
+    state.packages.filter(function(p) { return p.onBot && p.botId === bot.id; }).forEach(function(p) {
+      delete p.botId; delete p.transitTarget; p.onBot = false;
+      if (near) { p.stored = true; p.depotId = near.id; p.picked = true; near.storage = near.storage || []; near.storage.push(p.id); }
+      else { p.stored = false; p.depotId = null; }
+    });
+    releaseBotReservations(bot);
+    bot.depotId = near ? near.id : null;
+    bot.trip = null;
+    removeBotMarker(bot.id);
+  });
 }
 
 function closeLevelBreakdown() {
@@ -4144,7 +4456,9 @@ function renderOrderMarkers() {
       pane: 'markerPane'
     }).addTo(map);
     if (inViewMode) dm.setOpacity(0.5);
-    dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + DEPOT_CAPACITY + 'U' + (inRng ? ' · in range' : ''));
+    var botsHere = state.bots.filter(function(b) { return !b.trip && b.depotId === dp.id; }).length;
+    dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + DEPOT_CAPACITY + 'U' +
+      (botsHere ? ' · 🤖' + botsHere : '') + (inRng ? ' · in range' : ''));
     (function(id) { dm.on('click', function(e) { L.DomEvent.stopPropagation(e); openDepotPanel(id); }); })(dp.id);
     orderMarkers.push(dm);
   });
@@ -4603,6 +4917,8 @@ updateHUD();
 window.addEventListener('load', updateCapBar);
 setTimeout(updateCapBar, 300);
 setInterval(updateDroneStatus, 30000);
+resumeBots();
+setInterval(botTick, 4000);
 if (!localStorage.getItem('porter_onboarded')) { obStep = 0; renderOnboardingStep(); }
 requestAnimationFrame(updateHudTopVar);
 window.addEventListener('resize', function() {
