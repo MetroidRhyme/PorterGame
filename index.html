@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.5.2</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.5.3</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1694,9 +1694,7 @@ function makeDestIcon(bg, letter, size, level, borderColor, glow) {
   var bdrCol = borderColor || 'rgba(255,255,255,0.3)';
   // Flat-top hexagon: top/bottom edges horizontal, points left & right.
   var clip = 'clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
-  var shadow = glow
-    ? 'filter:drop-shadow(0 2px 6px rgba(0,0,0,0.7)) drop-shadow(0 0 7px rgba(48,128,192,0.9))'
-    : 'filter:drop-shadow(0 2px 6px rgba(0,0,0,0.7))';
+  var shadow = glow ? 'filter:drop-shadow(0 0 7px rgba(48,128,192,0.9))' : '';
   var lvlHtml = level > 0
     ? '<div style="font-size:' + lfs + 'px;color:#fff;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,0.9);margin-top:1px;letter-spacing:1px">LV' + level + '</div>'
     : '';
@@ -4541,7 +4539,7 @@ function renderOrderMarkers() {
     var inRng  = depotInRange(dp);
     var bg     = inRng ? '#1a3a2a' : '#14241c';
     var dm = L.marker([dp.loc.lat, dp.loc.lng], {
-      icon: makeIcon(bg, '🏬', iconPx, inRng ? 'depot-marker' : ''),
+      icon: makeDestIcon(bg, '🏬', destHexPx, 0, inRng ? '#4ab070' : null, false),
       pane: 'markerPane'
     }).addTo(map);
     if (inViewMode) dm.setOpacity(0.5);
@@ -4550,7 +4548,7 @@ function renderOrderMarkers() {
       (botsHere ? ' · ' + botsHere + ' bot' + (botsHere > 1 ? 's' : '') : '') + (inRng ? ' · in range' : ''));
     (function(id) { dm.on('click', function(e) { L.DomEvent.stopPropagation(e); openDepotPanel(id); }); })(dp.id);
     orderMarkers.push(dm);
-    _simpleScaleMarkers.push(dm);
+    _destScaleMarkers.push(dm);
   });
 
   // ── GRAPPLE TARGET ──────────────────────────────────────
