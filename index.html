@@ -350,11 +350,12 @@
     .grapple-reticle {
       display: flex; align-items: center; justify-content: center;
       filter: drop-shadow(0 0 3px rgba(255,255,255,0.55));
+      opacity: 0.5;
       animation: reticle-pulse 2.8s ease-in-out infinite;
     }
     @keyframes reticle-pulse {
-      0%,100% { transform: scale(0.85); opacity: 0.7; }
-      50%     { transform: scale(1.08); opacity: 1; }
+      0%,100% { transform: scale(0.85); }
+      50%     { transform: scale(1.08); }
     }
     @keyframes btn-pulse-violet {
       0%,100% { box-shadow: 0 0 0 0 rgba(160,110,255,0); }
@@ -647,7 +648,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.1.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.1.2</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
