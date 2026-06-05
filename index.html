@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.3.4</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.3.5</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -950,7 +950,7 @@ const state = {
 
 const PROXIMITY_M        = 30;
 const REFRESH_COOLDOWN_MS = 60 * 1000;
-const SPAWN_DELAY_MS      = 5 * 60 * 1000;
+const SPAWN_DELAY_MS      = 15 * 60 * 1000;
 
 // Grapple hook — unlocks at level 5, pulls the nearest in-range package (any
 // size) to the player and picks it up. Release values: range 2 hex / 15 min
@@ -2890,6 +2890,9 @@ function orderCounts(activeZones) {
 
 function spawnPackagesForDropBanded(dest, active, occupied) {
   if (isDropOrphaned(dest)) return;
+  // Respect a pending spawn delay (survives reloads since nextSpawnAfter is
+  // persisted with the drop) — reschedule instead of spawning immediately.
+  if (dest.nextSpawnAfter && Date.now() < dest.nextSpawnAfter) { scheduleDropSpawn(dest); return; }
   var dh = latLngToHex(dest.loc.lat, dest.loc.lng);
 
   var allCells = [];
