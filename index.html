@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.1</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -767,7 +767,8 @@
     <a href="https://www.flaticon.com/free-icons/weight-lifting" title="weight lifting icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Weight lifting icons created by Fliqqer - Flaticon</a><br>
     <a href="https://www.flaticon.com/free-icons/air-drone" title="air drone icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Air drone icons created by Shaharea - Flaticon</a><br>
     <a href="https://www.flaticon.com/free-icons/helicopter" title="helicopter icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Helicopter icons created by Pixel perfect - Flaticon</a><br>
-    <a href="https://www.flaticon.com/free-icons/military-drone" title="military drone icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Military drone icons created by bsd - Flaticon</a>
+    <a href="https://www.flaticon.com/free-icons/military-drone" title="military drone icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Military drone icons created by bsd - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/bot" title="bot icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Bot icons created by See Icons - Flaticon</a>
   </div>
 </div>
 
@@ -3792,7 +3793,7 @@ function renderDepotPanel(depot) {
       ? '<span style="color:#e8a030">RECHARGING · ' + formatRemainTime(b.rechargeUntil - Date.now()) + '</span>'
       : '<span style="color:#5ab07a">READY</span>';
     return '<div class="depot-row"><div class="depot-row-info">' +
-      '<div class="inv-label">🤖 PORTER-BOT</div>' +
+      '<div class="inv-label"><img src="bot.png" width="13" height="13" style="filter:brightness(0) invert(1);opacity:0.85;vertical-align:middle;margin-right:5px">PORTER-BOT</div>' +
       '<div class="inv-sub">' + status + '</div>' +
     '</div></div>';
   }).join('');
@@ -4066,7 +4067,9 @@ function startBotAnim() { if (!_botAnimInterval) _botAnimInterval = setInterval(
 function ensureBotMarker(bot, lat, lng) {
   if (botRuntime[bot.id]) return botRuntime[bot.id];
   var sz = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
-  var mk = L.marker([lat, lng], { icon: makeIcon('#14323a', '🤖', sz), zIndexOffset: 850 }).addTo(map);
+  var ip = Math.round(sz * 0.62);
+  var botImg = '<img src="bot.png" width="' + ip + '" height="' + ip + '" style="filter:brightness(0) invert(1);display:block">';
+  var mk = L.marker([lat, lng], { icon: makeIcon('#14323a', botImg, sz), zIndexOffset: 850 }).addTo(map);
   var ln = L.polyline([[lat, lng], [bot.trip.toLat, bot.trip.toLng]],
     { color: '#2fae9b', weight: 1.5, opacity: 0.7, dashArray: '2 7', lineCap: 'round', interactive: false }
   ).addTo(map);
