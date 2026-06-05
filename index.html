@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.6</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.7</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1382,7 +1382,7 @@ function animateDrones() {
   var remaining = [];
   var anyCompleted = false;
   activeDroneMarkers.forEach(function(drone) {
-    var t = Math.min(1, (now - drone.startTime) / drone.durationMs);
+    var t = Math.max(0, Math.min(1, (now - drone.startTime) / drone.durationMs));
     var lat = drone.startLat + (drone.destLat - drone.startLat) * t;
     var lng = drone.startLng + (drone.destLng - drone.startLng) * t;
     drone.marker.setLatLng([lat, lng]);
@@ -4088,7 +4088,7 @@ function animateBots() {
   state.bots.forEach(function(bot) {
     if (!bot.trip) return;
     var tr = bot.trip;
-    var t   = Math.min(1, (now - tr.startTime) / tr.durationMs);
+    var t   = Math.max(0, Math.min(1, (now - tr.startTime) / tr.durationMs));
     var lat = tr.fromLat + (tr.toLat - tr.fromLat) * t;
     var lng = tr.fromLng + (tr.toLng - tr.fromLng) * t;
     var rt  = ensureBotMarker(bot, lat, lng);
@@ -4109,9 +4109,28 @@ function animateBots() {
   }
 }
 
+// Fast-forward any bot legs whose scheduled arrival has already passed (e.g. the
+// window was closed/refreshed or the device was locked). Pure state — touches no
+// markers — so it is safe to run before the map is ready. advanceBotTrip carries
+// the scheduled arrival time forward into the next leg, so a trip that finished
+// entirely while away is resolved here in one pass, with a time-accurate recharge.
+function catchUpBots() {
+  var now = Date.now(), changed = false;
+  state.bots.forEach(function(bot) {
+    var guard = 0;
+    while (bot.trip && (now - bot.trip.startTime) >= bot.trip.durationMs && guard++ < 8) {
+      advanceBotTrip(bot);
+      changed = true;
+    }
+  });
+  if (changed) { saveBots(); saveGameState(); }
+  return changed;
+}
+
 // Recreate visuals for any in-flight bots and fast-forward legs completed while away.
 function resumeBots() {
   reconcileBots();
+  catchUpBots();
   if (state.bots.some(function(b) { return !!b.trip; })) startBotAnim();
 }
 
@@ -4916,6 +4935,24 @@ setTimeout(updateCapBar, 300);
 setInterval(updateDroneStatus, 30000);
 resumeBots();
 setInterval(botTick, 4000);
+
+// When the tab/window returns to the foreground (after being backgrounded, the
+// device locked, or woken from sleep) timers may have been throttled or frozen.
+// Drone/bot progress is wall-clock based, so reconcile it immediately on return
+// instead of waiting for the next throttled tick. (A full refresh is already
+// handled by restoreDronesInFlight() + resumeBots() at load.)
+function onReturnFromAway() {
+  if (document.hidden) return;
+  if (activeDroneMarkers.length) animateDrones();   // finish any drones due while away
+  catchUpBots();                                    // resolve elapsed bot legs
+  if (state.bots.some(function(b) { return !!b.trip; })) startBotAnim();
+  botTick();                                        // dispatch freshly-available bots
+  updateHUD(); updateDroneStatus(); updateCapBar();
+}
+document.addEventListener('visibilitychange', onReturnFromAway);
+window.addEventListener('pageshow', onReturnFromAway);
+window.addEventListener('focus',   onReturnFromAway);
+
 if (!localStorage.getItem('porter_onboarded')) { obStep = 0; renderOnboardingStep(); }
 requestAnimationFrame(updateHudTopVar);
 window.addEventListener('resize', function() {
