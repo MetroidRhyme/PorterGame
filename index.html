@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.5</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.6</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -4440,8 +4440,6 @@ function renderOrderMarkers() {
     }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
     else if (viewingDropId && d.id !== viewingDropId) m.setOpacity(0.5);
-    var tip = esc(destDisplayName(d)) + (orphaned ? ' · DORMANT' : ((n > 0 ? ' · ' + n + ' to deliver' : '') + (d.level ? ' · Lv' + d.level : '')));
-    m.bindTooltip(tip);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
   });
