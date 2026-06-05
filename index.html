@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.4.3</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.4.4</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -4461,7 +4461,7 @@ function renderOrderMarkers() {
     if (inViewMode) dm.setOpacity(0.5);
     var botsHere = state.bots.filter(function(b) { return !b.trip && b.depotId === dp.id; }).length;
     dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + DEPOT_CAPACITY + 'U' +
-      (botsHere ? ' · <img src="bot.png" width="11" height="11" style="vertical-align:middle">' + botsHere : '') + (inRng ? ' · in range' : ''));
+      (botsHere ? ' · ' + botsHere + ' bot' + (botsHere > 1 ? 's' : '') : '') + (inRng ? ' · in range' : ''));
     (function(id) { dm.on('click', function(e) { L.DomEvent.stopPropagation(e); openDepotPanel(id); }); })(dp.id);
     orderMarkers.push(dm);
   });
