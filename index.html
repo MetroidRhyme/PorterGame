@@ -679,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.5.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.5.2</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -2675,7 +2675,7 @@ var _rafPending = false;
 function scheduleGridRender() {
   if (_rafPending) return;
   _rafPending = true;
-  requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); rescaleDestIcons(); });
+  requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); rescaleMarkers(); });
 }
 
 
@@ -4338,27 +4338,45 @@ function showCompletion(pts, count, zoneLabel, capUp, level, bonusPts) {
 //  ORDER MARKERS
 // ═══════════════════════════════════════════════════════════
 
-function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; _destScaleMarkers = []; }
+function clearMarkers() { orderMarkers.forEach(function(m) { map.removeLayer(m); }); orderMarkers = []; _destScaleMarkers = []; _simpleScaleMarkers = []; }
 
 // Drop markers are sized to fill their hex at the moment they're built. To make
 // them grow/shrink smoothly with the hex grid during a zoom (instead of snapping
 // only at zoomend), we CSS-scale each one every frame by how much the cell has
 // changed size since it was built. Driven from the same rAF as the grid canvas.
-var _destScaleMarkers = [];
-var _destBaseCellPx   = 0;
-var _destHexHalfH     = 0;
-function rescaleDestIcons() {
-  if (!_destScaleMarkers.length || !_destBaseCellPx) return;
+var _destScaleMarkers   = [];
+var _simpleScaleMarkers = [];
+var _destBaseCellPx     = 0;
+var _destHexHalfH       = 0;
+function rescaleMarkers() {
+  if (!_destBaseCellPx) return;
   var s = getCellPixelWidth() / _destBaseCellPx;
   if (!(s > 0)) return;
-  var origin = '50% ' + _destHexHalfH + 'px';
-  for (var i = 0; i < _destScaleMarkers.length; i++) {
-    var el = _destScaleMarkers[i].getElement();
+  var destOrigin   = '50% ' + _destHexHalfH + 'px';
+  var simpleOrigin = '50% 50%';
+  var i, el, c;
+  for (i = 0; i < _destScaleMarkers.length; i++) {
+    el = _destScaleMarkers[i].getElement();
     if (!el) continue;
-    var c = el.firstElementChild;
+    c = el.firstElementChild;
     if (!c) continue;
-    c.style.transformOrigin = origin;
+    c.style.transformOrigin = destOrigin;
     c.style.transform = 'scale(' + s + ')';
+  }
+  for (i = 0; i < _simpleScaleMarkers.length; i++) {
+    el = _simpleScaleMarkers[i].getElement();
+    if (!el) continue;
+    c = el.firstElementChild;
+    if (!c) continue;
+    c.style.transformOrigin = simpleOrigin;
+    c.style.transform = 'scale(' + s + ')';
+  }
+  if (userMarker) {
+    el = userMarker.getElement();
+    if (el) {
+      c = el.firstElementChild;
+      if (c) { c.style.transformOrigin = simpleOrigin; c.style.transform = 'scale(' + s + ')'; }
+    }
   }
 }
 
@@ -4494,6 +4512,7 @@ function renderOrderMarkers() {
       });
     })(p.id, p.pickupLoc, dest.loc, p, dest, m);
     orderMarkers.push(m);
+    _simpleScaleMarkers.push(m);
   });
 
   state.destinations.filter(function(d) { return visibleDestIds.has(d.id); }).forEach(function(d) {
@@ -4531,6 +4550,7 @@ function renderOrderMarkers() {
       (botsHere ? ' · ' + botsHere + ' bot' + (botsHere > 1 ? 's' : '') : '') + (inRng ? ' · in range' : ''));
     (function(id) { dm.on('click', function(e) { L.DomEvent.stopPropagation(e); openDepotPanel(id); }); })(dp.id);
     orderMarkers.push(dm);
+    _simpleScaleMarkers.push(dm);
   });
 
   // ── GRAPPLE TARGET ──────────────────────────────────────
@@ -4544,10 +4564,12 @@ function renderOrderMarkers() {
           interactive: false, pane: 'highlightLinePane' }
       ).addTo(map));
       var _retPx = Math.max(42, Math.round(iconPx * 1.75));
-      orderMarkers.push(L.marker([grPkg.pickupLoc.lat, grPkg.pickupLoc.lng], {
+      var _retM  = L.marker([grPkg.pickupLoc.lat, grPkg.pickupLoc.lng], {
         icon: makeGrappleReticle(_retPx), interactive: false,
         pane: 'highlightMarkerPane', zIndexOffset: 800
-      }).addTo(map));
+      }).addTo(map);
+      orderMarkers.push(_retM);
+      _simpleScaleMarkers.push(_retM);
     }
   }
 
