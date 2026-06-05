@@ -648,7 +648,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.1.3</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.2.0</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -901,8 +901,9 @@ const state = {
   destinations:  safeParse('porter_destinations', []),
   carrying:      safeParse('porter_carrying', []),
   movingDestId:  null,
-  droneLastUsed:   parseInt(localStorage.getItem('porter_drone_last_used')   || '0'),
-  drone2LastUsed:  parseInt(localStorage.getItem('porter_drone2_last_used')  || '0'),
+  droneLightLastUsed:  parseInt(localStorage.getItem('porter_drone_light_last_used')  || '0'),
+  droneMediumLastUsed: parseInt(localStorage.getItem('porter_drone_medium_last_used') || '0'),
+  droneHeavyLastUsed:  parseInt(localStorage.getItem('porter_drone_heavy_last_used')  || '0'),
   grappleLastUsed: parseInt(localStorage.getItem('porter_grapple_last_used') || '0'),
   refreshLastUsed: parseInt(localStorage.getItem('porter_refresh_last_used') || '0'),
   seenTutorials:   safeParse('porter_seen_tutorials', []),
@@ -961,13 +962,12 @@ const DROP_LAST_NAMES = [
 const PLAYER_UPGRADES = [
   { level: 5,  text: 'Grapple hook unlocked (pull any-size package from ' + GRAPPLE_RANGE_HEX + ' hexes · ' + (GRAPPLE_COOLDOWN_MS < 60000 ? Math.round(GRAPPLE_COOLDOWN_MS / 1000) + 's' : Math.round(GRAPPLE_COOLDOWN_MS / 60000) + 'min') + ' cooldown)' },
   { level: 10, text: 'Carry capacity +1 (4U)' },
-  { level: 15, text: 'Drone ability unlocked (light packages · 10 hex range · 3h cooldown)' },
+  { level: 15, text: 'Light drone unlocked (light packages · 10 hex range · 1h cooldown)' },
   { level: 20, text: 'Carry capacity +1 (5U)' },
-  { level: 25, text: 'Drone upgrade: standard & lighter packages · 20 hex range · 2h cooldown' },
+  { level: 25, text: 'Medium drone unlocked (standard & lighter · 20 hex range · 2h cooldown)' },
   { level: 30, text: 'Carry capacity +1 (6U)' },
-  { level: 35, text: 'Drone upgrade: all package weights · 30 hex range · 1h cooldown' },
+  { level: 35, text: 'Heavy drone unlocked (all weights · 30 hex range · 3h cooldown)' },
   { level: 40, text: 'Carry capacity +1 (7U)' },
-  { level: 45, text: 'Second drone slot unlocked · both share 1h cooldown' },
   { level: 50, text: 'Carry capacity +1 (8U) · MAX LEVEL' },
 ];
 
@@ -986,30 +986,28 @@ const ABILITY_TUTORIALS = {
   },
   15: {
     icon: '🚁',
-    title: 'DRONE DISPATCH',
+    title: 'LIGHT DRONE',
     body: 'Send a package by air instead of carrying it.<br><br>' +
-      'Stand near a package and tap <b>DRONE LIFT</b> to fly it straight to its drop for ' +
-      '<b>half points</b> — great for far-off deliveries. At first it carries <b>light packages</b> ' +
-      'within range; later levels unlock heavier loads, longer range, and shorter cooldowns.<br><br>' +
-      'The cooldown ring shows on the <b>capacity bar</b> at the bottom-right.'
+      'Stand near a <b>light package</b> and tap <b>DRONE LIFT</b> to fly it straight to its drop ' +
+      'for <b>half points</b> — great for far-off deliveries within <b>10 hexes</b>.<br><br>' +
+      'The light drone has a <b>1-hour cooldown</b>, shown as a ring on the <b>capacity bar</b> ' +
+      'at the bottom-right. Medium and heavy drones unlock later as <b>separate drones</b>, each ' +
+      'with its own cooldown ring.'
   },
   25: {
     icon: '🚁',
-    title: 'DRONE UPGRADED',
-    body: 'Your drone is stronger: it now hauls <b>standard &amp; lighter</b> packages, ' +
-      'reaches up to <b>20 hexes</b>, and its cooldown drops to <b>2 hours</b>.'
+    title: 'MEDIUM DRONE',
+    body: 'A <b>second, separate drone</b> joins your fleet — it hauls <b>standard &amp; lighter</b> ' +
+      'packages out to <b>20 hexes</b>, with its own <b>2-hour cooldown</b>.<br><br>' +
+      'The lift button automatically uses the lightest drone that can carry and reach the package, ' +
+      'so your drones recharge independently.'
   },
   35: {
     icon: '🚁',
-    title: 'DRONE UPGRADED',
-    body: 'Top-tier drone: carries <b>any weight</b>, ranges out to <b>30 hexes</b>, ' +
-      'and recharges in just <b>1 hour</b>.'
-  },
-  45: {
-    icon: '🚁',
-    title: 'SECOND DRONE',
-    body: 'A <b>second drone slot</b> is online — you can have <b>two lifts</b> in the air, ' +
-      'sharing the 1-hour cooldown. Each slot shows its own ring on the capacity bar.'
+    title: 'HEAVY DRONE',
+    body: 'Your <b>third drone</b> is online — it carries <b>any weight</b>, ranges out to ' +
+      '<b>30 hexes</b>, and has a <b>3-hour cooldown</b>.<br><br>' +
+      'All three drones run independently; each shows its own ring on the capacity bar.'
   },
 };
 
@@ -1053,12 +1051,6 @@ function calcPlayerLevel(pts) {
 }
 function getPlayerLevel() { return calcPlayerLevel(state.score); }
 
-function getDroneSlotCount(level) { return level >= 45 ? 2 : 1; }
-function getDroneCooldownMs(level) {
-  if (level >= 35) return 60 * 60 * 1000;
-  if (level >= 25) return 2 * 60 * 60 * 1000;
-  return 3 * 60 * 60 * 1000;
-}
 function formatDroneCooldown(ms) {
   var h = Math.floor(ms / 3600000);
   var m = Math.round((ms % 3600000) / 60000);
@@ -1072,45 +1064,44 @@ function formatRemainTime(ms) {
   if (m > 0) return m + 'm ' + s + 's';
   return s + 's';
 }
-function getDroneStatus() {
-  var level = getPlayerLevel();
-  if (level < 15) return { available: false, locked: true };
-  var cdMs = getDroneCooldownMs(level);
-  var now  = Date.now();
-  var e0   = now - (state.droneLastUsed  || 0);
-  if (getDroneSlotCount(level) >= 2) {
-    var e1 = now - (state.drone2LastUsed || 0);
-    if (e0 >= cdMs) return { available: true, slotIndex: 0 };
-    if (e1 >= cdMs) return { available: true, slotIndex: 1 };
-    var soonest = Math.min(cdMs - e0, cdMs - e1);
-    return { available: false, locked: false, remainStr: formatDroneCooldown(soonest) };
+
+// ── DRONES ──────────────────────────────────────────────────
+// Three independent drones, each unlocked as its own upgrade with its own
+// cooldown timer and cap-bar ring. A drone carries packages up to its weight
+// class and reaches destinations within its hex range.
+const DRONES = [
+  { key: 'light',  label: 'LIGHT',  maxW: 1, range: 10, cdMs: 1 * 60 * 60 * 1000, unlock: 15, icon: 'drone-light.png',  stateKey: 'droneLightLastUsed',  lsKey: 'porter_drone_light_last_used'  },
+  { key: 'medium', label: 'MEDIUM', maxW: 2, range: 20, cdMs: 2 * 60 * 60 * 1000, unlock: 25, icon: 'drone-medium.png', stateKey: 'droneMediumLastUsed', lsKey: 'porter_drone_medium_last_used' },
+  { key: 'heavy',  label: 'HEAVY',  maxW: 3, range: 30, cdMs: 3 * 60 * 60 * 1000, unlock: 35, icon: 'drone-heavy.png',  stateKey: 'droneHeavyLastUsed',  lsKey: 'porter_drone_heavy_last_used'  },
+];
+function droneUnlocked(d)   { return getPlayerLevel() >= d.unlock; }
+function unlockedDrones()   { return DRONES.filter(droneUnlocked); }
+function anyDroneUnlocked() { return getPlayerLevel() >= DRONES[0].unlock; }
+function droneRemainMs(d)   { return Math.max(0, d.cdMs - (Date.now() - (state[d.stateKey] || 0))); }
+function droneReady(d)      { return droneRemainMs(d) <= 0; }
+function droneHexDist(dest) {
+  if (!state.userPos || !dest) return 0;
+  var ah = latLngToHex(state.userPos.lat, state.userPos.lng);
+  var bh = latLngToHex(dest.loc.lat, dest.loc.lng);
+  return Math.round(hexDist(ah.q, ah.r, bh.q, bh.r));
+}
+// Choose the best drone to fly a package to dest, or explain why none can.
+// Prefers the lightest (cheapest-cooldown) ready drone that can carry & reach it.
+function pickDroneFor(pkg, dest) {
+  var unlocked = unlockedDrones();
+  if (!unlocked.length) return { state: 'locked' };
+  var capable = unlocked.filter(function(d) { return d.maxW >= pkg.weight; });
+  if (!capable.length) return { state: 'tooheavy' };
+  var dist = droneHexDist(dest);
+  var inRange = capable.filter(function(d) { return dist <= d.range; });
+  if (!inRange.length) {
+    var maxR = capable.reduce(function(m, d) { return Math.max(m, d.range); }, 0);
+    return { state: 'toofar', dist: dist, range: maxR };
   }
-  if (e0 >= cdMs) return { available: true, slotIndex: 0 };
-  return { available: false, locked: false, remainStr: formatDroneCooldown(cdMs - e0) };
-}
-function getDroneMaxWeight(level) {
-  if (level >= 35) return 3;
-  if (level >= 25) return 2;
-  return 1;
-}
-function getDroneIcon(maxW) {
-  if (maxW >= 3) return 'drone-heavy.png';
-  if (maxW >= 2) return 'drone-medium.png';
-  return 'drone-light.png';
-}
-function getDroneRange(maxW) {
-  if (maxW >= 3) return 30;
-  if (maxW >= 2) return 20;
-  return 10;
-}
-function droneInRange(dest) {
-  if (!state.userPos || !dest) return { ok: true };
-  var maxW  = getDroneMaxWeight(getPlayerLevel());
-  var range = getDroneRange(maxW);
-  var ah    = latLngToHex(state.userPos.lat, state.userPos.lng);
-  var bh    = latLngToHex(dest.loc.lat, dest.loc.lng);
-  var dist  = Math.round(hexDist(ah.q, ah.r, bh.q, bh.r));
-  return { ok: dist <= range, dist: dist, range: range };
+  var ready = inRange.filter(droneReady).sort(function(a, b) { return a.maxW - b.maxW; });
+  if (ready.length) return { state: 'ready', drone: ready[0] };
+  var soonest = inRange.slice().sort(function(a, b) { return droneRemainMs(a) - droneRemainMs(b); })[0];
+  return { state: 'cooldown', drone: soonest, remainStr: formatRemainTime(droneRemainMs(soonest)) };
 }
 
 // ── GRAPPLE HOOK ────────────────────────────────────────────
@@ -1346,33 +1337,25 @@ function completeDroneDelivery(drone) {
 function updateDroneStatus() {
   var el = document.getElementById('drone-status');
   if (!el) return;
-  var level = getPlayerLevel();
-  if (level < 15) { el.style.display = 'none'; return; }
-  var maxW   = getDroneMaxWeight(level);
-  var wLabel = (maxW === 1 ? 'LIGHT' : maxW === 2 ? 'STD' : 'ALL') + ' · ' + getDroneRange(maxW) + ' HEX';
-  var cdMs   = getDroneCooldownMs(level);
-  var iconHtml = '<img src="' + getDroneIcon(maxW) + '" width="16" height="16" style="filter:brightness(0) invert(1);opacity:0.8;vertical-align:middle">';
-  function slotRow(elapsed, label) {
-    var ready    = elapsed >= cdMs;
-    var barPct   = ready ? 100 : Math.min(99, Math.round(elapsed / cdMs * 100));
+  var unlocked = unlockedDrones();
+  if (!unlocked.length) { el.style.display = 'none'; return; }
+  function droneRow(d) {
+    var remain   = droneRemainMs(d);
+    var ready    = remain <= 0;
+    var barPct   = ready ? 100 : Math.min(99, Math.round((1 - remain / d.cdMs) * 100));
     var barColor = ready ? '#6aaa6a' : '#e8a030';
+    var label    = d.label + ' · ' + d.range + ' HEX';
+    var iconHtml = '<img src="' + d.icon + '" width="16" height="16" style="filter:brightness(0) invert(1);opacity:0.8;vertical-align:middle">';
     var valHtml  = ready
       ? '<div class="status-value" style="color:#6aaa6a">READY</div>'
-      : '<div class="status-value">' + formatRemainTime(cdMs - elapsed) + '</div>';
+      : '<div class="status-value">' + formatRemainTime(remain) + '</div>';
     return '<div class="status-row">' +
       '<div class="status-icon-cell">' + iconHtml + '</div>' +
       '<div class="status-bar-track"><div class="status-bar-fill" style="width:' + barPct + '%;background:' + barColor + '"></div></div>' +
       '<div class="status-right">' + valHtml + '<div class="status-sub-note">' + label + '</div></div>' +
     '</div>';
   }
-  var now = Date.now();
-  var e0  = now - (state.droneLastUsed  || 0);
-  var html = slotRow(e0, wLabel);
-  if (getDroneSlotCount(level) >= 2) {
-    var e1 = now - (state.drone2LastUsed || 0);
-    html += slotRow(e1, wLabel);
-  }
-  el.innerHTML = html;
+  el.innerHTML = unlocked.map(droneRow).join('');
   el.style.display = 'block';
 }
 
@@ -2175,8 +2158,9 @@ async function exportData() {
     packages:       state.packages,
     destinations:   state.destinations,
     carrying:       state.carrying,
-    droneLastUsed:  state.droneLastUsed,
-    drone2LastUsed: state.drone2LastUsed,
+    droneLightLastUsed:  state.droneLightLastUsed,
+    droneMediumLastUsed: state.droneMediumLastUsed,
+    droneHeavyLastUsed:  state.droneHeavyLastUsed,
     grappleLastUsed: state.grappleLastUsed,
     refreshLastUsed: state.refreshLastUsed,
     seenTutorials:   state.seenTutorials,
@@ -2233,13 +2217,15 @@ function importData(input) {
       state.destinations = data.destinations || [];
       state.carrying     = data.carrying     || [];
       if (data.playerName) { state.playerName = data.playerName; localStorage.setItem('porter_name', state.playerName); }
-      state.droneLastUsed  = data.droneLastUsed  || 0;
-      state.drone2LastUsed = data.drone2LastUsed || 0;
+      state.droneLightLastUsed  = data.droneLightLastUsed  || 0;
+      state.droneMediumLastUsed = data.droneMediumLastUsed || 0;
+      state.droneHeavyLastUsed  = data.droneHeavyLastUsed  || 0;
       state.grappleLastUsed = data.grappleLastUsed || 0;
       state.refreshLastUsed = data.refreshLastUsed || 0;
       state.seenTutorials   = Array.isArray(data.seenTutorials) ? data.seenTutorials : [];
-      localStorage.setItem('porter_drone_last_used',   state.droneLastUsed);
-      localStorage.setItem('porter_drone2_last_used',  state.drone2LastUsed);
+      localStorage.setItem('porter_drone_light_last_used',  state.droneLightLastUsed);
+      localStorage.setItem('porter_drone_medium_last_used', state.droneMediumLastUsed);
+      localStorage.setItem('porter_drone_heavy_last_used',  state.droneHeavyLastUsed);
       localStorage.setItem('porter_grapple_last_used', state.grappleLastUsed);
       localStorage.setItem('porter_refresh_last_used', state.refreshLastUsed);
       localStorage.setItem('porter_seen_tutorials',    JSON.stringify(state.seenTutorials));
@@ -2284,7 +2270,8 @@ function resetProfile() {
   ['porter_score','porter_deliveries',
    'porter_zones','porter_packages','porter_destinations','porter_carrying','porter_cell_lng',
    'porter_grid_lat','porter_grid_lng',
-   'porter_drone_last_used','porter_drone2_last_used','porter_refresh_last_used','porter_drones_in_flight']
+   'porter_drone_light_last_used','porter_drone_medium_last_used','porter_drone_heavy_last_used',
+   'porter_grapple_last_used','porter_seen_tutorials','porter_refresh_last_used','porter_drones_in_flight']
     .forEach(function(k) { localStorage.removeItem(k); });
   activeDroneMarkers.forEach(function(d) { map.removeLayer(d.marker); map.removeLayer(d.line); });
   activeDroneMarkers = [];
@@ -2296,6 +2283,8 @@ function resetProfile() {
   state.packages     = [];
   state.destinations = [];
   state.carrying = [];
+  state.droneLightLastUsed = 0; state.droneMediumLastUsed = 0; state.droneHeavyLastUsed = 0;
+  state.grappleLastUsed = 0; state.seenTutorials = [];
   if (state.userPos) {
     CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
     localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
@@ -3123,36 +3112,29 @@ function attemptDeliver() {
   renderOrderMarkers(); updateHUD();
 }
 
+function markDroneUsed(d) {
+  state[d.stateKey] = Date.now();
+  localStorage.setItem(d.lsKey, state[d.stateKey]);
+}
+// Shared explanation for why a drone can't be used right now.
+function droneUnusableToast(pick) {
+  if (pick.state === 'tooheavy') showToast('No unlocked drone can carry this package weight');
+  else if (pick.state === 'toofar') showToast('Destination is ' + pick.dist + ' hexes away (max drone range: ' + pick.range + ')');
+  else if (pick.state === 'cooldown') showToast(pick.drone.label + ' drone ready in ' + pick.remainStr);
+}
+
 function attemptDroneLift() {
   var pkg = nearestPickable();
   if (!pkg) return;
-  var drSt = getDroneStatus();
-  if (!drSt.available) return;
-  var level = getPlayerLevel();
-  var maxW = getDroneMaxWeight(level);
-  if (pkg.weight > maxW) {
-    showToast('Drone can only carry ' + (maxW === 1 ? 'light' : 'standard & lighter') + ' packages at this tier');
-    return;
-  }
   var dest = state.destinations.find(function(d) { return d.id === pkg.destId; });
-  var rng = droneInRange(dest);
-  if (!rng.ok) {
-    showToast('Destination is ' + rng.dist + ' hexes away (drone range: ' + rng.range + ')');
-    return;
-  }
+  var pick = pickDroneFor(pkg, dest);
+  if (pick.state !== 'ready') { droneUnusableToast(pick); return; }
+  var d = pick.drone;
   var halfPts = Math.floor(pkg.pts / 2);
-  var cdStr = formatDroneCooldown(getDroneCooldownMs(level));
-  if (!confirm('Drone lift to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? This ability has a ' + cdStr + ' cooldown.')) return;
+  if (!confirm('Send the ' + d.label.toLowerCase() + ' drone to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? The ' + d.label.toLowerCase() + ' drone has a ' + formatDroneCooldown(d.cdMs) + ' cooldown.')) return;
 
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
-
-  if (drSt.slotIndex === 1) {
-    state.drone2LastUsed = Date.now();
-    localStorage.setItem('porter_drone2_last_used', state.drone2LastUsed);
-  } else {
-    state.droneLastUsed = Date.now();
-    localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
-  }
+  markDroneUsed(d);
   saveGameState();
   launchDrone(pkg.pickupLoc.lat, pkg.pickupLoc.lng, dest, halfPts);
   renderOrderMarkers(); updateHUD();
@@ -3161,28 +3143,16 @@ function attemptDroneLift() {
 function droneDeliverCarried(pkgId) {
   var pkg = state.packages.find(function(p) { return p.id === pkgId; });
   if (!pkg) return;
-  var drSt = getDroneStatus();
-  if (!drSt.available) return;
-  var level = getPlayerLevel();
-  var maxW = getDroneMaxWeight(level);
-  if (pkg.weight > maxW) return;
   var dest = state.destinations.find(function(d) { return d.id === pkg.destId; });
-  var rng2 = droneInRange(dest);
-  if (!rng2.ok) return;
+  var pick = pickDroneFor(pkg, dest);
+  if (pick.state !== 'ready') { droneUnusableToast(pick); return; }
+  var d = pick.drone;
   var halfPts = Math.floor(pkg.pts / 2);
-  var cdStr = formatDroneCooldown(getDroneCooldownMs(level));
-  if (!confirm('Drone deliver ' + (pkg.item ? pkg.item + ' · ' : '') + WEIGHT[pkg.weight].label + ' to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? This ability has a ' + cdStr + ' cooldown.')) return;
+  if (!confirm('Send the ' + d.label.toLowerCase() + ' drone to deliver ' + (pkg.item ? pkg.item + ' · ' : '') + WEIGHT[pkg.weight].label + ' to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? The ' + d.label.toLowerCase() + ' drone has a ' + formatDroneCooldown(d.cdMs) + ' cooldown.')) return;
 
   state.carrying = state.carrying.filter(function(id) { return id !== pkgId; });
   state.packages = state.packages.filter(function(p) { return p.id !== pkgId; });
-
-  if (drSt.slotIndex === 1) {
-    state.drone2LastUsed = Date.now();
-    localStorage.setItem('porter_drone2_last_used', state.drone2LastUsed);
-  } else {
-    state.droneLastUsed = Date.now();
-    localStorage.setItem('porter_drone_last_used', state.droneLastUsed);
-  }
+  markDroneUsed(d);
   saveGameState();
   var startPos = state.userPos || pkg.pickupLoc;
   launchDrone(startPos.lat, startPos.lng, dest, halfPts);
@@ -3641,8 +3611,8 @@ function _levelBreakdownRows(upgrades, currentLevel) {
   return upgrades.map(function(u) {
     var done = currentLevel >= u.level;
     return '<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)">' +
-      '<div style="font-size:12px;color:' + (done ? '#e8a030' : '#2e2e3e') + ';font-weight:bold;min-width:32px;text-align:right;letter-spacing:1px">LV' + u.level + '</div>' +
-      '<div style="font-size:11px;letter-spacing:1px;color:' + (done ? '#e0d8c8' : '#3a3a4a') + ';flex:1">' + u.text + '</div>' +
+      '<div style="font-size:12px;color:' + (done ? '#e8a030' : '#6c6c80') + ';font-weight:bold;min-width:32px;text-align:right;letter-spacing:1px">LV' + u.level + '</div>' +
+      '<div style="font-size:11px;letter-spacing:1px;color:' + (done ? '#e0d8c8' : '#9a9ab0') + ';flex:1">' + u.text + '</div>' +
       (done ? '<div style="color:#5ab05a;font-size:13px">&#x2713;</div>' : '') +
     '</div>';
   }).join('');
@@ -4065,24 +4035,22 @@ function updateHUD() {
     detailEl.textContent = iStr + wcfg.label + ' → ' + destDisplayName(dest2) + ' · ' + pickable.pts + ' pts.';
     distEl.textContent   = Math.round(haversine(state.userPos, pickable.pickupLoc)) + 'm to package';
     btn.className = 'pickup ready'; btn.textContent = 'PICK UP PACKAGE'; btn.onclick = attemptPickup;
-    var drSt = getDroneStatus();
-    if (!drSt.locked) {
-      var maxW     = getDroneMaxWeight(getPlayerLevel());
-      var tooHeavy = pickable.weight > maxW;
+    if (anyDroneUnlocked()) {
       var dest2Rng = state.destinations.find(function(d) { return d.id === pickable.destId; });
-      var rngChk   = droneInRange(dest2Rng);
-      var canUse   = drSt.available && !tooHeavy && rngChk.ok;
+      var pick     = pickDroneFor(pickable, dest2Rng);
       secBtn.style.display = 'block';
-      secBtn.disabled = !canUse;
-      secBtn.onclick = canUse ? attemptDroneLift : null;
-      if (!drSt.available) {
-        secBtn.textContent = '🚁 DRONE LIFT  (ready in ' + drSt.remainStr + ')';
-      } else if (tooHeavy) {
-        secBtn.textContent = '🚁 DRONE LIFT  (' + (maxW === 1 ? 'light only' : 'std & lighter only') + ')';
-      } else if (!rngChk.ok) {
-        secBtn.textContent = '🚁 DRONE LIFT  (drop ' + rngChk.dist + ' hexes away · max ' + rngChk.range + ')';
+      secBtn.disabled = pick.state !== 'ready';
+      secBtn.onclick  = pick.state === 'ready' ? attemptDroneLift : null;
+      if (pick.state === 'ready') {
+        secBtn.textContent = '🚁 ' + pick.drone.label + ' DRONE LIFT  (' + pick.drone.range + ' hex)';
+      } else if (pick.state === 'tooheavy') {
+        secBtn.textContent = '🚁 DRONE LIFT  (no drone for this weight)';
+      } else if (pick.state === 'toofar') {
+        secBtn.textContent = '🚁 DRONE LIFT  (drop ' + pick.dist + ' hexes away · max ' + pick.range + ')';
+      } else if (pick.state === 'cooldown') {
+        secBtn.textContent = '🚁 ' + pick.drone.label + ' DRONE  (ready in ' + pick.remainStr + ')';
       } else {
-        secBtn.textContent = '🚁 DRONE LIFT  (' + getDroneRange(maxW) + ' hex range)';
+        secBtn.textContent = '🚁 DRONE LIFT';
       }
     }
   } else if (overweightInRange().length > 0) {
@@ -4125,37 +4093,27 @@ function updateHUD() {
   // ── INVENTORY ────────────────────────────────────────────
   if (state.carrying.length > 0) {
     var invEl    = document.getElementById('inventory');
-    var _invLvl  = getPlayerLevel();
-    var _drSt    = getDroneStatus();
-    var _drMaxW  = getDroneMaxWeight(_invLvl);
-    var _drCdMs  = getDroneCooldownMs(_invLvl);
+    var _unlocked = unlockedDrones();
+    var _hdrIcon  = _unlocked.length
+      ? '<img src="' + _unlocked[_unlocked.length - 1].icon + '" width="16" height="16" style="filter:brightness(0) invert(1)">'
+      : '🚁';
     var _gridHdr =
       '<div class="ig-cell ig-info ig-hdr" style="font-size:16px;line-height:1;justify-content:center">📦</div>' +
-      '<div class="ig-cell ig-drone ig-hdr" style="font-size:16px">' +
-        '<img src="' + getDroneIcon(_drMaxW) + '" width="16" height="16" style="filter:brightness(0) invert(1)">' +
-      '</div>' +
+      '<div class="ig-cell ig-drone ig-hdr" style="font-size:16px">' + _hdrIcon + '</div>' +
       '<div class="ig-cell ig-action ig-hdr" style="font-size:16px">🗑</div>';
     var _gridRows = state.carrying.map(function(id) {
       var p    = state.packages.find(function(p) { return p.id === id; });
       if (!p) return '';
       var dest = state.destinations.find(function(d) { return d.id === p.destId; });
       var wcfg = WEIGHT[p.weight];
-      var droneLabel, droneActive;
-      if (_drSt.locked) {
-        droneLabel = 'DRONE'; droneActive = false;
-      } else if (!_drSt.available) {
-        droneLabel = _drSt.remainStr || ''; droneActive = false;
-      } else if (p.weight > _drMaxW) {
-        droneLabel = 'TOO HEAVY'; droneActive = false;
-      } else {
-        var _dest = state.destinations.find(function(d) { return d.id === p.destId; });
-        var _rng  = droneInRange(_dest);
-        if (!_rng.ok) {
-          droneLabel = 'TOO FAR'; droneActive = false;
-        } else {
-          droneLabel = 'DRONE'; droneActive = true;
-        }
-      }
+      var pick = pickDroneFor(p, dest);
+      var droneActive = pick.state === 'ready';
+      var droneLabel =
+        pick.state === 'ready'    ? pick.drone.label :
+        pick.state === 'tooheavy' ? 'TOO HEAVY' :
+        pick.state === 'toofar'   ? 'TOO FAR' :
+        pick.state === 'cooldown' ? (pick.remainStr || '') :
+        'DRONE';
       var droneBtn = droneActive
         ? '<button class="inv-drone" style="width:100%" onclick="droneDeliverCarried(\'' + id + '\')">' + droneLabel + '</button>'
         : '<button class="inv-drone" disabled style="width:100%;opacity:0.35;cursor:not-allowed">' + droneLabel + '</button>';
@@ -4198,23 +4156,20 @@ var _droneCdInterval = null;
 function updateDroneCd() {
   var el = document.getElementById('drone-cd');
   if (!el) return;
-  var level  = getPlayerLevel();
-  var status = getDroneStatus();
-  if (status.locked) { el.classList.add('locked'); _stopDroneCdInterval(); return; }
+  var unlocked = unlockedDrones();
+  if (!unlocked.length) { el.classList.add('locked'); _stopDroneCdInterval(); return; }
   el.classList.remove('locked');
-  var cdMs  = getDroneCooldownMs(level);
-  var maxW  = getDroneMaxWeight(level);
   var CIRC  = 56.55;
-  var now   = Date.now();
-  var iconHtml = '<img src="' + getDroneIcon(maxW) + '" width="14" height="14" style="filter:brightness(0);vertical-align:middle">';
-  var anyOnCd  = false;
-  function ringHtml(elapsed) {
-    var ready = elapsed >= cdMs;
+  var anyOnCd = false;
+  function ringHtml(d) {
+    var remain = droneRemainMs(d);
+    var ready  = remain <= 0;
     if (!ready) anyOnCd = true;
-    var pct    = ready ? 1 : Math.min(1, elapsed / cdMs);
-    var stroke = ready ? '#e8a030' : 'rgba(0,0,0,0.18)';
-    var offset = ready ? '0' : String(CIRC * (1 - pct));
-    var label  = ready ? '' : formatRemainTime(Math.max(0, cdMs - elapsed));
+    var pct      = ready ? 1 : Math.min(1, 1 - remain / d.cdMs);
+    var stroke   = ready ? '#e8a030' : 'rgba(0,0,0,0.18)';
+    var offset   = ready ? '0' : String(CIRC * (1 - pct));
+    var label    = ready ? '' : formatRemainTime(remain);
+    var iconHtml = '<img src="' + d.icon + '" width="14" height="14" style="filter:brightness(0);vertical-align:middle">';
     return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
       '<div style="position:relative;width:24px;height:24px">' +
         '<svg width="24" height="24" viewBox="0 0 24 24" style="display:block;transform:rotate(-90deg)">' +
@@ -4226,9 +4181,7 @@ function updateDroneCd() {
       '<div style="font-size:8px;font-family:\'Courier New\',monospace;color:rgba(0,0,0,0.65);text-align:center;white-space:nowrap;min-height:10px">' + label + '</div>' +
     '</div>';
   }
-  var html = ringHtml(now - (state.droneLastUsed || 0));
-  if (getDroneSlotCount(level) >= 2) html += ringHtml(now - (state.drone2LastUsed || 0));
-  el.innerHTML = '<div style="display:flex;gap:4px;align-items:flex-start">' + html + '</div>';
+  el.innerHTML = '<div style="display:flex;gap:4px;align-items:flex-start">' + unlocked.map(ringHtml).join('') + '</div>';
   if (anyOnCd) { _startDroneCdInterval(); } else { _stopDroneCdInterval(); }
 }
 function _startDroneCdInterval() {
