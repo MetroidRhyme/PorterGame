@@ -4565,6 +4565,12 @@ function renderOrderMarkers() {
     _simpleScaleMarkers.push(m);
   });
 
+  var depotViewDestIds = new Set();
+  if (viewingDepotId) {
+    var _vd = state.depots.find(function(d) { return d.id === viewingDepotId; });
+    if (_vd) depotStoredPkgs(_vd).forEach(function(p) { depotViewDestIds.add(p.destId); });
+  }
+
   state.destinations.filter(function(d) { return visibleDestIds.has(d.id); }).forEach(function(d) {
     var orphaned = isDropOrphaned(d);
     var n      = orphaned ? 0 : state.carrying.filter(function(id) {
@@ -4573,14 +4579,16 @@ function renderOrderMarkers() {
     }).length;
     var isNext = !orphaned && deliverable && deliverable.id === d.id;
     var destBg = orphaned ? '#1a1a1a' : (isNext ? '#3080c0' : (n > 0 ? '#164060' : '#0c1e30'));
-    var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId) ? '#ffd060' : null;
-    var isFocusedDest = (selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId);
+    var isDepotViewDest = depotViewDestIds.has(d.id);
+    var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId || isDepotViewDest) ? '#ffd060' : null;
+    var isFocusedDest = (selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId) || isDepotViewDest;
     var m = L.marker([d.loc.lat, d.loc.lng], {
       icon: makeDestIcon(destBg, d.icon || d.label, destHexPx, orphaned ? 0 : (d.level || 0), highlightBorder, isNext),
       pane: isFocusedDest ? 'highlightMarkerPane' : 'markerPane'
     }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
     else if (viewingDropId && d.id !== viewingDropId) m.setOpacity(0.5);
+    else if (viewingDepotId && !isDepotViewDest) m.setOpacity(0.5);
     (function(did) { m.on('click', function() { openDropPanel(did); }); })(d.id);
     orderMarkers.push(m);
     _destScaleMarkers.push(m);
@@ -4588,13 +4596,15 @@ function renderOrderMarkers() {
 
   // ── DEPOTS ───────────────────────────────────────────────
   state.depots.forEach(function(dp) {
-    var inRng  = depotInRange(dp);
+    var inRng        = depotInRange(dp);
+    var isViewedDepot = viewingDepotId && dp.id === viewingDepotId;
     var bg     = inRng ? '#1a3a2a' : '#14241c';
+    var borderColor = isViewedDepot ? '#ffd060' : (inRng ? '#4ab070' : null);
     var dm = L.marker([dp.loc.lat, dp.loc.lng], {
-      icon: makeDestIcon(bg, '🏬', destHexPx, 0, inRng ? '#4ab070' : null, false),
-      pane: 'markerPane'
+      icon: makeDestIcon(bg, '🏬', destHexPx, 0, borderColor, false),
+      pane: isViewedDepot ? 'highlightMarkerPane' : 'markerPane'
     }).addTo(map);
-    if (inViewMode) dm.setOpacity(0.5);
+    if (inViewMode && !isViewedDepot) dm.setOpacity(0.5);
     var botsHere = state.bots.filter(function(b) { return !b.trip && b.depotId === dp.id; }).length;
     dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + DEPOT_CAPACITY + 'U' +
       (botsHere ? ' · ' + botsHere + ' bot' + (botsHere > 1 ? 's' : '') : '') + (inRng ? ' · in range' : ''));
