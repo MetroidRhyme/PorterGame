@@ -2718,6 +2718,98 @@ function renderGridCanvas() {
     renderZoneCells(cells, color, 0.25, 1.0, null);
   }
 
+  drawConnectionLines();
+}
+
+function drawConnectionLines() {
+  if (!drawCtx || state.phase !== 'active' || state.drawing) return;
+
+  var activeZoneCells = new Set(), allZoneCells = new Set();
+  state.zones.forEach(function(z) {
+    (z.cells || []).forEach(function(c) {
+      var k = hexKey(c.q, c.r);
+      allZoneCells.add(k);
+      if (z.active) activeZoneCells.add(k);
+    });
+  });
+  var visDestIds = new Set((state.destinations || []).filter(function(d) {
+    var h = latLngToHex(d.loc.lat, d.loc.lng);
+    var k = hexKey(h.q, h.r);
+    return activeZoneCells.has(k) || !allZoneCells.has(k);
+  }).map(function(d) { return d.id; }));
+
+  var inVM = !!(selectedPkgId || viewingDropId || viewingDepotId);
+  function pt(loc) { return map.latLngToContainerPoint([loc.lat, loc.lng]); }
+  function seg(a, b) { drawCtx.beginPath(); drawCtx.moveTo(a.x, a.y); drawCtx.lineTo(b.x, b.y); drawCtx.stroke(); }
+
+  // Normal dashed lines
+  drawCtx.lineCap = 'round';
+  drawCtx.lineWidth = 1.5;
+  drawCtx.setLineDash([4, 8]);
+  (state.packages || []).forEach(function(p) {
+    if (p.id === grapplingPkgId || p.stored) return;
+    if (!visDestIds.has(p.destId)) return;
+    if (viewingDropId && p.destId === viewingDropId && !p.picked) return;
+    if (p.id === selectedPkgId) return;
+    var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+    if (!dest) return;
+    var origin = p.picked && state.userPos ? state.userPos : p.pickupLoc;
+    drawCtx.globalAlpha = inVM ? 0.3 : (p.picked ? 0.75 : 0.6);
+    drawCtx.strokeStyle = p.picked ? '#3080c0' : '#e8a030';
+    seg(pt(origin), pt(dest.loc));
+  });
+
+  // Highlighted lines (drop view, depot view, selected package)
+  drawCtx.setLineDash([]);
+  drawCtx.lineWidth = 3;
+  drawCtx.strokeStyle = '#ffd060';
+  drawCtx.globalAlpha = 0.95;
+
+  if (viewingDropId) {
+    (state.packages || []).forEach(function(p) {
+      if (p.destId !== viewingDropId || p.picked || p.id === grapplingPkgId) return;
+      if (!visDestIds.has(p.destId)) return;
+      var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+      if (dest) seg(pt(p.pickupLoc), pt(dest.loc));
+    });
+  }
+
+  if (viewingDepotId) {
+    var vdep = state.depots.find(function(d) { return d.id === viewingDepotId; });
+    if (vdep) {
+      var dp = pt(vdep.loc);
+      depotStoredPkgs(vdep).forEach(function(p) {
+        var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+        if (dest) seg(dp, pt(dest.loc));
+      });
+    }
+  }
+
+  if (selectedPkgId) {
+    var sp = state.packages.find(function(p) { return p.id === selectedPkgId; });
+    if (sp && visDestIds.has(sp.destId)) {
+      var dest = state.destinations.find(function(d) { return d.id === sp.destId; });
+      if (dest) {
+        var origin = sp.picked && state.userPos ? state.userPos : sp.pickupLoc;
+        seg(pt(origin), pt(dest.loc));
+      }
+    }
+  }
+
+  // Grapple target dotted line
+  if (!inVM && state.userPos && getGrappleStatus().available) {
+    var grPkg = nearestGrappable();
+    if (grPkg && grPkg.id !== grapplingPkgId && visDestIds.has(grPkg.destId)) {
+      drawCtx.setLineDash([3, 7]);
+      drawCtx.lineWidth = 2;
+      drawCtx.strokeStyle = '#c89bff';
+      drawCtx.globalAlpha = 0.85;
+      seg(pt(state.userPos), pt(grPkg.pickupLoc));
+    }
+  }
+
+  drawCtx.setLineDash([]);
+  drawCtx.globalAlpha = 1.0;
 }
 
 map.on('move zoom', scheduleGridRender);
@@ -3129,7 +3221,7 @@ function orderRenderSig() {
   var pick = nearestPickable();
   var del  = nearestDeliverable();
   return [posKey, pick ? pick.id : '-', del ? del.id : '-',
-          map.getZoom(), state.packages.length, state.destinations.length,
+          state.packages.length, state.destinations.length,
           state.carrying.length, state.zones.length].join('|');
 }
 
@@ -4465,53 +4557,7 @@ function renderOrderMarkers() {
     if (selPkg) selectedDestId = selPkg.destId;
   }
 
-  // Connection lines — normal first, drop-view / depot-view and selected on top
-  var inViewMode       = !!(selectedPkgId || viewingDropId || viewingDepotId);
-  var selectedLineInfo = null;
-  var dropViewLines    = [];
-  state.packages.forEach(function(p) {
-    var dest = state.destinations.find(function(d) { return d.id === p.destId; });
-    if (!dest || !visibleDestIds.has(dest.id)) return;
-    if (p.id === grapplingPkgId || p.stored) return;
-    var origin = p.picked && state.userPos ? state.userPos : p.pickupLoc;
-    if (viewingDropId && p.destId === viewingDropId && !p.picked) {
-      dropViewLines.push({ origin: origin, dest: dest }); return;
-    }
-    if (p.id === selectedPkgId) { selectedLineInfo = { origin: origin, dest: dest }; return; }
-    var line = L.polyline(
-      [[origin.lat, origin.lng], [dest.loc.lat, dest.loc.lng]],
-      { color: p.picked ? '#3080c0' : '#e8a030', weight: 1.5,
-        opacity: inViewMode ? 0.3 : (p.picked ? 0.75 : 0.6), dashArray: '4 8',
-        lineCap: 'round', interactive: false }
-    ).addTo(map);
-    orderMarkers.push(line);
-  });
-  if (viewingDepotId) {
-    var vDepot = state.depots.find(function(d) { return d.id === viewingDepotId; });
-    if (vDepot) {
-      depotStoredPkgs(vDepot).forEach(function(p) {
-        var dest = state.destinations.find(function(d) { return d.id === p.destId; });
-        if (!dest) return;
-        orderMarkers.push(L.polyline(
-          [[vDepot.loc.lat, vDepot.loc.lng], [dest.loc.lat, dest.loc.lng]],
-          { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false, pane: 'highlightLinePane' }
-        ).addTo(map));
-      });
-    }
-  }
-  dropViewLines.forEach(function(info) {
-    orderMarkers.push(L.polyline(
-      [[info.origin.lat, info.origin.lng], [info.dest.loc.lat, info.dest.loc.lng]],
-      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false, pane: 'highlightLinePane' }
-    ).addTo(map));
-  });
-  if (selectedLineInfo) {
-    orderMarkers.push(L.polyline(
-      [[selectedLineInfo.origin.lat, selectedLineInfo.origin.lng],
-       [selectedLineInfo.dest.loc.lat, selectedLineInfo.dest.loc.lng]],
-      { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false, pane: 'highlightLinePane' }
-    ).addTo(map));
-  }
+  var inViewMode = !!(selectedPkgId || viewingDropId || viewingDepotId);
 
   state.packages.filter(function(p) { return !p.picked && p.id !== grapplingPkgId && visibleDestIds.has(p.destId); }).forEach(function(p) {
     var dest            = state.destinations.find(function(d) { return d.id === p.destId; });
@@ -4617,15 +4663,10 @@ function renderOrderMarkers() {
   });
 
   // ── GRAPPLE TARGET ──────────────────────────────────────
-  // Dotted purple line + reticle on the package the grapple would pull.
+  // Reticle marker on the package the grapple would pull (line drawn on canvas).
   if (!inViewMode && state.userPos && getGrappleStatus().available) {
     var grPkg = nearestGrappable();
     if (grPkg && grPkg.id !== grapplingPkgId && visibleDestIds.has(grPkg.destId)) {
-      orderMarkers.push(L.polyline(
-        [[state.userPos.lat, state.userPos.lng], [grPkg.pickupLoc.lat, grPkg.pickupLoc.lng]],
-        { color: '#c89bff', weight: 2, opacity: 0.85, dashArray: '3 7', lineCap: 'round',
-          interactive: false, pane: 'highlightLinePane' }
-      ).addTo(map));
       var _retPx = Math.round(iconPx * 1.75);
       var _retM  = L.marker([grPkg.pickupLoc.lat, grPkg.pickupLoc.lng], {
         icon: makeGrappleReticle(_retPx), interactive: false,
@@ -4638,6 +4679,7 @@ function renderOrderMarkers() {
 
   var _cb = document.getElementById('cap-bar');
   if (_cb) _cb.classList.toggle('hidden', !!(selectedPkgId || viewingDropId) || !document.getElementById('hud-bottom').classList.contains('collapsed'));
+  renderGridCanvas();
 }
 
 function showOrderInfo(pkg, dest) {
