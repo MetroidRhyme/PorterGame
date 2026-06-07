@@ -1559,7 +1559,7 @@ function closeTopMenu() {
 
 // True while inspecting a package order or a drop's orders — follow mode must
 // not fight the camera during these.
-function inViewMode() { return !!(selectedPkgId || viewingDropId); }
+function inViewMode() { return !!(selectedPkgId || viewingDropId || viewingDepotId); }
 
 // When leaving a view, return the camera. In follow mode, snap back to the live
 // user position (reasserting follow) at the pre-view zoom; otherwise restore the
@@ -1763,8 +1763,10 @@ let userMarker    = null;
 let orderMarkers  = [];
 var selectedPkgId = null;
 var preSelView    = null;
-var viewingDropId = null;
-var preDropView   = null;
+var viewingDropId  = null;
+var preDropView    = null;
+var viewingDepotId = null;
+var preDepotView   = null;
 let zoneMarkers   = [];
 let _userIconPx   = 0;
 let _lastRenderSig = '';
@@ -2723,7 +2725,8 @@ map.on('zoomend', function() {
 
 map.on('click', function(e) {
   if (state.movingDestId) { executeDropMove(e.latlng); return; }
-  if (viewingDropId) { exitDropView(); return; }
+  if (viewingDropId)  { exitDropView();  return; }
+  if (viewingDepotId) { exitDepotView(); return; }
   if (selectedPkgId) {
     selectedPkgId = null;
     hideOrderInfo();
@@ -3498,6 +3501,39 @@ function exitDropView() {
   openDropPanel(vid);
 }
 
+function viewDepotOrders(depotId) {
+  var depot = state.depots.find(function(d) { return d.id === depotId; });
+  if (!depot) return;
+  closeDepotPanel();
+  viewingDepotId = depotId;
+  preDepotView = { center: map.getCenter(), zoom: map.getZoom() };
+  renderOrderMarkers();
+  var stored = depotStoredPkgs(depot);
+  var points = [[depot.loc.lat, depot.loc.lng]];
+  stored.forEach(function(p) {
+    var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+    if (dest) points.push([dest.loc.lat, dest.loc.lng]);
+  });
+  var topPad = ((document.getElementById('hud-top')    || {}).offsetHeight || 0) + 24;
+  var botPad = ((document.getElementById('hud-bottom') || {}).offsetHeight || 0) + 24;
+  if (points.length === 1) {
+    map.flyTo(adjustLatLngForMenus(depot.loc, 17), 17, { duration: 0.5 });
+  } else {
+    map.flyToBounds(L.latLngBounds(points), {
+      paddingTopLeft: [24, topPad], paddingBottomRight: [24, botPad], maxZoom: 17, duration: 0.5
+    });
+  }
+}
+
+function exitDepotView() {
+  if (!viewingDepotId) return;
+  var vid = viewingDepotId;
+  viewingDepotId = null;
+  renderOrderMarkers();
+  restoreViewCamera(preDepotView, 0.3); preDepotView = null;
+  openDepotPanel(vid);
+}
+
 function openDropPanel(destId) {
   viewingDropId = null;
   preDropView   = null;
@@ -3832,7 +3868,10 @@ function renderDepotPanel(depot) {
           '<div style="font-size:11px;color:#5ab07a;letter-spacing:2px;margin-top:3px">' + dLoad + ' / ' + DEPOT_CAPACITY + 'U STORED · ' + nStored + ' PKG' + (nStored !== 1 ? 'S' : '') + '</div>' +
         '</div>' +
       '</div>' +
-      '<button onclick="closeDepotPanel()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        '<button onclick="viewDepotOrders(\'' + depot.id + '\')" style="padding:8px 14px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a3a4a;background:rgba(10,30,50,0.4);color:#5ab0e0">VIEW</button>' +
+        '<button onclick="closeDepotPanel()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+      '</div>' +
     '</div>' +
     notice +
     '<div class="depot-section-hdr">YOUR INVENTORY · ' + currentLoad() + '/' + getCapacity() + 'U</div>' +
@@ -4423,8 +4462,8 @@ function renderOrderMarkers() {
     if (selPkg) selectedDestId = selPkg.destId;
   }
 
-  // Connection lines — normal first, drop-view and selected on top
-  var inViewMode       = !!(selectedPkgId || viewingDropId);
+  // Connection lines — normal first, drop-view / depot-view and selected on top
+  var inViewMode       = !!(selectedPkgId || viewingDropId || viewingDepotId);
   var selectedLineInfo = null;
   var dropViewLines    = [];
   state.packages.forEach(function(p) {
@@ -4444,6 +4483,19 @@ function renderOrderMarkers() {
     ).addTo(map);
     orderMarkers.push(line);
   });
+  if (viewingDepotId) {
+    var vDepot = state.depots.find(function(d) { return d.id === viewingDepotId; });
+    if (vDepot) {
+      depotStoredPkgs(vDepot).forEach(function(p) {
+        var dest = state.destinations.find(function(d) { return d.id === p.destId; });
+        if (!dest) return;
+        orderMarkers.push(L.polyline(
+          [[vDepot.loc.lat, vDepot.loc.lng], [dest.loc.lat, dest.loc.lng]],
+          { color: '#ffd060', weight: 3, opacity: 0.95, lineCap: 'round', interactive: false, pane: 'highlightLinePane' }
+        ).addTo(map));
+      });
+    }
+  }
   dropViewLines.forEach(function(info) {
     orderMarkers.push(L.polyline(
       [[info.origin.lat, info.origin.lng], [info.dest.loc.lat, info.dest.loc.lng]],
