@@ -1556,6 +1556,13 @@ function toggleTopMenu() {
 function closeTopMenu() {
   document.getElementById('top-menu').classList.remove('open');
 }
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('top-menu');
+  var btn  = document.getElementById('top-menu-btn');
+  if (menu && menu.classList.contains('open') && !menu.contains(e.target) && !btn.contains(e.target)) {
+    menu.classList.remove('open');
+  }
+}, true);
 
 // True while inspecting a package order or a drop's orders — follow mode must
 // not fight the camera during these.
@@ -1696,7 +1703,7 @@ function makeDestIcon(bg, letter, size, level, borderColor, glow) {
   var clip = 'clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
   var shadow = glow ? 'filter:drop-shadow(0 0 7px rgba(48,128,192,0.9))' : '';
   var lvlHtml = level > 0
-    ? '<div style="font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,0.9);margin-top:1px;letter-spacing:1px">LV' + level + '</div>'
+    ? '<div style="font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;margin-top:1px;letter-spacing:1px">LV' + level + '</div>'
     : '';
   var totalH = level > 0 ? h + lfs + 3 : h;
   return L.divIcon({
@@ -3494,11 +3501,9 @@ function viewDropOrders(destId) {
 
 function exitDropView() {
   if (!viewingDropId) return;
-  var vid = viewingDropId;
   viewingDropId = null;
   renderOrderMarkers();
   restoreViewCamera(preDropView, 0.3); preDropView = null;
-  openDropPanel(vid);
 }
 
 function viewDepotOrders(depotId) {
@@ -3527,11 +3532,9 @@ function viewDepotOrders(depotId) {
 
 function exitDepotView() {
   if (!viewingDepotId) return;
-  var vid = viewingDepotId;
   viewingDepotId = null;
   renderOrderMarkers();
   restoreViewCamera(preDepotView, 0.3); preDepotView = null;
-  openDepotPanel(vid);
 }
 
 function openDropPanel(destId) {
