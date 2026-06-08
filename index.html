@@ -15,7 +15,11 @@
     }
 
     #map         { position: fixed; inset: 0; }
-    #draw-canvas { position: fixed; inset: 0; z-index: 350; pointer-events: none; }
+    /* Load-bearing: draw-canvas must be position:absolute AND a child of #map so it
+       shares #map's stacking context. #map is position:fixed (its own stacking context),
+       so as a fixed sibling the canvas would paint above ALL markers regardless of
+       z-index. Inside #map, z-index 350 correctly sits above tiles (200), below markers (600). */
+    #draw-canvas { position: absolute; inset: 0; z-index: 350; pointer-events: none; }
 
     .user-marker           { transition: transform 0.4s linear; }
     .user-marker.no-smooth { transition: none; }
@@ -679,7 +683,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.6.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.6.2</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -697,8 +701,7 @@
   <button class="top-menu-item" onclick="closeTopMenu();openSettings()">&#9776; SETTINGS</button>
 </div>
 
-<div id="map"></div>
-<canvas id="draw-canvas"></canvas>
+<div id="map"><canvas id="draw-canvas"></canvas></div>
 <div id="order-info"></div>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
