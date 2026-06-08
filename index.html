@@ -678,7 +678,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.6.5</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.6.6</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1676,9 +1676,11 @@ map.createPane('highlightMarkerPane').style.zIndex = 620;
 // per-frame redraw and no double-offset). We draw on its pre-translated context
 // in LAYER points (see renderGridCanvas), repainting after a pan/zoom settles
 // via scheduleGridRedraw (map moveend/zoomend/viewreset) plus direct state-change
-// calls. Padding gives margin so fast pans don't clip the drawing before repaint.
+// calls. Padding is set generously (1.0 = 100% of viewport on each side) so the
+// pre-drawn canvas stays visible even through aggressive pan gestures and inertia
+// scroll; a smaller value causes visible blank edges during fast pans.
 map.createPane('drawPane').style.zIndex = 350;
-var gridRenderer = L.canvas({ pane: 'drawPane', padding: 0.3 });
+var gridRenderer = L.canvas({ pane: 'drawPane', padding: 1.0 });
 gridRenderer.addTo(map);
 
 map.setView([20, 0], 3);
