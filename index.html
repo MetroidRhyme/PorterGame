@@ -325,6 +325,8 @@
     #secondary-btn:active { color: #c04040; border-color: #602020; }
 
     #action-row { display: flex; align-items: stretch; gap: 10px; margin: 10px 16px 0; }
+    #map-attribution { font-size: 8px; color: rgba(255,255,255,0.25); text-align: center; padding: 3px 0 max(4px, env(safe-area-inset-bottom)); letter-spacing: 0.5px; }
+    #map-attribution a { color: rgba(255,255,255,0.35); text-decoration: none; }
     #grapple-btn {
       position: relative; overflow: hidden;
       flex: 0 0 auto; width: 58px; min-height: 58px; padding: 0;
@@ -785,6 +787,7 @@
     <button id="grapple-btn" class="hidden" aria-label="Grapple nearest package"><span id="grapple-fill"></span><span id="grapple-glyph">🪝</span></button>
     <button id="action-btn" class="generate" disabled>WAITING FOR GPS</button>
   </div>
+  <div id="map-attribution">© <a href="https://carto.com/attributions" target="_blank">CARTO</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors</div>
 </div>
 
 <div id="cap-bar" class="hidden">
