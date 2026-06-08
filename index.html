@@ -678,7 +678,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.6.4</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.6.5</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1656,6 +1656,15 @@ function toggleHUD() {
 
 const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 13, zoomSnap: 0.25, zoomDelta: 0.25 });
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+// Pane z-index ladder (bottom → top). Read this before touching anything map-visual:
+//   tilePane           200  map tiles (Leaflet default)
+//   drawPane           350  hex grid / zone fills / connection lines (gridRenderer, an L.canvas)
+//   overlayPane        400  drone & bot trip lines (L.polyline, Leaflet default)
+//   shadowPane         500  marker shadows (Leaflet default)
+//   markerPane         600  order / drop / depot / user icons (Leaflet default)
+//   highlightLinePane  610  grapple rope animation
+//   highlightMarkerPane 620 focused / selected icons
 map.createPane('highlightLinePane').style.zIndex   = 610;
 map.createPane('highlightMarkerPane').style.zIndex = 620;
 
@@ -1665,8 +1674,9 @@ map.createPane('highlightMarkerPane').style.zIndex = 620;
 // than a viewport-fixed <canvas> is load-bearing: Leaflet keeps the drawing
 // map-anchored (it pans/zooms WITH the map via the pane transform, with no
 // per-frame redraw and no double-offset). We draw on its pre-translated context
-// in LAYER points on its 'update' event (fires at moveend/zoomend/viewreset).
-// Padding gives margin so fast pans don't clip the drawing before the redraw.
+// in LAYER points (see renderGridCanvas), repainting after a pan/zoom settles
+// via scheduleGridRedraw (map moveend/zoomend/viewreset) plus direct state-change
+// calls. Padding gives margin so fast pans don't clip the drawing before repaint.
 map.createPane('drawPane').style.zIndex = 350;
 var gridRenderer = L.canvas({ pane: 'drawPane', padding: 0.3 });
 gridRenderer.addTo(map);
@@ -2681,10 +2691,10 @@ function renderZoneCells(cells, color, fillOpacity, strokeOpacity, skip) {
   drawCtx.globalAlpha = 1.0;
 }
 
-// The grid/line canvas now redraws via gridRenderer's 'update' event (and direct
-// state-change calls), and pans/zooms with the map via the pane transform — so it
-// no longer needs a per-frame redraw on 'move'. This stays bound to 'move zoom'
-// only to keep marker icon sizes in sync with the zoom level.
+// The grid/line canvas redraws via scheduleGridRedraw (on map moveend/zoomend/
+// viewreset) plus direct state-change calls, and pans/zooms with the map via the
+// pane transform — so it no longer needs a per-frame redraw on 'move'. This stays
+// bound to 'move zoom' only to keep marker icon sizes in sync with the zoom level.
 var _rafPending = false;
 function scheduleGridRender() {
   if (_rafPending) return;
