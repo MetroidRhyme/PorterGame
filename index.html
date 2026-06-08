@@ -15,11 +15,7 @@
     }
 
     #map         { position: fixed; inset: 0; }
-    /* Load-bearing: draw-canvas must be position:absolute AND a child of #map so it
-       shares #map's stacking context. #map is position:fixed (its own stacking context),
-       so as a fixed sibling the canvas would paint above ALL markers regardless of
-       z-index. Inside #map, z-index 350 correctly sits above tiles (200), below markers (600). */
-    #draw-canvas { position: absolute; inset: 0; z-index: 350; pointer-events: none; }
+    #draw-canvas { position: fixed; inset: 0; z-index: 350; pointer-events: none; }
 
     .user-marker           { transition: transform 0.4s linear; }
     .user-marker.no-smooth { transition: none; }
@@ -683,7 +679,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.6.2</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.6.3</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -701,7 +697,8 @@
   <button class="top-menu-item" onclick="closeTopMenu();openSettings()">&#9776; SETTINGS</button>
 </div>
 
-<div id="map"><canvas id="draw-canvas"></canvas></div>
+<div id="map"></div>
+<canvas id="draw-canvas"></canvas>
 <div id="order-info"></div>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
@@ -2745,18 +2742,10 @@ function drawConnectionLines() {
   function pt(loc) { return map.latLngToContainerPoint([loc.lat, loc.lng]); }
   function seg(a, b) { drawCtx.beginPath(); drawCtx.moveTo(a.x, a.y); drawCtx.lineTo(b.x, b.y); drawCtx.stroke(); }
 
-  // Dash lengths are scaled by zoom so each dash spans a constant geographic
-  // distance (ref zoom 17, gameplay default). Pixel distance for a fixed geo
-  // span scales by 2^zoom, so this keeps the dash count per line constant and
-  // anchors the pattern to the map — without it the fixed-pixel dashes crawl
-  // ("saw") as the canvas is redrawn each frame on zoom. dash(a,b) helper.
-  var dz = Math.pow(2, map.getZoom() - 17);
-  function dash(a, b) { drawCtx.setLineDash([a * dz, b * dz]); }
-
   // Normal dashed lines
   drawCtx.lineCap = 'round';
   drawCtx.lineWidth = 1.5;
-  dash(4, 8);
+  drawCtx.setLineDash([4, 8]);
   (state.packages || []).forEach(function(p) {
     if (p.id === grapplingPkgId || p.stored) return;
     if (!visDestIds.has(p.destId)) return;
@@ -2811,7 +2800,7 @@ function drawConnectionLines() {
   if (!inVM && state.userPos && getGrappleStatus().available) {
     var grPkg = nearestGrappable();
     if (grPkg && grPkg.id !== grapplingPkgId && visDestIds.has(grPkg.destId)) {
-      dash(3, 7);
+      drawCtx.setLineDash([3, 7]);
       drawCtx.lineWidth = 2;
       drawCtx.strokeStyle = '#c89bff';
       drawCtx.globalAlpha = 0.85;
