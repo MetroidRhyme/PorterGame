@@ -15,7 +15,6 @@
     }
 
     #map         { position: fixed; inset: 0; }
-    #draw-canvas { position: fixed; inset: 0; z-index: 350; pointer-events: none; }
 
     .user-marker           { transition: transform 0.4s linear; }
     .user-marker.no-smooth { transition: none; }
@@ -679,7 +678,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.6.3</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.6.4</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -698,7 +697,6 @@
 </div>
 
 <div id="map"></div>
-<canvas id="draw-canvas"></canvas>
 <div id="order-info"></div>
 
 <div id="gps-status" class="acquiring">ACQUIRING GPS</div>
@@ -1660,6 +1658,19 @@ const map = L.map('map', { zoomControl: false, attributionControl: false, minZoo
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 map.createPane('highlightLinePane').style.zIndex   = 610;
 map.createPane('highlightMarkerPane').style.zIndex = 620;
+
+// Hex grid, zone fills and connection lines are drawn on a Leaflet canvas
+// RENDERER (L.canvas) living in this pane, so they sit above tiles (200) but
+// below the marker icons (600) — icons are never covered. Using L.canvas rather
+// than a viewport-fixed <canvas> is load-bearing: Leaflet keeps the drawing
+// map-anchored (it pans/zooms WITH the map via the pane transform, with no
+// per-frame redraw and no double-offset). We draw on its pre-translated context
+// in LAYER points on its 'update' event (fires at moveend/zoomend/viewreset).
+// Padding gives margin so fast pans don't clip the drawing before the redraw.
+map.createPane('drawPane').style.zIndex = 350;
+var gridRenderer = L.canvas({ pane: 'drawPane', padding: 0.3 });
+gridRenderer.addTo(map);
+
 map.setView([20, 0], 3);
 
 // Returns a LatLng adjusted so that, when Leaflet centers on it (placing it
@@ -2529,23 +2540,13 @@ function clearAllZones() {
 //  CANVAS SETUP
 // ═══════════════════════════════════════════════════════════
 
-var drawCanvas, drawCtx;
-
-function initDrawCanvas() {
-  var dpr = window.devicePixelRatio || 1;
-  var W   = window.innerWidth, H = window.innerHeight;
-  drawCanvas = document.getElementById('draw-canvas');
-  drawCanvas.width  = W * dpr;  drawCanvas.height = H * dpr;
-  drawCanvas.style.width = W + 'px'; drawCanvas.style.height = H + 'px';
-  drawCtx = drawCanvas.getContext('2d');
-  drawCtx.scale(dpr, dpr);
-}
-
-var _canvasResizeTimer = null;
-function scheduleCanvasResize() {
-  clearTimeout(_canvasResizeTimer);
-  _canvasResizeTimer = setTimeout(function() { initDrawCanvas(); renderGridCanvas(); }, 200);
-}
+// drawCtx is gridRenderer's 2D context (set in renderGridCanvas). Leaflet's
+// L.canvas owns the actual <canvas>, its size, DPR scaling and layer-point
+// transform, and resizes it with the map — so these are now thin stubs kept so
+// the many existing call sites stay valid.
+var drawCtx;
+function initDrawCanvas() {}
+function scheduleCanvasResize() {}
 
 // ═══════════════════════════════════════════════════════════
 //  HEX GRID SYSTEM  (flat-top axial q,r coordinates)
@@ -2606,14 +2607,16 @@ function hexVerticesPx(q, r) {
     var angle = Math.PI / 3 * i;
     var lat = (SQ3/2 * q + SQ3 * r + Math.sin(angle)) * CELL_LAT_DEG + gridOffsetLat;
     var lng = (3/2 * q              + Math.cos(angle)) * CELL_LNG_DEG + gridOffsetLng;
-    verts.push(map.latLngToContainerPoint([lat, lng]));
+    verts.push(map.latLngToLayerPoint([lat, lng]));   // LAYER points: drawn on gridRenderer's pane
   }
   return verts;
 }
 
+// Vertices are layer points; cull against the renderer's padded bounds (also layer points).
 function hexOnScreen(verts) {
-  var W = window.innerWidth, H = window.innerHeight;
-  return verts.some(function(v) { return v.x >= -4 && v.x <= W + 4 && v.y >= -4 && v.y <= H + 4; });
+  var b = gridRenderer && gridRenderer._bounds;
+  if (!b) return true;
+  return verts.some(function(v) { return v.x >= b.min.x - 4 && v.x <= b.max.x + 4 && v.y >= b.min.y - 4 && v.y <= b.max.y + 4; });
 }
 
 function toggleCell(latlng) {
@@ -2678,17 +2681,35 @@ function renderZoneCells(cells, color, fillOpacity, strokeOpacity, skip) {
   drawCtx.globalAlpha = 1.0;
 }
 
+// The grid/line canvas now redraws via gridRenderer's 'update' event (and direct
+// state-change calls), and pans/zooms with the map via the pane transform — so it
+// no longer needs a per-frame redraw on 'move'. This stays bound to 'move zoom'
+// only to keep marker icon sizes in sync with the zoom level.
 var _rafPending = false;
 function scheduleGridRender() {
   if (_rafPending) return;
   _rafPending = true;
-  requestAnimationFrame(function() { _rafPending = false; renderGridCanvas(); rescaleMarkers(); });
+  requestAnimationFrame(function() { _rafPending = false; rescaleMarkers(); });
+}
+
+// Redraw the grid/line canvas after a pan/zoom settles. Deferred to the next
+// frame so Leaflet has finished resizing/repositioning gridRenderer's canvas
+// (which happens on moveend) before we draw — otherwise the post-zoom canvas is
+// cleared but not repainted. During the gesture itself the canvas pans/zooms
+// live via the pane transform, so no per-frame redraw is needed.
+var _gridRedrawPending = false;
+function scheduleGridRedraw() {
+  if (_gridRedrawPending) return;
+  _gridRedrawPending = true;
+  requestAnimationFrame(function() { _gridRedrawPending = false; renderGridCanvas(); });
 }
 
 
 function renderGridCanvas() {
-  if (!drawCtx) return;
-  drawCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  if (!gridRenderer || !gridRenderer._ctx || !gridRenderer._bounds) return;
+  drawCtx = gridRenderer._ctx;   // already DPR-scaled and translated into layer-point space by L.canvas
+  var _b = gridRenderer._bounds, _sz = _b.getSize();
+  drawCtx.clearRect(_b.min.x, _b.min.y, _sz.x, _sz.y);
 
   var editingId = state.drawing ? state.editingZoneId : null;
   var fillOp   = state.drawing ? 0.18 : 0.1;
@@ -2739,13 +2760,20 @@ function drawConnectionLines() {
   }).map(function(d) { return d.id; }));
 
   var inVM = !!(selectedPkgId || viewingDropId || viewingDepotId);
-  function pt(loc) { return map.latLngToContainerPoint([loc.lat, loc.lng]); }
+  function pt(loc) { return map.latLngToLayerPoint([loc.lat, loc.lng]); }   // LAYER points (gridRenderer pane)
   function seg(a, b) { drawCtx.beginPath(); drawCtx.moveTo(a.x, a.y); drawCtx.lineTo(b.x, b.y); drawCtx.stroke(); }
+
+  // Dash lengths scale with zoom (ref zoom 17) so each dash spans a constant
+  // geographic distance and the pattern stays anchored to the map. Combined with
+  // drawing in layer space (the canvas scales smoothly during zoom animation),
+  // this stops the dashes from "sawing" — adding/removing dashes — as you zoom.
+  var dz = Math.pow(2, map.getZoom() - 17);
+  function dash(a, b) { drawCtx.setLineDash([a * dz, b * dz]); }
 
   // Normal dashed lines
   drawCtx.lineCap = 'round';
   drawCtx.lineWidth = 1.5;
-  drawCtx.setLineDash([4, 8]);
+  dash(4, 8);
   (state.packages || []).forEach(function(p) {
     if (p.id === grapplingPkgId || p.stored) return;
     if (!visDestIds.has(p.destId)) return;
@@ -2800,7 +2828,7 @@ function drawConnectionLines() {
   if (!inVM && state.userPos && getGrappleStatus().available) {
     var grPkg = nearestGrappable();
     if (grPkg && grPkg.id !== grapplingPkgId && visDestIds.has(grPkg.destId)) {
-      drawCtx.setLineDash([3, 7]);
+      dash(3, 7);
       drawCtx.lineWidth = 2;
       drawCtx.strokeStyle = '#c89bff';
       drawCtx.globalAlpha = 0.85;
@@ -2813,6 +2841,7 @@ function drawConnectionLines() {
 }
 
 map.on('move zoom', scheduleGridRender);
+map.on('moveend zoomend viewreset', scheduleGridRedraw);
 map.on('zoomstart', function() { var el = userMarker && userMarker.getElement(); if (el) el.classList.add('no-smooth'); });
 map.on('zoomend',   function() { requestAnimationFrame(function() { var el = userMarker && userMarker.getElement(); if (el) el.classList.remove('no-smooth'); }); });
 map.on('zoomend',  renderOrderMarkers);
@@ -5109,7 +5138,7 @@ migrateDestinations();
 // Drop never-used auto-generated drops whose zone is gone, so saves stay bounded
 if (pruneEmptyDrops()) saveGameState();
 
-initDrawCanvas();
+renderGridCanvas();   // initial draw; thereafter gridRenderer's 'update' + state-change calls drive it
 updateHUD();
 window.addEventListener('load', updateCapBar);
 setTimeout(updateCapBar, 300);
