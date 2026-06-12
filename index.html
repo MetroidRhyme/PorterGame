@@ -658,7 +658,7 @@
       position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
       background: rgba(13,13,20,0.95); border: 1px solid rgba(255,255,255,0.1);
       border-radius: 6px; padding: 10px 16px; font-size: 11px; letter-spacing: 1px;
-      color: #fff; z-index: 5000; pointer-events: none;
+      color: #fff; z-index: 9000; pointer-events: none;
       max-width: calc(100vw - 48px); text-align: center;
       opacity: 0; transition: opacity 0.3s;
     }
@@ -680,8 +680,8 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.6.7</span></div>
-    <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
+    <div id="game-title">PORTER<span id="game-version">v2.0.0</span></div>
+    <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
     </div>
@@ -948,17 +948,18 @@ const state = {
   droneHeavyLastUsed:  parseInt(localStorage.getItem('porter_drone_heavy_last_used')  || '0'),
   grappleLastUsed: parseInt(localStorage.getItem('porter_grapple_last_used') || '0'),
   refreshLastUsed: parseInt(localStorage.getItem('porter_refresh_last_used') || '0'),
+  respecLastUsed:  parseInt(localStorage.getItem('porter_respec_last_used') || '0'),
   seenTutorials:   safeParse('porter_seen_tutorials', []),
+  skills:          safeParse('porter_skills', []),
 };
 
 const PROXIMITY_M        = 30;
 const REFRESH_COOLDOWN_MS = 60 * 1000;
 const SPAWN_DELAY_MS      = 15 * 60 * 1000;
 
-// Grapple hook — unlocks at level 5, pulls the nearest in-range package (any
-// size) to the player and picks it up. Release values: range 2 hex / 15 min
-// cooldown. (Testing values were 5 hex / 15s.)
-const GRAPPLE_UNLOCK_LEVEL = 5;
+// Grapple hook — a skill-tree unlock that pulls the nearest in-range package
+// (any size) to the player and picks it up. Base values: range 2 hex / 15 min
+// cooldown; both upgradable via skill nodes (see SKILLS).
 const GRAPPLE_RANGE_HEX     = 2;
 const GRAPPLE_COOLDOWN_MS   = 15 * 60 * 1000;
 const CELL_LAT_DEG  = 20 / 111111;
@@ -1001,36 +1002,114 @@ const DROP_LAST_NAMES = [
   'Moreau','Tanaka','Reyes','Fischer','Diallo','Nguyen','Eriksson','Yamamoto'
 ];
 
-// Storage depots: unlock one more at each of these levels; each holds
-// DEPOT_CAPACITY weight units. Declared here so ABILITY_TUTORIALS can use them.
-const DEPOT_UNLOCK_LEVELS = [10, 20, 30, 40, 50];
+// Storage depots: up to five unlocked via skill nodes; each holds
+// DEPOT_CAPACITY weight units (base — the TALL SHELVES node adds 5).
 const DEPOT_CAPACITY = 10;
 
 // Porter-bots: autonomous couriers that relay depot-stored packages toward
-// the depot closest to each package's destination. One unlocks at L30/40/50.
-// BOT_TEST_DEFAULT extra bots are granted regardless of level for testing.
-const BOT_UNLOCK_LEVELS = [30, 40, 50];
+// the depot closest to each package's destination. Up to three unlocked via
+// skill nodes. BOT_TEST_DEFAULT extra bots are granted regardless for testing.
 const BOT_TEST_DEFAULT   = 2;                 // TODO: set to 0 before shipping
-const BOT_CAPACITY       = 3;                 // max weight a bot carries at once
+const BOT_CAPACITY       = 3;                 // base max weight a bot carries (CARGO RACK node adds 2)
 const BOT_RECHARGE_MS     = 15 * 60 * 1000;   // rest after each delivery trip
 const BOT_SPEED_MPS       = 1;                // drone ≈ 4 m/s; bot is 1/4 of that
 
-const PLAYER_UPGRADES = [
-  { level: 5,  text: 'Grapple hook unlocked (pull any-size package from ' + GRAPPLE_RANGE_HEX + ' hexes · ' + (GRAPPLE_COOLDOWN_MS < 60000 ? Math.round(GRAPPLE_COOLDOWN_MS / 1000) + 's' : Math.round(GRAPPLE_COOLDOWN_MS / 60000) + 'min') + ' cooldown)' },
-  { level: 10, text: 'Carry capacity +1 (4U) · Storage depot unlocked (10U storage)' },
-  { level: 15, text: 'Light drone unlocked (light packages · 10 hex range · 1h cooldown)' },
-  { level: 20, text: 'Carry capacity +1 (5U) · +1 storage depot' },
-  { level: 25, text: 'Medium drone unlocked (standard & lighter · 20 hex range · 2h cooldown)' },
-  { level: 30, text: 'Carry capacity +1 (6U) · +1 storage depot · Porter-bot unlocked (auto-relays packages between depots)' },
-  { level: 35, text: 'Heavy drone unlocked (all weights · 30 hex range · 3h cooldown)' },
-  { level: 40, text: 'Carry capacity +1 (7U) · +1 storage depot · +1 porter-bot' },
-  { level: 50, text: 'Carry capacity +1 (8U) · +1 storage depot · +1 porter-bot · MAX LEVEL' },
+// ── SKILL TREE ──────────────────────────────────────────────
+// Each level grants one skill point (points earned = player level). Nodes are
+// bought from the tree (tap the level display, top-left). All node costs sum
+// to exactly LEVEL_MAX (50), so a max-level player can eventually own
+// everything — the build order is the choice. In-branch prerequisites (req)
+// are the only gates; there are no minimum-level requirements.
+const RESPEC_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const SKILL_BRANCHES = [
+  { id: 'porter',  label: 'PORTER',   color: '#e8a030' },
+  { id: 'air',     label: 'AIRFRAME', color: '#c89bff' },
+  { id: 'network', label: 'NETWORK',  color: '#5ab07a' },
+];
+const SKILLS = [
+  // PORTER — carry & grapple (18 pts)
+  { id: 'grapple',     branch: 'porter', cost: 2, name: 'GRAPPLE HOOK', desc: 'Pull the nearest package (any size) to you from 2 hexes · 15min cooldown', tutorial: true },
+  { id: 'grapple_rng', branch: 'porter', cost: 1, req: 'grapple', name: 'LONG THROW', desc: 'Grapple range +1 hex' },
+  { id: 'grapple_cd',  branch: 'porter', cost: 1, req: 'grapple', name: 'FAST REEL',  desc: 'Grapple cooldown −33% (10min)' },
+  { id: 'carry1', branch: 'porter', cost: 2, name: 'CARRY +1 (4U)', desc: 'Carry capacity 4 units' },
+  { id: 'carry2', branch: 'porter', cost: 2, req: 'carry1', name: 'CARRY +1 (5U)', desc: 'Carry capacity 5 units' },
+  { id: 'carry3', branch: 'porter', cost: 3, req: 'carry2', name: 'CARRY +1 (6U)', desc: 'Carry capacity 6 units' },
+  { id: 'carry4', branch: 'porter', cost: 3, req: 'carry3', name: 'CARRY +1 (7U)', desc: 'Carry capacity 7 units' },
+  { id: 'carry5', branch: 'porter', cost: 4, req: 'carry4', name: 'CARRY +1 (8U)', desc: 'Carry capacity 8 units (max)' },
+  // AIRFRAME — drones (16 pts)
+  { id: 'drone_light',  branch: 'air', cost: 3, name: 'LIGHT DRONE', desc: 'Fly a light package to its drop · 10 hex · 1h cooldown', tutorial: true },
+  { id: 'drone_range',  branch: 'air', cost: 1, req: 'drone_light', name: 'EXTENDED ROTORS', desc: 'All drone ranges +25%' },
+  { id: 'drone_pay',    branch: 'air', cost: 1, req: 'drone_light', name: 'CAREFUL COURIER', desc: 'Drone deliveries earn 60% of points (up from 50%)' },
+  { id: 'drone_medium', branch: 'air', cost: 4, req: 'drone_light', name: 'MEDIUM DRONE', desc: 'Standard & lighter · 20 hex · 2h cooldown', tutorial: true },
+  { id: 'drone_cd',     branch: 'air', cost: 2, req: 'drone_medium', name: 'QUICK CHARGE', desc: 'All drone cooldowns −25%' },
+  { id: 'drone_heavy',  branch: 'air', cost: 5, req: 'drone_medium', name: 'HEAVY DRONE', desc: 'All weights · 30 hex · 3h cooldown', tutorial: true },
+  // NETWORK — depots & bots (16 pts)
+  { id: 'depot1', branch: 'network', cost: 2, name: 'STORAGE DEPOT', desc: 'Place a depot that stores 10U of packages for later', tutorial: true },
+  { id: 'depot2', branch: 'network', cost: 2, req: 'depot1', name: 'DEPOT II',  desc: '+1 storage depot' },
+  { id: 'depot3', branch: 'network', cost: 2, req: 'depot2', name: 'DEPOT III', desc: '+1 storage depot' },
+  { id: 'depot4', branch: 'network', cost: 1, req: 'depot3', name: 'DEPOT IV',  desc: '+1 storage depot' },
+  { id: 'depot5', branch: 'network', cost: 1, req: 'depot4', name: 'DEPOT V',   desc: '+1 storage depot' },
+  { id: 'depot_cap', branch: 'network', cost: 1, req: 'depot1', name: 'TALL SHELVES', desc: 'Depot capacity +5 (15U each)' },
+  { id: 'bot1', branch: 'network', cost: 2, req: 'depot2', name: 'PORTER-BOT', desc: 'A bot that relays stored packages between depots on its own', tutorial: true },
+  { id: 'bot2', branch: 'network', cost: 2, req: 'bot1', name: 'PORTER-BOT II',  desc: '+1 porter-bot' },
+  { id: 'bot3', branch: 'network', cost: 2, req: 'bot2', name: 'PORTER-BOT III', desc: '+1 porter-bot' },
+  { id: 'bot_cap', branch: 'network', cost: 1, req: 'bot1', name: 'CARGO RACK', desc: 'Bot carry capacity +2 (5U)' },
 ];
 
-// Tutorial pop-ups shown the first time an ability is unlocked on level-up.
-// Keyed by player level. Body may contain <b> for emphasis.
+function skillById(id) { return SKILLS.find(function(n) { return n.id === id; }); }
+function hasSkill(id)  { return state.skills.indexOf(id) !== -1; }
+function saveSkills()  { localStorage.setItem('porter_skills', JSON.stringify(state.skills)); }
+function skillPointsSpent() {
+  return SKILLS.reduce(function(s, n) { return s + (hasSkill(n.id) ? n.cost : 0); }, 0);
+}
+function skillPointsAvailable() { return getPlayerLevel() - skillPointsSpent(); }
+function skillState(n) {
+  if (hasSkill(n.id)) return 'owned';
+  if (n.req && !hasSkill(n.req)) return 'locked';
+  return skillPointsAvailable() >= n.cost ? 'buyable' : 'unaffordable';
+}
+
+function buySkill(id) {
+  var n = skillById(id);
+  if (!n || hasSkill(id)) return;
+  if (n.req && !hasSkill(n.req)) { showToast('Requires ' + skillById(n.req).name + ' first'); return; }
+  if (skillPointsAvailable() < n.cost) { showToast('Not enough skill points'); return; }
+  if (!confirm('Spend ' + n.cost + ' skill point' + (n.cost > 1 ? 's' : '') + ' on ' + n.name + '?')) return;
+  state.skills.push(id);
+  saveSkills();
+  vibrate(40);
+  reconcileBots();        // a freshly bought bot slot needs a body
+  botTick();
+  updateHUD();
+  renderOrderMarkers();   // grapple reticle / marker states may change
+  renderSkillTree();
+  if (n.tutorial) showSkillTutorial(id);
+}
+
+function respecSkills() {
+  if (!state.skills.length) { showToast('No skill points spent yet'); return; }
+  var elapsed = Date.now() - (state.respecLastUsed || 0);
+  if (elapsed < RESPEC_COOLDOWN_MS) {
+    showToast('Respec ready in ' + formatRemainTime(RESPEC_COOLDOWN_MS - elapsed));
+    return;
+  }
+  if (!confirm('Refund all spent skill points? Placed depots keep working but new ones can\'t be placed beyond your allocation, and excess idle bots are retired. This ability has a 24-hour cooldown.')) return;
+  state.skills = [];
+  state.respecLastUsed = Date.now();
+  localStorage.setItem('porter_respec_last_used', state.respecLastUsed);
+  saveSkills();
+  reconcileBots();
+  saveGameState();
+  updateHUD();
+  renderOrderMarkers();
+  renderSkillTree();
+  showToast('All skill points refunded');
+}
+
+// Tutorial pop-ups shown the first time an ability skill is purchased.
+// Keyed by skill node id. Body may contain <b> for emphasis.
 const ABILITY_TUTORIALS = {
-  5: {
+  grapple: {
     icon: '🪝',
     title: 'GRAPPLE HOOK',
     body: 'Pull a package straight to you — no walking required.<br><br>' +
@@ -1040,7 +1119,7 @@ const ABILITY_TUTORIALS = {
       '<b>any size works</b>, as long as you have free carry space.<br><br>' +
       'After use it goes on cooldown; the button greys out and <b>fills back up</b> as it recharges.'
   },
-  10: {
+  depot1: {
     icon: '🏬',
     title: 'STORAGE DEPOT',
     body: 'You can now build a <b>storage depot</b> to stash packages for later.<br><br>' +
@@ -1048,19 +1127,19 @@ const ABILITY_TUTORIALS = {
       'at your location. Walk into a depot\'s range and tap it to open a <b>transfer menu</b> — move packages ' +
       'between your inventory and its storage (holds up to <b>' + DEPOT_CAPACITY + ' weight units</b>).<br><br>' +
       'Depots stay put until you delete them (<b>deleting destroys stored packages</b>). ' +
-      'You unlock <b>another depot</b> every 10 levels.'
+      'More depots can be unlocked in the <b>skill tree</b>.'
   },
-  15: {
+  drone_light: {
     icon: '🚁',
     title: 'LIGHT DRONE',
     body: 'Send a package by air instead of carrying it.<br><br>' +
       'Stand near a <b>light package</b> and tap <b>DRONE LIFT</b> to fly it straight to its drop ' +
-      'for <b>half points</b> — great for far-off deliveries within <b>10 hexes</b>.<br><br>' +
+      'for <b>reduced points</b> — great for far-off deliveries within <b>10 hexes</b>.<br><br>' +
       'The light drone has a <b>1-hour cooldown</b>, shown as a ring on the <b>capacity bar</b> ' +
-      'at the bottom-right. Medium and heavy drones unlock later as <b>separate drones</b>, each ' +
+      'at the bottom-right. Medium and heavy drones are <b>separate skills</b>, each ' +
       'with its own cooldown ring.'
   },
-  25: {
+  drone_medium: {
     icon: '🚁',
     title: 'MEDIUM DRONE',
     body: 'A <b>second, separate drone</b> joins your fleet — it hauls <b>standard &amp; lighter</b> ' +
@@ -1068,14 +1147,14 @@ const ABILITY_TUTORIALS = {
       'The lift button automatically uses the lightest drone that can carry and reach the package, ' +
       'so your drones recharge independently.'
   },
-  35: {
+  drone_heavy: {
     icon: '🚁',
     title: 'HEAVY DRONE',
     body: 'Your <b>third drone</b> is online — it carries <b>any weight</b>, ranges out to ' +
       '<b>30 hexes</b>, and has a <b>3-hour cooldown</b>.<br><br>' +
       'All three drones run independently; each shows its own ring on the capacity bar.'
   },
-  30: {
+  bot1: {
     icon: '<img src="bot.png" width="46" height="46" style="filter:brightness(0) invert(1)">',
     title: 'PORTER-BOT',
     body: 'A <b>porter-bot</b> joins your network — it shuttles stored packages between depots on its own.<br><br>' +
@@ -1083,8 +1162,8 @@ const ABILITY_TUTORIALS = {
       'drives over, picks it up, and relays it to that closer depot. Bots carry up to <b>' + BOT_CAPACITY +
       ' weight</b>, move at <b>a quarter of drone speed</b>, and <b>recharge for ' +
       Math.round(BOT_RECHARGE_MS / 60000) + ' minutes</b> after each delivery.<br><br>' +
-      'Idle bots are stored inside a depot (tap a depot to see them). You unlock <b>another bot</b> at ' +
-      'levels 40 and 50. New bots report to the depot nearest you.'
+      'Idle bots are stored inside a depot (tap a depot to see them). More bots can be unlocked in the ' +
+      '<b>skill tree</b>. New bots report to the depot nearest you.'
   },
 };
 
@@ -1143,18 +1222,22 @@ function formatRemainTime(ms) {
 }
 
 // ── DRONES ──────────────────────────────────────────────────
-// Three independent drones, each unlocked as its own upgrade with its own
+// Three independent drones, each unlocked as its own skill node with its own
 // cooldown timer and cap-bar ring. A drone carries packages up to its weight
-// class and reaches destinations within its hex range.
+// class and reaches destinations within its hex range. range/cdMs are base
+// values; use droneRange()/droneCdMs() which apply skill modifiers.
 const DRONES = [
-  { key: 'light',  label: 'LIGHT',  maxW: 1, range: 10, cdMs: 1 * 60 * 60 * 1000, unlock: 15, icon: 'drone-light.png',  stateKey: 'droneLightLastUsed',  lsKey: 'porter_drone_light_last_used'  },
-  { key: 'medium', label: 'MEDIUM', maxW: 2, range: 20, cdMs: 2 * 60 * 60 * 1000, unlock: 25, icon: 'drone-medium.png', stateKey: 'droneMediumLastUsed', lsKey: 'porter_drone_medium_last_used' },
-  { key: 'heavy',  label: 'HEAVY',  maxW: 3, range: 30, cdMs: 3 * 60 * 60 * 1000, unlock: 35, icon: 'drone-heavy.png',  stateKey: 'droneHeavyLastUsed',  lsKey: 'porter_drone_heavy_last_used'  },
+  { key: 'light',  label: 'LIGHT',  maxW: 1, range: 10, cdMs: 1 * 60 * 60 * 1000, icon: 'drone-light.png',  stateKey: 'droneLightLastUsed',  lsKey: 'porter_drone_light_last_used'  },
+  { key: 'medium', label: 'MEDIUM', maxW: 2, range: 20, cdMs: 2 * 60 * 60 * 1000, icon: 'drone-medium.png', stateKey: 'droneMediumLastUsed', lsKey: 'porter_drone_medium_last_used' },
+  { key: 'heavy',  label: 'HEAVY',  maxW: 3, range: 30, cdMs: 3 * 60 * 60 * 1000, icon: 'drone-heavy.png',  stateKey: 'droneHeavyLastUsed',  lsKey: 'porter_drone_heavy_last_used'  },
 ];
-function droneUnlocked(d)   { return getPlayerLevel() >= d.unlock; }
+function droneUnlocked(d)   { return hasSkill('drone_' + d.key); }
 function unlockedDrones()   { return DRONES.filter(droneUnlocked); }
-function anyDroneUnlocked() { return getPlayerLevel() >= DRONES[0].unlock; }
-function droneRemainMs(d)   { return Math.max(0, d.cdMs - (Date.now() - (state[d.stateKey] || 0))); }
+function anyDroneUnlocked() { return unlockedDrones().length > 0; }
+function droneRange(d)      { return hasSkill('drone_range') ? Math.round(d.range * 1.25) : d.range; }
+function droneCdMs(d)       { return hasSkill('drone_cd') ? Math.round(d.cdMs * 0.75) : d.cdMs; }
+function dronePayRate()     { return hasSkill('drone_pay') ? 0.6 : 0.5; }
+function droneRemainMs(d)   { return Math.max(0, droneCdMs(d) - (Date.now() - (state[d.stateKey] || 0))); }
 function droneReady(d)      { return droneRemainMs(d) <= 0; }
 function droneHexDist(dest) {
   if (!state.userPos || !dest) return 0;
@@ -1170,9 +1253,9 @@ function pickDroneFor(pkg, dest) {
   var capable = unlocked.filter(function(d) { return d.maxW >= pkg.weight; });
   if (!capable.length) return { state: 'tooheavy' };
   var dist = droneHexDist(dest);
-  var inRange = capable.filter(function(d) { return dist <= d.range; });
+  var inRange = capable.filter(function(d) { return dist <= droneRange(d); });
   if (!inRange.length) {
-    var maxR = capable.reduce(function(m, d) { return Math.max(m, d.range); }, 0);
+    var maxR = capable.reduce(function(m, d) { return Math.max(m, droneRange(d)); }, 0);
     return { state: 'toofar', dist: dist, range: maxR };
   }
   var ready = inRange.filter(droneReady).sort(function(a, b) { return a.maxW - b.maxW; });
@@ -1182,9 +1265,10 @@ function pickDroneFor(pkg, dest) {
 }
 
 // ── STORAGE DEPOTS ──────────────────────────────────────────
-// Helpers; DEPOT_UNLOCK_LEVELS / DEPOT_CAPACITY are declared earlier (near
-// PLAYER_UPGRADES) so the ability tutorial text can reference the capacity.
-function getMaxDepots()   { return DEPOT_UNLOCK_LEVELS.filter(function(l) { return getPlayerLevel() >= l; }).length; }
+// Helpers; DEPOT_CAPACITY is declared earlier so the ability tutorial text
+// can reference it. Allocation and capacity both come from skill nodes.
+function getMaxDepots()   { return ['depot1', 'depot2', 'depot3', 'depot4', 'depot5'].filter(hasSkill).length; }
+function getDepotCapacity() { return DEPOT_CAPACITY + (hasSkill('depot_cap') ? 5 : 0); }
 function depotsPlaced()   { return state.depots.length; }
 function depotsAvailable(){ return Math.max(0, getMaxDepots() - depotsPlaced()); }
 function saveDepots()     { localStorage.setItem('porter_depots', JSON.stringify(state.depots)); }
@@ -1201,20 +1285,24 @@ function depotLoad(depot) {
 }
 
 // ── GRAPPLE HOOK ────────────────────────────────────────────
+function getGrappleRangeHex()   { return GRAPPLE_RANGE_HEX + (hasSkill('grapple_rng') ? 1 : 0); }
+function getGrappleCooldownMs() { return hasSkill('grapple_cd') ? Math.round(GRAPPLE_COOLDOWN_MS * 2 / 3) : GRAPPLE_COOLDOWN_MS; }
 function getGrappleStatus() {
-  if (getPlayerLevel() < GRAPPLE_UNLOCK_LEVEL) return { locked: true, available: false };
+  if (!hasSkill('grapple')) return { locked: true, available: false };
+  var cd = getGrappleCooldownMs();
   var elapsed = Date.now() - (state.grappleLastUsed || 0);
-  if (elapsed >= GRAPPLE_COOLDOWN_MS) return { locked: false, available: true };
-  return { locked: false, available: false, remainStr: formatRemainTime(GRAPPLE_COOLDOWN_MS - elapsed) };
+  if (elapsed >= cd) return { locked: false, available: true };
+  return { locked: false, available: false, remainStr: formatRemainTime(cd - elapsed) };
 }
 // Closest unpicked package within grapple range, any weight.
 function nearestGrappable() {
   if (!state.userPos) return null;
   var ah = latLngToHex(state.userPos.lat, state.userPos.lng);
+  var range = getGrappleRangeHex();
   var cands = state.packages.filter(function(p) {
     if (p.picked) return false;
     var bh = latLngToHex(p.pickupLoc.lat, p.pickupLoc.lng);
-    return Math.round(hexDist(ah.q, ah.r, bh.q, bh.r)) <= GRAPPLE_RANGE_HEX;
+    return Math.round(hexDist(ah.q, ah.r, bh.q, bh.r)) <= range;
   });
   if (!cands.length) return null;
   return cands.reduce(function(b, p) {
@@ -1246,7 +1334,7 @@ function updateGrappleBtn() {
   if (!gb) return;
   var fill = document.getElementById('grapple-fill');
   var activeZones = state.zones.filter(function(z) { return z.active; }).length;
-  if (getPlayerLevel() < GRAPPLE_UNLOCK_LEVEL || state.drawing || state.phase !== 'active' || !activeZones) {
+  if (!hasSkill('grapple') || state.drawing || state.phase !== 'active' || !activeZones) {
     gb.classList.add('hidden'); gb.classList.remove('cooling', 'ready');
     gb.disabled = true; gb.onclick = null;
     _stopGrappleCdInterval();
@@ -1256,7 +1344,7 @@ function updateGrappleBtn() {
 
   var st = getGrappleStatus();
   if (!st.available) {
-    var pct = Math.max(0, Math.min(1, (Date.now() - (state.grappleLastUsed || 0)) / GRAPPLE_COOLDOWN_MS));
+    var pct = Math.max(0, Math.min(1, (Date.now() - (state.grappleLastUsed || 0)) / getGrappleCooldownMs()));
     if (fill) fill.style.height = (pct * 100) + '%';
     gb.classList.add('cooling'); gb.classList.remove('ready');
     gb.disabled = true; gb.onclick = null;
@@ -1425,9 +1513,8 @@ function completeDroneDelivery(drone) {
   if (dest) { dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS; spawnPackagesForDrop(dest); }
   saveGameState();
   var msg = '🚁 Drone delivered! +' + drone.halfPts + ' pts';
-  if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel();
+  if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel() + ' (+1 SP)';
   showToast(msg, 4000);
-  queueAbilityTutorials(plvlBefore, getPlayerLevel(), 1200);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -1439,9 +1526,9 @@ function updateDroneStatus() {
   function droneRow(d) {
     var remain   = droneRemainMs(d);
     var ready    = remain <= 0;
-    var barPct   = ready ? 100 : Math.min(99, Math.round((1 - remain / d.cdMs) * 100));
+    var barPct   = ready ? 100 : Math.min(99, Math.round((1 - remain / droneCdMs(d)) * 100));
     var barColor = ready ? '#6aaa6a' : '#e8a030';
-    var label    = d.label + ' · ' + d.range + ' HEX';
+    var label    = d.label + ' · ' + droneRange(d) + ' HEX';
     var iconHtml = '<img src="' + d.icon + '" width="16" height="16" style="filter:brightness(0) invert(1);opacity:0.8;vertical-align:middle">';
     var valHtml  = ready
       ? '<div class="status-value" style="color:#6aaa6a">READY</div>'
@@ -1491,8 +1578,7 @@ function showToast(msg, duration) {
   toastTimer = setTimeout(function() { el.classList.remove('show'); toastTimer = null; }, duration || 3000);
 }
 function getCapacity() {
-  var level = getPlayerLevel();
-  return 3 + [10, 20, 30, 40, 50].filter(function(l) { return level >= l; }).length;
+  return 3 + ['carry1', 'carry2', 'carry3', 'carry4', 'carry5'].filter(hasSkill).length;
 }
 function currentLoad() {
   return state.carrying.reduce(function(s, id) {
@@ -2313,7 +2399,9 @@ async function exportData() {
     droneHeavyLastUsed:  state.droneHeavyLastUsed,
     grappleLastUsed: state.grappleLastUsed,
     refreshLastUsed: state.refreshLastUsed,
+    respecLastUsed:  state.respecLastUsed,
     seenTutorials:   state.seenTutorials,
+    skills:          state.skills,
     dronesInFlight: JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]'),
     cellLngDeg:     CELL_LNG_DEG,
     gridOffsetLat:  gridOffsetLat,
@@ -2375,13 +2463,19 @@ function importData(input) {
       state.droneHeavyLastUsed  = data.droneHeavyLastUsed  || 0;
       state.grappleLastUsed = data.grappleLastUsed || 0;
       state.refreshLastUsed = data.refreshLastUsed || 0;
+      state.respecLastUsed  = data.respecLastUsed  || 0;
       state.seenTutorials   = Array.isArray(data.seenTutorials) ? data.seenTutorials : [];
+      // Drop unknown node ids so a save from a newer version can't corrupt the tree.
+      state.skills = (Array.isArray(data.skills) ? data.skills : [])
+        .filter(function(id) { return !!skillById(id); });
       localStorage.setItem('porter_drone_light_last_used',  state.droneLightLastUsed);
       localStorage.setItem('porter_drone_medium_last_used', state.droneMediumLastUsed);
       localStorage.setItem('porter_drone_heavy_last_used',  state.droneHeavyLastUsed);
       localStorage.setItem('porter_grapple_last_used', state.grappleLastUsed);
       localStorage.setItem('porter_refresh_last_used', state.refreshLastUsed);
+      localStorage.setItem('porter_respec_last_used',  state.respecLastUsed);
       localStorage.setItem('porter_seen_tutorials',    JSON.stringify(state.seenTutorials));
+      saveSkills();
       migrateDestinations();
       if (data.cellLngDeg) CELL_LNG_DEG = data.cellLngDeg;
       if (data.gridOffsetLat != null) gridOffsetLat = data.gridOffsetLat;
@@ -2425,7 +2519,8 @@ function resetProfile() {
    'porter_zones','porter_packages','porter_destinations','porter_carrying','porter_cell_lng',
    'porter_grid_lat','porter_grid_lng','porter_depots','porter_bots',
    'porter_drone_light_last_used','porter_drone_medium_last_used','porter_drone_heavy_last_used',
-   'porter_grapple_last_used','porter_seen_tutorials','porter_refresh_last_used','porter_drones_in_flight']
+   'porter_grapple_last_used','porter_seen_tutorials','porter_refresh_last_used','porter_drones_in_flight',
+   'porter_skills','porter_respec_last_used']
     .forEach(function(k) { localStorage.removeItem(k); });
   activeDroneMarkers.forEach(function(d) { map.removeLayer(d.marker); map.removeLayer(d.line); });
   activeDroneMarkers = [];
@@ -2440,7 +2535,7 @@ function resetProfile() {
   state.depots = [];
   clearBotMarkers(); state.bots = [];
   state.droneLightLastUsed = 0; state.droneMediumLastUsed = 0; state.droneHeavyLastUsed = 0;
-  state.grappleLastUsed = 0; state.seenTutorials = [];
+  state.grappleLastUsed = 0; state.respecLastUsed = 0; state.seenTutorials = []; state.skills = [];
   if (state.userPos) {
     CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
     localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
@@ -3384,7 +3479,6 @@ function attemptDeliver() {
   var pkgs     = state.packages.filter(function(p) { return state.carrying.includes(p.id) && p.destId === dest.id; });
   var basePts  = pkgs.reduce(function(s, p) { return s + p.pts; }, 0);
   var ids      = pkgs.map(function(p) { return p.id; });
-  var capBefore = getCapacity();
 
   var level    = dest.level || 0;
   var bonusPts = Math.round(basePts * level / 100);
@@ -3408,16 +3502,14 @@ function attemptDeliver() {
   var plvlBefore = getPlayerLevel();
   state.score      += pts;
   state.deliveries += pkgs.length;
-  var capUp = getCapacity() > capBefore;
-  if (getPlayerLevel() > plvlBefore && !capUp) showToast('PLAYER LEVEL UP · LV ' + getPlayerLevel(), 4000);
+  var lvlUp = getPlayerLevel() > plvlBefore ? getPlayerLevel() : 0;
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
-  vibrate(capUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
+  vibrate(lvlUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
   dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS;
   spawnPackagesForDrop(dest);
   saveGameState();
-  showCompletion(pts, pkgs.length, destDisplayName(dest), capUp, level, bonusPts);
-  queueAbilityTutorials(plvlBefore, getPlayerLevel(), (capUp ? 3500 : 2800) + 300);
+  showCompletion(pts, pkgs.length, destDisplayName(dest), lvlUp, level, bonusPts);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -3439,8 +3531,8 @@ function attemptDroneLift() {
   var pick = pickDroneFor(pkg, dest);
   if (pick.state !== 'ready') { droneUnusableToast(pick); return; }
   var d = pick.drone;
-  var halfPts = Math.floor(pkg.pts / 2);
-  if (!confirm('Send the ' + d.label.toLowerCase() + ' drone to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? The ' + d.label.toLowerCase() + ' drone has a ' + formatDroneCooldown(d.cdMs) + ' cooldown.')) return;
+  var halfPts = Math.floor(pkg.pts * dronePayRate());
+  if (!confirm('Send the ' + d.label.toLowerCase() + ' drone to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (' + Math.round(dronePayRate() * 100) + '% value)? The ' + d.label.toLowerCase() + ' drone has a ' + formatDroneCooldown(droneCdMs(d)) + ' cooldown.')) return;
 
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
   markDroneUsed(d);
@@ -3456,8 +3548,8 @@ function droneDeliverCarried(pkgId) {
   var pick = pickDroneFor(pkg, dest);
   if (pick.state !== 'ready') { droneUnusableToast(pick); return; }
   var d = pick.drone;
-  var halfPts = Math.floor(pkg.pts / 2);
-  if (!confirm('Send the ' + d.label.toLowerCase() + ' drone to deliver ' + (pkg.item ? pkg.item + ' · ' : '') + WEIGHT[pkg.weight].label + ' to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (half value)? The ' + d.label.toLowerCase() + ' drone has a ' + formatDroneCooldown(d.cdMs) + ' cooldown.')) return;
+  var halfPts = Math.floor(pkg.pts * dronePayRate());
+  if (!confirm('Send the ' + d.label.toLowerCase() + ' drone to deliver ' + (pkg.item ? pkg.item + ' · ' : '') + WEIGHT[pkg.weight].label + ' to ' + destDisplayName(dest) + ' for ' + halfPts + ' pts (' + Math.round(dronePayRate() * 100) + '% value)? The ' + d.label.toLowerCase() + ' drone has a ' + formatDroneCooldown(droneCdMs(d)) + ' cooldown.')) return;
 
   state.carrying = state.carrying.filter(function(id) { return id !== pkgId; });
   state.packages = state.packages.filter(function(p) { return p.id !== pkgId; });
@@ -3919,7 +4011,7 @@ function updateDepotMenu() {
 
 // Depots are placed on the hex the player is currently standing in.
 function startDepotPlacement() {
-  if (getMaxDepots() <= 0) { showToast('Storage depots unlock at level 10'); return; }
+  if (getMaxDepots() <= 0) { showToast('Buy the STORAGE DEPOT skill first (tap your level)'); return; }
   if (depotsAvailable() <= 0) { showToast('All ' + getMaxDepots() + ' depots placed — delete one to move it'); return; }
   if (!state.userPos) { showToast('GPS required to place a depot'); return; }
   var nh = latLngToHex(state.userPos.lat, state.userPos.lng);
@@ -3970,7 +4062,8 @@ function renderDepotPanel(depot) {
   var stored  = depotStoredPkgs(depot);
   var nStored = stored.length;
   var dLoad   = depotLoad(depot);
-  var dRem    = DEPOT_CAPACITY - dLoad;
+  var dCap    = getDepotCapacity();
+  var dRem    = dCap - dLoad;
   var rem     = getCapacity() - currentLoad();
   var bb = 'font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1px;padding:0 12px;border-radius:3px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;white-space:nowrap;flex-shrink:0;height:36px;';
 
@@ -4035,7 +4128,7 @@ function renderDepotPanel(depot) {
         '<div style="width:44px;height:44px;border-radius:10px;background:#1a3a2a;border:2px solid #2a6a4a;display:flex;align-items:center;justify-content:center;font-size:22px">🏬</div>' +
         '<div>' +
           '<div style="font-size:13px;letter-spacing:3px;color:#e0d8c8">STORAGE DEPOT</div>' +
-          '<div style="font-size:11px;color:#5ab07a;letter-spacing:2px;margin-top:3px">' + dLoad + ' / ' + DEPOT_CAPACITY + 'U STORED · ' + nStored + ' PKG' + (nStored !== 1 ? 'S' : '') + '</div>' +
+          '<div style="font-size:11px;color:#5ab07a;letter-spacing:2px;margin-top:3px">' + dLoad + ' / ' + dCap + 'U STORED · ' + nStored + ' PKG' + (nStored !== 1 ? 'S' : '') + '</div>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
@@ -4047,7 +4140,7 @@ function renderDepotPanel(depot) {
     '<div class="depot-section-hdr">YOUR INVENTORY · ' + currentLoad() + '/' + getCapacity() + 'U</div>' +
     '<div class="depot-list">' + invRows + '</div>' +
     '<div class="depot-divider"><span>&#x21C5;</span></div>' +
-    '<div class="depot-section-hdr">DEPOT STORAGE · ' + dLoad + '/' + DEPOT_CAPACITY + 'U</div>' +
+    '<div class="depot-section-hdr">DEPOT STORAGE · ' + dLoad + '/' + dCap + 'U</div>' +
     '<div class="depot-list">' + storeRows + '</div>' +
     botSection +
     '<button onclick="deleteDepotConfirm(\'' + depot.id + '\')" style="width:100%;margin-top:14px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #502020;background:rgba(60,10,10,0.4);color:#c04040">&#x1F5D1; DELETE DEPOT</button>';
@@ -4058,7 +4151,7 @@ function depotStore(depotId, pkgId) {
   var p     = state.packages.find(function(x) { return x.id === pkgId; });
   if (!depot || !p) return;
   if (!depotInRange(depot)) { showToast('Move closer to the depot'); return; }
-  if (depotLoad(depot) + p.weight > DEPOT_CAPACITY) { showToast('Not enough depot space'); return; }
+  if (depotLoad(depot) + p.weight > getDepotCapacity()) { showToast('Not enough depot space'); return; }
   if (state.carrying.indexOf(pkgId) === -1) return;
   state.carrying = state.carrying.filter(function(id) { return id !== pkgId; });
   p.stored = true; p.depotId = depotId; p.picked = true;
@@ -4120,8 +4213,9 @@ var _botAnimInterval = null;
 
 function saveBots() { localStorage.setItem('porter_bots', JSON.stringify(state.bots)); }
 function getMaxBots() {
-  return BOT_TEST_DEFAULT + BOT_UNLOCK_LEVELS.filter(function(l) { return getPlayerLevel() >= l; }).length;
+  return BOT_TEST_DEFAULT + ['bot1', 'bot2', 'bot3'].filter(hasSkill).length;
 }
+function getBotCapacity() { return BOT_CAPACITY + (hasSkill('bot_cap') ? 2 : 0); }
 function botIdle(b)    { return !b.trip && (b.rechargeUntil || 0) <= Date.now(); }
 function botHomeLoc(b) { var d = state.depots.find(function(x) { return x.id === b.depotId; }); return d ? d.loc : null; }
 function botPayloadCount(b) { return state.packages.filter(function(p) { return p.onBot && p.botId === b.id; }).length; }
@@ -4137,6 +4231,15 @@ function closestDepotTo(loc) {
 function reconcileBots() {
   if (!Array.isArray(state.bots)) state.bots = [];
   var changed = false;
+  // Respec can shrink the bot allowance: retire idle excess bots (in-flight
+  // bots finish their trip first and get trimmed on a later pass).
+  while (state.bots.length > getMaxBots()) {
+    var trimIdx = state.bots.findIndex(function(b) { return !b.trip; });
+    if (trimIdx === -1) break;
+    removeBotMarker(state.bots[trimIdx].id);
+    state.bots.splice(trimIdx, 1);
+    changed = true;
+  }
   while (state.bots.length < getMaxBots()) {
     state.bots.push({
       id: 'bot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
@@ -4260,7 +4363,7 @@ function dispatchBots() {
     var incoming = state.packages
       .filter(function(p) { return p.botId && p.transitTarget === target.id; })
       .reduce(function(s, p) { return s + p.weight; }, 0);
-    var room = DEPOT_CAPACITY - depotLoad(target) - incoming;
+    var room = getDepotCapacity() - depotLoad(target) - incoming;
     if (room <= 0) return;
 
     // Prefer a bot already at the source; otherwise the one nearest to it.
@@ -4273,7 +4376,7 @@ function dispatchBots() {
     var bot = avail[0];
     if (!bot.depotId) return;
 
-    var cap = Math.min(BOT_CAPACITY, room), load = 0, taken = [];
+    var cap = Math.min(getBotCapacity(), room), load = 0, taken = [];
     g.pkgs.sort(function(a, b) { return b.weight - a.weight; });
     g.pkgs.forEach(function(p) { if (load + p.weight <= cap) { taken.push(p); load += p.weight; } });
     if (!taken.length) return;
@@ -4397,44 +4500,25 @@ function closeLevelBreakdown() {
 }
 
 // ── ABILITY TUTORIALS ──────────────────────────────────────
-var _tutorialQueue = [];
-function markTutorialSeen(level) {
-  if (state.seenTutorials.indexOf(level) === -1) {
-    state.seenTutorials.push(level);
-    localStorage.setItem('porter_seen_tutorials', JSON.stringify(state.seenTutorials));
-  }
-}
-// Queue tutorials for any ability unlocked when crossing from fromLvl to toLvl.
-function queueAbilityTutorials(fromLvl, toLvl, delayMs) {
-  var added = false;
-  for (var lvl = fromLvl + 1; lvl <= toLvl; lvl++) {
-    if (ABILITY_TUTORIALS[lvl] && state.seenTutorials.indexOf(lvl) === -1 &&
-        _tutorialQueue.indexOf(lvl) === -1) {
-      _tutorialQueue.push(lvl);
-      added = true;
-    }
-  }
-  if (added) setTimeout(showNextTutorial, delayMs || 0);
-}
-function showNextTutorial() {
-  if (document.getElementById('tutorial-modal').classList.contains('open')) return;
-  if (!_tutorialQueue.length) return;
-  var lvl = _tutorialQueue[0];
-  var t = ABILITY_TUTORIALS[lvl];
-  if (!t) { _tutorialQueue.shift(); return showNextTutorial(); }
+// Shown once, the first time the matching skill node is purchased. The modal
+// (z 6200) opens above the skill tree modal (z 6000) so the purchase flow
+// reads naturally: buy → learn → keep browsing the tree.
+function showSkillTutorial(id) {
+  var t = ABILITY_TUTORIALS[id];
+  if (!t || state.seenTutorials.indexOf(id) !== -1) return;
+  state.seenTutorials.push(id);
+  localStorage.setItem('porter_seen_tutorials', JSON.stringify(state.seenTutorials));
+  document.getElementById('tutorial-badge').textContent = 'NEW ABILITY UNLOCKED';
   document.getElementById('tutorial-icon').innerHTML = t.icon || '✨';
-  document.getElementById('tutorial-title').textContent = t.title + ' · LV' + lvl;
+  document.getElementById('tutorial-title').textContent = t.title;
   document.getElementById('tutorial-body').innerHTML = t.body;
   document.getElementById('tutorial-overlay').classList.add('open');
   document.getElementById('tutorial-modal').classList.add('open');
   vibrate(40);
 }
 function dismissTutorial() {
-  var lvl = _tutorialQueue.shift();
-  if (lvl != null) markTutorialSeen(lvl);
   document.getElementById('tutorial-overlay').classList.remove('open');
   document.getElementById('tutorial-modal').classList.remove('open');
-  if (_tutorialQueue.length) setTimeout(showNextTutorial, 350);
 }
 
 function _levelBreakdownRows(upgrades, currentLevel) {
@@ -4448,17 +4532,50 @@ function _levelBreakdownRows(upgrades, currentLevel) {
   }).join('');
 }
 
-function showPlayerLevelBreakdown() {
+function skillRowHtml(n) {
+  var st = skillState(n);
+  var right;
+  if (st === 'owned') {
+    right = '<div style="color:#5ab05a;font-size:14px;flex-shrink:0;padding:0 6px">&#x2713;</div>';
+  } else if (st === 'buyable') {
+    right = '<button onclick="buySkill(\'' + n.id + '\')" style="flex-shrink:0;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;padding:9px 12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;background:#0a1020;color:#5ab05a;border:1px solid #1e3020;white-space:nowrap">' + n.cost + ' SP</button>';
+  } else if (st === 'locked') {
+    right = '<div style="flex-shrink:0;font-size:9px;color:#44445a;letter-spacing:1px;text-align:right;line-height:1.5">&#x1F512; ' + esc(skillById(n.req).name) + '</div>';
+  } else {
+    right = '<div style="flex-shrink:0;font-size:10px;color:#6c6c80;letter-spacing:1px;white-space:nowrap">' + n.cost + ' SP</div>';
+  }
+  return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04);' + (st === 'locked' ? 'opacity:0.45;' : '') + '">' +
+    '<div style="flex:1;min-width:0">' +
+      '<div style="font-size:11px;letter-spacing:1px;color:' + (st === 'owned' ? '#e0d8c8' : '#9a9ab0') + '">' + esc(n.name) + '</div>' +
+      '<div style="font-size:10px;color:#6c6c80;letter-spacing:0.5px;margin-top:2px;line-height:1.4">' + esc(n.desc) + '</div>' +
+    '</div>' + right + '</div>';
+}
+
+function renderSkillTree() {
   var level = getPlayerLevel();
+  var avail = skillPointsAvailable();
   var toNext = level < LEVEL_MAX ? pointsToNextLevel(state.score, level) : 0;
   var progress = level >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LV' + (level + 1);
-  document.getElementById('level-modal-content').innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
-      '<div style="font-size:10px;letter-spacing:4px;color:#fff">PLAYER UPGRADES</div>' +
+  var respecRemain = Math.max(0, RESPEC_COOLDOWN_MS - (Date.now() - (state.respecLastUsed || 0)));
+  var html =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+      '<div style="font-size:10px;letter-spacing:4px;color:#fff">SKILL TREE</div>' +
       '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
     '</div>' +
-    '<div style="font-size:12px;color:#fff;letter-spacing:2px;margin-bottom:14px">LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
-    _levelBreakdownRows(PLAYER_UPGRADES, level);
+    '<div style="font-size:12px;color:#fff;letter-spacing:2px;margin-bottom:4px">LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
+    '<div style="font-size:12px;letter-spacing:2px;margin-bottom:8px;color:' + (avail > 0 ? '#e8a030' : '#6c6c80') + '">' + avail + ' SKILL POINT' + (avail !== 1 ? 'S' : '') + ' TO SPEND</div>' +
+    '<div style="font-size:10px;color:#6c6c80;letter-spacing:0.5px;line-height:1.5;margin-bottom:6px">Every level earns 1 point. All skills together cost ' + LEVEL_MAX + ' points.</div>';
+  SKILL_BRANCHES.forEach(function(b) {
+    html += '<div style="font-size:10px;letter-spacing:3px;color:' + b.color + ';margin:14px 0 2px">' + b.label + '</div>';
+    SKILLS.forEach(function(n) { if (n.branch === b.id) html += skillRowHtml(n); });
+  });
+  html += '<button onclick="respecSkills()" style="width:100%;margin-top:16px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a2a3a;background:transparent;color:#fff">' +
+    (respecRemain > 0 ? 'RESPEC READY IN ' + formatRemainTime(respecRemain) : '&#x21BA; RESPEC &middot; REFUND ALL POINTS &middot; 24H COOLDOWN') + '</button>';
+  document.getElementById('level-modal-content').innerHTML = html;
+}
+
+function openSkillTree() {
+  renderSkillTree();
   document.getElementById('level-overlay').classList.add('open');
   document.getElementById('level-modal').classList.add('open');
 }
@@ -4529,7 +4646,7 @@ function executeRefresh() {
   if (state.phase === 'active') generateOrders();
 }
 
-function showCompletion(pts, count, zoneLabel, capUp, level, bonusPts) {
+function showCompletion(pts, count, zoneLabel, lvlUp, level, bonusPts) {
   var el = document.getElementById('completion-overlay');
   document.getElementById('completion-pts').textContent = '+' + pts;
 
@@ -4539,10 +4656,10 @@ function showCompletion(pts, count, zoneLabel, capUp, level, bonusPts) {
   document.getElementById('completion-detail').textContent = detail;
   document.getElementById('completion-total').textContent  = 'SCORE ' + state.score;
   var levelEl = document.getElementById('completion-level');
-  levelEl.style.display = capUp ? 'block' : 'none';
-  if (capUp) levelEl.textContent = '⬆ CAPACITY UP TO ' + getCapacity() + 'U';
+  levelEl.style.display = lvlUp ? 'block' : 'none';
+  if (lvlUp) levelEl.textContent = '⬆ LEVEL ' + lvlUp + ' · SKILL POINT EARNED';
   el.classList.add('show');
-  setTimeout(function() { el.classList.remove('show'); }, capUp ? 3500 : 2800);
+  setTimeout(function() { el.classList.remove('show'); }, lvlUp ? 3500 : 2800);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4753,7 +4870,7 @@ function renderOrderMarkers() {
     }).addTo(map);
     if (inViewMode && !isViewedDepot) dm.setOpacity(0.5);
     var botsHere = state.bots.filter(function(b) { return !b.trip && b.depotId === dp.id; }).length;
-    dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + DEPOT_CAPACITY + 'U' +
+    dm.bindTooltip('DEPOT · ' + depotLoad(dp) + '/' + getDepotCapacity() + 'U' +
       (botsHere ? ' · ' + botsHere + ' bot' + (botsHere > 1 ? 's' : '') : '') + (inRng ? ' · in range' : ''));
     (function(id) { dm.on('click', function(e) { L.DomEvent.stopPropagation(e); openDepotPanel(id); }); })(dp.id);
     orderMarkers.push(dm);
@@ -4829,7 +4946,9 @@ function updateHUD() {
   var plevel = getPlayerLevel();
   var toNext = pointsToNextLevel(state.score, plevel);
   scoreEl.textContent = 'LVL ' + plevel;
-  capEl.textContent = plevel >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LVL ' + (plevel + 1);
+  var _sp = skillPointsAvailable();
+  capEl.innerHTML = (plevel >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LVL ' + (plevel + 1)) +
+    (_sp > 0 ? ' &middot; <span style="color:#e8a030">' + _sp + ' SP</span>' : '');
   var _prev = plevel > 0 ? Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, plevel) - 1)) : 0;
   var _next = plevel < LEVEL_MAX ? Math.ceil(LEVEL_BASE * (Math.pow(LEVEL_RATE, plevel + 1) - 1)) : state.score;
   var _pct  = plevel >= LEVEL_MAX ? 100 : (_next <= _prev ? 100 : Math.round((state.score - _prev) / (_next - _prev) * 100));
@@ -4936,7 +5055,7 @@ function updateHUD() {
       secBtn.disabled = pick.state !== 'ready';
       secBtn.onclick  = pick.state === 'ready' ? attemptDroneLift : null;
       if (pick.state === 'ready') {
-        secBtn.textContent = '🚁 ' + pick.drone.label + ' DRONE LIFT  (' + pick.drone.range + ' hex)';
+        secBtn.textContent = '🚁 ' + pick.drone.label + ' DRONE LIFT  (' + droneRange(pick.drone) + ' hex)';
       } else if (pick.state === 'tooheavy') {
         secBtn.textContent = '🚁 DRONE LIFT  (no drone for this weight)';
       } else if (pick.state === 'toofar') {
@@ -5059,7 +5178,7 @@ function updateDroneCd() {
     var remain = droneRemainMs(d);
     var ready  = remain <= 0;
     if (!ready) anyOnCd = true;
-    var pct      = ready ? 1 : Math.min(1, 1 - remain / d.cdMs);
+    var pct      = ready ? 1 : Math.min(1, 1 - remain / droneCdMs(d));
     var stroke   = ready ? '#e8a030' : 'rgba(0,0,0,0.18)';
     var offset   = ready ? '0' : String(CIRC * (1 - pct));
     var label    = ready ? '' : formatRemainTime(remain);
@@ -5119,7 +5238,7 @@ function renderOnboardingStep() {
         '<li>Packages (📦) appear in your zone. Walk to them to pick up.</li>' +
         '<li>Drop them at delivery zones (🏠) to score points.</li>' +
         '<li>Heavier packages are worth more — but use more carry capacity.</li>' +
-        '<li>Your capacity grows as you level up (at levels 10, 20, 30, 40, and 50).</li>' +
+        '<li>Every level earns a skill point — tap your level (top left) to spend them on capacity, drones, and more.</li>' +
       '</ul>';
   } else {
     content =
@@ -5233,6 +5352,26 @@ window.addEventListener('pageshow', onReturnFromAway);
 window.addEventListener('focus',   onReturnFromAway);
 
 if (!localStorage.getItem('porter_onboarded')) { obStep = 0; renderOnboardingStep(); }
+
+// One-time v2 notice for existing saves: levels now grant skill points and the
+// old fixed unlocks were converted. New players learn this from onboarding
+// instead, so the flag is set silently for them.
+if (!localStorage.getItem('porter_skilltree_intro')) {
+  localStorage.setItem('porter_skilltree_intro', '1');
+  if (getPlayerLevel() > 0) {
+    document.getElementById('tutorial-badge').textContent = 'GAME UPDATE';
+    document.getElementById('tutorial-icon').innerHTML = '✨';
+    document.getElementById('tutorial-title').textContent = 'SKILL TREE';
+    document.getElementById('tutorial-body').innerHTML =
+      'PORTER v2 replaces fixed level unlocks with a <b>skill tree</b>.<br><br>' +
+      'Every level earns <b>1 skill point</b> — your ' + getPlayerLevel() + ' levels have been converted into <b>' +
+      getPlayerLevel() + ' points</b> to spend however you like. Abilities you had before (drones, depots, grapple…) ' +
+      'are waiting in the tree; buy them back or try a whole new build.<br><br>' +
+      'Tap your <b>level (top left)</b> to open the tree. Anything already placed on the map keeps working.';
+    document.getElementById('tutorial-overlay').classList.add('open');
+    document.getElementById('tutorial-modal').classList.add('open');
+  }
+}
 requestAnimationFrame(updateHudTopVar);
 window.addEventListener('resize', function() {
   updateHudTopVar();
