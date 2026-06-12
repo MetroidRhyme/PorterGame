@@ -704,7 +704,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.2.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.3.0</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -3229,6 +3229,41 @@ function finishDraw() {
   updateHUD();
 }
 
+// One-tap onboarding shortcut: paint a small starter zone (the player's hex
+// plus its six neighbours — a 7-cell flower) centred on the current position,
+// so a new player can start delivering without first learning to draw a zone.
+function startHereZone() {
+  if (!state.userPos) { showToast('Waiting for GPS lock…'); return; }
+  // CELL_LNG_DEG is normally locked at first GPS lock (onGpsLocked); re-lock here
+  // defensively in case this is the very first zone, so cell geometry matches the
+  // player's latitude. Recomputing yields the same value when already locked.
+  if (!state.zones.length) {
+    CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
+    localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
+  }
+  var center = latLngToHex(state.userPos.lat, state.userPos.lng);
+  var cells  = [{ q: center.q, r: center.r }];
+  HEX_NEIGHBORS.forEach(function(d) {
+    cells.push({ q: center.q + d[0], r: center.r + d[1] });
+  });
+  var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
+  var z = { id: 'zone_' + Date.now(), name: 'Home', color: color, cells: cells, active: true };
+  state.zones.push(z);
+
+  saveZones();
+  initDrawCanvas();
+  renderGridCanvas();
+  renderZoneMarkers();
+  if (state.phase === 'active') {
+    generateOrdersForZone(z);
+    saveGameState();
+    renderOrderMarkers();
+  }
+  vibrate(30);
+  showToast('Starter zone painted! Walk to a 📦 to pick it up. Add or edit zones anytime in ☰ Settings → ◎ to paint as you walk.', 6000);
+  updateHUD();
+}
+
 function startEditZone(id) {
   var zone = state.zones.find(function(z) { return z.id === id; });
   if (!zone) return;
@@ -5379,11 +5414,24 @@ function updateHUD() {
 
   // ── NO ACTIVE ZONES ───────────────────────────────────────
   if (!state.zones.filter(function(z) { return z.active; }).length) {
+    distEl.textContent = '';
+    // First-session fast path: a brand-new player with a GPS fix gets a one-tap
+    // starter zone painted around them so the first pickup happens in minutes,
+    // instead of having to learn zone-drawing before anything spawns. Drawing
+    // your own zone stays one tap away as the secondary action.
+    if (!state.zones.length && state.userPos) {
+      statusEl.textContent = 'READY TO START';
+      detailEl.textContent = 'Tap START HERE to paint a starter zone around you — packages will spawn right away. You can edit or add zones later.';
+      btn.className = 'pickup ready'; btn.textContent = 'START HERE'; btn.onclick = startHereZone;
+      secBtn.style.display = 'block';
+      secBtn.textContent   = 'DRAW MY OWN';
+      secBtn.onclick       = startDrawing;
+      return;
+    }
     statusEl.textContent = 'NO ZONES';
     detailEl.textContent = state.zones.length
       ? 'All zones inactive. Open settings to enable some.'
       : 'No zones defined. Open settings to add your play area.';
-    distEl.textContent = '';
     btn.className = 'draw'; btn.textContent = 'OPEN SETTINGS'; btn.onclick = openSettings;
     return;
   }
@@ -5627,13 +5675,11 @@ function renderOnboardingStep() {
       '</ul>';
   } else {
     content =
-      '<div class="ob-title">DRAW YOUR ZONE</div>' +
-      '<div class="ob-body">Step outside to get a GPS lock, then set up your play area.</div>' +
+      '<div class="ob-title">START PLAYING</div>' +
+      '<div class="ob-body">Step outside to get a GPS lock, then begin.</div>' +
       '<ul class="ob-bullets">' +
-        '<li>Tap ☰ to open Settings.</li>' +
-        '<li>Tap <strong style="color:#5ab05a">+ ADD ZONE</strong> and draw hexes on the map.</li>' +
-        '<li>Tap <strong style="color:#5ab05a">FINISH ZONE</strong> when done.</li>' +
-        '<li>Paint your whole neighborhood, or just a few hexes — orders only spawn on painted hexes.</li>' +
+        '<li>Tap <strong style="color:#5ab05a">START HERE</strong> to paint a starter zone around you — packages spawn right away.</li>' +
+        '<li>Want a bigger area? Tap <strong style="color:#5ab05a">DRAW MY OWN</strong> (or ☰ Settings → + ADD ZONE) and paint hexes — orders only spawn on painted hexes.</li>' +
         '<li>Enable the ◎ follow button to stay centered as you walk.</li>' +
       '</ul>';
   }
