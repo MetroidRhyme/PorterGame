@@ -37,15 +37,15 @@ The game surfaces what you can do right now:
 
 ## Levels & the skill tree
 
-Your **player level** is derived from your total score on a rising curve (level 1 ≈ 150 pts; level 50 ≈ 31k pts), capping at level 50. **Every level earns one skill point.** Tap the level display (top left) to open the **skill tree** and spend them; an amber `SP` badge shows when you have unspent points.
+Your **player level** is derived from your total score on a rising curve (level 1 ≈ 150 pts; level 50 ≈ 31k pts), capping at level 50. **Every level earns one skill point.** Tap the level display (top left) to open the **skill tree** — drawn as a connected node graph growing down from a root LV node into three branches. Tap any node to inspect it and unlock it from the detail card; an amber `SP` badge under your level shows when you have unspent points.
 
-All node costs sum to exactly **50 points**, so a max-level player can eventually own the whole tree — the build order is the choice. There are no minimum-level gates: cost and in-branch prerequisites are the only limits, so saving early points to rush a drone is a legitimate strategy.
+All node costs sum to exactly **50 points**, so a max-level player can eventually own the whole tree — the build order is the choice. There are no minimum-level gates: cost and the connections shown in the tree are the only limits, so saving early points to rush a drone is a legitimate strategy.
 
-| Branch | Nodes (cost) |
+| Branch | Paths (cost) |
 |--------|--------------|
-| **PORTER** | Grapple Hook (2) → Long Throw +1 hex (1), Fast Reel −33% cooldown (1) · Carry +1 ×5 chain (2/2/3/3/4, up to 8 u) |
-| **AIRFRAME** | Light Drone (3) → Extended Rotors +25% range (1), Careful Courier 60% pay (1), Medium Drone (4) → Quick Charge −25% cooldowns (2), Heavy Drone (5) |
-| **NETWORK** | Depots I–V (2/2/2/1/1) · Tall Shelves +5 capacity (1) · Porter-Bots I–III (2/2/2, needs Depot II) · Cargo Rack +2 bot capacity (1) |
+| **PORTER** | Carry +1 (2) → Carry chain to 8 u (2/3/3/4) · Carry +1 → Grapple Hook (2) → Long Throw (1) → Fast Reel (1) |
+| **AIRFRAME** | Light Drone (3) → Extended Rotors (1) → Careful Courier (1) / Quick Charge (2) · Light Drone → Medium Drone (4) → Heavy Drone (5) |
+| **NETWORK** | Depot I (2) → Tall Shelves (1) · Depot I → Depot II (2) → Depots III–V (2/1/1) · Depot II → Porter-Bot I (2) → Cargo Rack (1) / Bot II (2) → Bot III (2) |
 
 **Respec** — a button at the bottom of the tree refunds all spent points, on a 24-hour cooldown. Depots already placed keep working (you just can't place new ones beyond your allocation), and excess idle bots are retired.
 
@@ -55,7 +55,7 @@ Saves from v1 are migrated automatically: you get points equal to your level and
 
 ## Grapple hook
 
-A 2-point PORTER skill. When charged, a 🪝 button sits beside the action button, and a dotted purple line and reticle mark the closest package within **2 hexes** (3 with Long Throw). Tap to fire the hook and reel the package straight into your inventory — any weight works, as long as you have free carry space. After use the button greys out and visibly refills over its **15-minute cooldown** (10 with Fast Reel).
+A 2-point PORTER skill, branching off the first Carry node. When charged, a 🪝 button sits beside the action button, and a dotted purple line and reticle mark the closest package within **2 hexes** (3 with Long Throw). Tap to fire the hook and reel the package straight into your inventory — any weight works, as long as you have free carry space. After use the button greys out and visibly refills over its **15-minute cooldown** (10 with Fast Reel).
 
 ---
 

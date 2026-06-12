@@ -485,8 +485,8 @@
     #level-modal {
       position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
       z-index: 6001; background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px; padding: 20px; width: min(320px, calc(100vw - 40px));
-      max-height: 80vh; overflow-y: auto; display: none;
+      border-radius: 10px; padding: 20px; width: min(390px, calc(100vw - 24px));
+      max-height: 86vh; overflow-y: auto; display: none;
     }
     #level-modal.open { display: block; animation: modal-in-centered 0.22s ease-out; }
 
@@ -680,7 +680,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.0.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.0.1</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1026,34 +1026,36 @@ const SKILL_BRANCHES = [
   { id: 'air',     label: 'AIRFRAME', color: '#c89bff' },
   { id: 'network', label: 'NETWORK',  color: '#5ab07a' },
 ];
+// Every branch is a true single-entry tree with ≤2 children per node — the
+// SVG tree view (SKILL_POS / renderSkillTreeSvg) relies on both properties.
 const SKILLS = [
   // PORTER — carry & grapple (18 pts)
-  { id: 'grapple',     branch: 'porter', cost: 2, name: 'GRAPPLE HOOK', desc: 'Pull the nearest package (any size) to you from 2 hexes · 15min cooldown', tutorial: true },
-  { id: 'grapple_rng', branch: 'porter', cost: 1, req: 'grapple', name: 'LONG THROW', desc: 'Grapple range +1 hex' },
-  { id: 'grapple_cd',  branch: 'porter', cost: 1, req: 'grapple', name: 'FAST REEL',  desc: 'Grapple cooldown −33% (10min)' },
-  { id: 'carry1', branch: 'porter', cost: 2, name: 'CARRY +1 (4U)', desc: 'Carry capacity 4 units' },
-  { id: 'carry2', branch: 'porter', cost: 2, req: 'carry1', name: 'CARRY +1 (5U)', desc: 'Carry capacity 5 units' },
-  { id: 'carry3', branch: 'porter', cost: 3, req: 'carry2', name: 'CARRY +1 (6U)', desc: 'Carry capacity 6 units' },
-  { id: 'carry4', branch: 'porter', cost: 3, req: 'carry3', name: 'CARRY +1 (7U)', desc: 'Carry capacity 7 units' },
-  { id: 'carry5', branch: 'porter', cost: 4, req: 'carry4', name: 'CARRY +1 (8U)', desc: 'Carry capacity 8 units (max)' },
+  { id: 'carry1', branch: 'porter', cost: 2, icon: '🎒', name: 'CARRY +1 (4U)', desc: 'Carry capacity 4 units' },
+  { id: 'carry2', branch: 'porter', cost: 2, req: 'carry1', icon: '🎒', name: 'CARRY +1 (5U)', desc: 'Carry capacity 5 units' },
+  { id: 'carry3', branch: 'porter', cost: 3, req: 'carry2', icon: '🎒', name: 'CARRY +1 (6U)', desc: 'Carry capacity 6 units' },
+  { id: 'carry4', branch: 'porter', cost: 3, req: 'carry3', icon: '🎒', name: 'CARRY +1 (7U)', desc: 'Carry capacity 7 units' },
+  { id: 'carry5', branch: 'porter', cost: 4, req: 'carry4', icon: '🎒', name: 'CARRY +1 (8U)', desc: 'Carry capacity 8 units (max)' },
+  { id: 'grapple',     branch: 'porter', cost: 2, req: 'carry1', icon: '🪝', name: 'GRAPPLE HOOK', desc: 'Pull the nearest package (any size) to you from 2 hexes · 15min cooldown', tutorial: true },
+  { id: 'grapple_rng', branch: 'porter', cost: 1, req: 'grapple', icon: '🎯', name: 'LONG THROW', desc: 'Grapple range +1 hex' },
+  { id: 'grapple_cd',  branch: 'porter', cost: 1, req: 'grapple_rng', icon: '⚡', name: 'FAST REEL', desc: 'Grapple cooldown −33% (10min)' },
   // AIRFRAME — drones (16 pts)
-  { id: 'drone_light',  branch: 'air', cost: 3, name: 'LIGHT DRONE', desc: 'Fly a light package to its drop · 10 hex · 1h cooldown', tutorial: true },
-  { id: 'drone_range',  branch: 'air', cost: 1, req: 'drone_light', name: 'EXTENDED ROTORS', desc: 'All drone ranges +25%' },
-  { id: 'drone_pay',    branch: 'air', cost: 1, req: 'drone_light', name: 'CAREFUL COURIER', desc: 'Drone deliveries earn 60% of points (up from 50%)' },
-  { id: 'drone_medium', branch: 'air', cost: 4, req: 'drone_light', name: 'MEDIUM DRONE', desc: 'Standard & lighter · 20 hex · 2h cooldown', tutorial: true },
-  { id: 'drone_cd',     branch: 'air', cost: 2, req: 'drone_medium', name: 'QUICK CHARGE', desc: 'All drone cooldowns −25%' },
-  { id: 'drone_heavy',  branch: 'air', cost: 5, req: 'drone_medium', name: 'HEAVY DRONE', desc: 'All weights · 30 hex · 3h cooldown', tutorial: true },
+  { id: 'drone_light',  branch: 'air', cost: 3, icon: 'img:drone-light.png', name: 'LIGHT DRONE', desc: 'Fly a light package to its drop · 10 hex · 1h cooldown', tutorial: true },
+  { id: 'drone_range',  branch: 'air', cost: 1, req: 'drone_light', icon: '📡', name: 'EXTENDED ROTORS', desc: 'All drone ranges +25%' },
+  { id: 'drone_pay',    branch: 'air', cost: 1, req: 'drone_range', icon: '💰', name: 'CAREFUL COURIER', desc: 'Drone deliveries earn 60% of points (up from 50%)' },
+  { id: 'drone_cd',     branch: 'air', cost: 2, req: 'drone_range', icon: '⚡', name: 'QUICK CHARGE', desc: 'All drone cooldowns −25%' },
+  { id: 'drone_medium', branch: 'air', cost: 4, req: 'drone_light', icon: 'img:drone-medium.png', name: 'MEDIUM DRONE', desc: 'Standard & lighter · 20 hex · 2h cooldown', tutorial: true },
+  { id: 'drone_heavy',  branch: 'air', cost: 5, req: 'drone_medium', icon: 'img:drone-heavy.png', name: 'HEAVY DRONE', desc: 'All weights · 30 hex · 3h cooldown', tutorial: true },
   // NETWORK — depots & bots (16 pts)
-  { id: 'depot1', branch: 'network', cost: 2, name: 'STORAGE DEPOT', desc: 'Place a depot that stores 10U of packages for later', tutorial: true },
-  { id: 'depot2', branch: 'network', cost: 2, req: 'depot1', name: 'DEPOT II',  desc: '+1 storage depot' },
-  { id: 'depot3', branch: 'network', cost: 2, req: 'depot2', name: 'DEPOT III', desc: '+1 storage depot' },
-  { id: 'depot4', branch: 'network', cost: 1, req: 'depot3', name: 'DEPOT IV',  desc: '+1 storage depot' },
-  { id: 'depot5', branch: 'network', cost: 1, req: 'depot4', name: 'DEPOT V',   desc: '+1 storage depot' },
-  { id: 'depot_cap', branch: 'network', cost: 1, req: 'depot1', name: 'TALL SHELVES', desc: 'Depot capacity +5 (15U each)' },
-  { id: 'bot1', branch: 'network', cost: 2, req: 'depot2', name: 'PORTER-BOT', desc: 'A bot that relays stored packages between depots on its own', tutorial: true },
-  { id: 'bot2', branch: 'network', cost: 2, req: 'bot1', name: 'PORTER-BOT II',  desc: '+1 porter-bot' },
-  { id: 'bot3', branch: 'network', cost: 2, req: 'bot2', name: 'PORTER-BOT III', desc: '+1 porter-bot' },
-  { id: 'bot_cap', branch: 'network', cost: 1, req: 'bot1', name: 'CARGO RACK', desc: 'Bot carry capacity +2 (5U)' },
+  { id: 'depot1', branch: 'network', cost: 2, icon: '🏬', name: 'STORAGE DEPOT', desc: 'Place a depot that stores 10U of packages for later', tutorial: true },
+  { id: 'depot_cap', branch: 'network', cost: 1, req: 'depot1', icon: '📦', name: 'TALL SHELVES', desc: 'Depot capacity +5 (15U each)' },
+  { id: 'depot2', branch: 'network', cost: 2, req: 'depot1', icon: '🏬', name: 'DEPOT II',  desc: '+1 storage depot' },
+  { id: 'depot3', branch: 'network', cost: 2, req: 'depot2', icon: '🏬', name: 'DEPOT III', desc: '+1 storage depot' },
+  { id: 'depot4', branch: 'network', cost: 1, req: 'depot3', icon: '🏬', name: 'DEPOT IV',  desc: '+1 storage depot' },
+  { id: 'depot5', branch: 'network', cost: 1, req: 'depot4', icon: '🏬', name: 'DEPOT V',   desc: '+1 storage depot' },
+  { id: 'bot1', branch: 'network', cost: 2, req: 'depot2', icon: 'img:bot.png', name: 'PORTER-BOT', desc: 'A bot that relays stored packages between depots on its own', tutorial: true },
+  { id: 'bot_cap', branch: 'network', cost: 1, req: 'bot1', icon: '🧰', name: 'CARGO RACK', desc: 'Bot carry capacity +2 (5U)' },
+  { id: 'bot2', branch: 'network', cost: 2, req: 'bot1', icon: 'img:bot.png', name: 'PORTER-BOT II',  desc: '+1 porter-bot' },
+  { id: 'bot3', branch: 'network', cost: 2, req: 'bot2', icon: 'img:bot.png', name: 'PORTER-BOT III', desc: '+1 porter-bot' },
 ];
 
 function skillById(id) { return SKILLS.find(function(n) { return n.id === id; }); }
@@ -1069,12 +1071,13 @@ function skillState(n) {
   return skillPointsAvailable() >= n.cost ? 'buyable' : 'unaffordable';
 }
 
+// No confirm() here: buying is a two-step gesture already (tap the node,
+// then tap UNLOCK in the detail card).
 function buySkill(id) {
   var n = skillById(id);
   if (!n || hasSkill(id)) return;
   if (n.req && !hasSkill(n.req)) { showToast('Requires ' + skillById(n.req).name + ' first'); return; }
   if (skillPointsAvailable() < n.cost) { showToast('Not enough skill points'); return; }
-  if (!confirm('Spend ' + n.cost + ' skill point' + (n.cost > 1 ? 's' : '') + ' on ' + n.name + '?')) return;
   state.skills.push(id);
   saveSkills();
   vibrate(40);
@@ -4532,23 +4535,131 @@ function _levelBreakdownRows(upgrades, currentLevel) {
   }).join('');
 }
 
-function skillRowHtml(n) {
-  var st = skillState(n);
-  var right;
-  if (st === 'owned') {
-    right = '<div style="color:#5ab05a;font-size:14px;flex-shrink:0;padding:0 6px">&#x2713;</div>';
-  } else if (st === 'buyable') {
-    right = '<button onclick="buySkill(\'' + n.id + '\')" style="flex-shrink:0;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;padding:9px 12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;background:#0a1020;color:#5ab05a;border:1px solid #1e3020;white-space:nowrap">' + n.cost + ' SP</button>';
-  } else if (st === 'locked') {
-    right = '<div style="flex-shrink:0;font-size:9px;color:#44445a;letter-spacing:1px;text-align:right;line-height:1.5">&#x1F512; ' + esc(skillById(n.req).name) + '</div>';
-  } else {
-    right = '<div style="flex-shrink:0;font-size:10px;color:#6c6c80;letter-spacing:1px;white-space:nowrap">' + n.cost + ' SP</div>';
+// ── SKILL TREE VIEW ─────────────────────────────────────────
+// The tree is drawn as an SVG node graph: a root LV node at the top, three
+// branch lanes below it, orthogonal connector lines for prerequisites. The
+// tree is small and static, so every node carries hand-tuned viewBox
+// coordinates (360-wide canvas) instead of using a layout algorithm. Tapping
+// a node selects it; a sticky detail card at the bottom shows its
+// description and the UNLOCK button.
+var selectedSkillId = null;
+
+var SKILL_ROOT_POS = { x: 180, y: 42, r: 24 };
+var SKILL_POS = {
+  carry1:       { x:  62, y: 125, r: 20 },
+  carry2:       { x:  36, y: 200, r: 20 },
+  carry3:       { x:  36, y: 275, r: 20 },
+  carry4:       { x:  36, y: 350, r: 20 },
+  carry5:       { x:  36, y: 425, r: 20 },
+  grapple:      { x:  98, y: 200, r: 20 },
+  grapple_rng:  { x:  98, y: 275, r: 16 },
+  grapple_cd:   { x:  98, y: 350, r: 16 },
+  drone_light:  { x: 180, y: 125, r: 20 },
+  drone_range:  { x: 146, y: 200, r: 16 },
+  drone_pay:    { x: 132, y: 275, r: 16 },
+  drone_cd:     { x: 180, y: 275, r: 16 },
+  drone_medium: { x: 218, y: 200, r: 20 },
+  drone_heavy:  { x: 218, y: 275, r: 20 },
+  depot1:       { x: 298, y: 125, r: 20 },
+  depot_cap:    { x: 330, y: 200, r: 16 },
+  depot2:       { x: 272, y: 200, r: 20 },
+  depot3:       { x: 330, y: 275, r: 20 },
+  depot4:       { x: 330, y: 350, r: 20 },
+  depot5:       { x: 330, y: 425, r: 20 },
+  bot1:         { x: 272, y: 275, r: 20 },
+  bot_cap:      { x: 234, y: 350, r: 16 },
+  bot2:         { x: 272, y: 350, r: 20 },
+  bot3:         { x: 272, y: 425, r: 20 },
+};
+
+function skillBranchOf(n) { return SKILL_BRANCHES.find(function(b) { return b.id === n.branch; }); }
+
+// Straight drop when parent and child share a column, otherwise an orthogonal
+// elbow: down from the parent, across just above the child, down into it.
+function skillEdgePath(p, c) {
+  if (p.x === c.x) return 'M' + p.x + ' ' + (p.y + p.r) + ' L' + c.x + ' ' + (c.y - c.r);
+  var midY = c.y - 34;
+  return 'M' + p.x + ' ' + (p.y + p.r) + ' L' + p.x + ' ' + midY +
+         ' L' + c.x + ' ' + midY + ' L' + c.x + ' ' + (c.y - c.r);
+}
+
+function skillNodeSvg(n) {
+  var pos = SKILL_POS[n.id], b = skillBranchOf(n);
+  var st  = skillState(n);
+  var stroke = st === 'owned' ? b.color : st === 'buyable' ? '#5ab05a' : st === 'unaffordable' ? '#3a3a4a' : '#2a2a3a';
+  var sw = (st === 'owned' || st === 'buyable') ? 2.5 : 1.5;
+  var g = '<g onclick="selectSkill(\'' + n.id + '\')" style="cursor:pointer"' + (st === 'locked' ? ' opacity="0.4"' : '') + '>';
+  if (selectedSkillId === n.id) {
+    g += '<circle cx="' + pos.x + '" cy="' + pos.y + '" r="' + (pos.r + 4) + '" fill="none" stroke="#ffd060" stroke-width="1.5"/>';
   }
-  return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04);' + (st === 'locked' ? 'opacity:0.45;' : '') + '">' +
-    '<div style="flex:1;min-width:0">' +
-      '<div style="font-size:11px;letter-spacing:1px;color:' + (st === 'owned' ? '#e0d8c8' : '#9a9ab0') + '">' + esc(n.name) + '</div>' +
-      '<div style="font-size:10px;color:#6c6c80;letter-spacing:0.5px;margin-top:2px;line-height:1.4">' + esc(n.desc) + '</div>' +
-    '</div>' + right + '</div>';
+  g += '<circle cx="' + pos.x + '" cy="' + pos.y + '" r="' + pos.r + '" fill="#11111c" stroke="' + stroke + '" stroke-width="' + sw + '"/>';
+  var iconSz = Math.round(pos.r * 1.05);
+  if (n.icon && n.icon.indexOf('img:') === 0) {
+    g += '<image href="' + n.icon.slice(4) + '" x="' + (pos.x - iconSz / 2) + '" y="' + (pos.y - iconSz / 2) +
+         '" width="' + iconSz + '" height="' + iconSz + '" style="filter:brightness(0) invert(1);pointer-events:none"/>';
+  } else {
+    g += '<text x="' + pos.x + '" y="' + (pos.y + Math.round(pos.r * 0.36)) + '" text-anchor="middle" font-size="' +
+         Math.round(pos.r * 0.95) + '" style="pointer-events:none">' + (n.icon || '✦') + '</text>';
+  }
+  var bx = pos.x + pos.r * 0.72, by = pos.y + pos.r * 0.72;
+  if (st === 'owned') {
+    g += '<circle cx="' + bx + '" cy="' + by + '" r="8" fill="' + b.color + '"/>' +
+         '<text x="' + bx + '" y="' + (by + 3.5) + '" text-anchor="middle" font-size="10" font-weight="bold" fill="#0a0a0f" style="pointer-events:none">✓</text>';
+  } else {
+    g += '<circle cx="' + bx + '" cy="' + by + '" r="8" fill="#0d0d14" stroke="' + stroke + '" stroke-width="1"/>' +
+         '<text x="' + bx + '" y="' + (by + 3) + '" text-anchor="middle" font-size="9" font-family="Courier New" fill="' +
+         (st === 'buyable' ? '#5ab05a' : '#8a8aa0') + '" style="pointer-events:none">' + n.cost + '</text>';
+  }
+  return g + '</g>';
+}
+
+function renderSkillTreeSvg() {
+  var edges = '', nodes = '';
+  SKILLS.forEach(function(n) {
+    var pos = SKILL_POS[n.id], b = skillBranchOf(n);
+    var parent = n.req ? SKILL_POS[n.req] : SKILL_ROOT_POS;
+    var ownedEdge = hasSkill(n.id) && (!n.req || hasSkill(n.req));
+    var openEdge  = !n.req || hasSkill(n.req);
+    var stroke = ownedEdge ? b.color : (openEdge ? 'rgba(255,255,255,0.35)' : '#23232f');
+    edges += '<path d="' + skillEdgePath(parent, pos) + '" fill="none" stroke="' + stroke +
+      '" stroke-width="' + (ownedEdge ? 2.5 : 1.5) + '"' +
+      (openEdge && !ownedEdge ? ' stroke-dasharray="4 4"' : '') + '/>';
+    nodes += skillNodeSvg(n);
+  });
+  var root = '<circle cx="' + SKILL_ROOT_POS.x + '" cy="' + SKILL_ROOT_POS.y + '" r="' + SKILL_ROOT_POS.r + '" fill="#11111c" stroke="#e8a030" stroke-width="2"/>' +
+    '<text x="' + SKILL_ROOT_POS.x + '" y="' + (SKILL_ROOT_POS.y - 2) + '" text-anchor="middle" font-size="9" font-family="Courier New" letter-spacing="1" fill="#e8a030">LV</text>' +
+    '<text x="' + SKILL_ROOT_POS.x + '" y="' + (SKILL_ROOT_POS.y + 11) + '" text-anchor="middle" font-size="12" font-weight="bold" font-family="Courier New" fill="#e8a030">' + getPlayerLevel() + '</text>';
+  return '<svg viewBox="0 0 360 470" style="width:100%;height:auto;display:block">' + edges + root + nodes + '</svg>';
+}
+
+function skillDetailHtml() {
+  var card = '<div style="position:sticky;bottom:0;background:#11111c;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px 14px;margin-top:10px;box-shadow:0 -6px 18px rgba(0,0,0,0.45)">';
+  if (!selectedSkillId) {
+    return card + '<div style="font-size:10px;color:#6c6c80;letter-spacing:1px;text-align:center;padding:8px 0">TAP A SKILL TO INSPECT IT</div></div>';
+  }
+  var n = skillById(selectedSkillId), b = skillBranchOf(n), st = skillState(n);
+  var action;
+  if (st === 'owned') {
+    action = '<div style="text-align:center;color:#5ab05a;font-size:11px;letter-spacing:2px;padding:10px 0">OWNED &#x2713;</div>';
+  } else if (st === 'buyable') {
+    action = '<button onclick="buySkill(\'' + n.id + '\')" style="width:100%;font-family:\'Courier New\',monospace;font-size:12px;font-weight:bold;letter-spacing:3px;padding:13px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;background:#0a1020;color:#5ab05a;border:1px solid #1e3020">UNLOCK &middot; ' + n.cost + ' SP</button>';
+  } else if (st === 'locked') {
+    action = '<div style="text-align:center;color:#6c6c80;font-size:10px;letter-spacing:2px;padding:10px 0">&#x1F512; REQUIRES ' + esc(skillById(n.req).name) + '</div>';
+  } else {
+    action = '<div style="text-align:center;color:#6c6c80;font-size:10px;letter-spacing:2px;padding:10px 0">COSTS ' + n.cost + ' SP &middot; NEED ' + (n.cost - skillPointsAvailable()) + ' MORE</div>';
+  }
+  return card +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
+      '<div style="font-size:11px;letter-spacing:2px;color:#e0d8c8">' + esc(n.name) + '</div>' +
+      '<div style="font-size:9px;letter-spacing:2px;color:' + b.color + ';flex-shrink:0">' + b.label + '</div>' +
+    '</div>' +
+    '<div style="font-size:11px;color:#9a9ab0;line-height:1.5;margin:6px 0 10px">' + esc(n.desc) + '</div>' +
+    action + '</div>';
+}
+
+function selectSkill(id) {
+  selectedSkillId = selectedSkillId === id ? null : id;
+  renderSkillTree();
 }
 
 function renderSkillTree() {
@@ -4557,24 +4668,26 @@ function renderSkillTree() {
   var toNext = level < LEVEL_MAX ? pointsToNextLevel(state.score, level) : 0;
   var progress = level >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LV' + (level + 1);
   var respecRemain = Math.max(0, RESPEC_COOLDOWN_MS - (Date.now() - (state.respecLastUsed || 0)));
-  var html =
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+  document.getElementById('level-modal-content').innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
       '<div style="font-size:10px;letter-spacing:4px;color:#fff">SKILL TREE</div>' +
       '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
     '</div>' +
     '<div style="font-size:12px;color:#fff;letter-spacing:2px;margin-bottom:4px">LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
-    '<div style="font-size:12px;letter-spacing:2px;margin-bottom:8px;color:' + (avail > 0 ? '#e8a030' : '#6c6c80') + '">' + avail + ' SKILL POINT' + (avail !== 1 ? 'S' : '') + ' TO SPEND</div>' +
-    '<div style="font-size:10px;color:#6c6c80;letter-spacing:0.5px;line-height:1.5;margin-bottom:6px">Every level earns 1 point. All skills together cost ' + LEVEL_MAX + ' points.</div>';
-  SKILL_BRANCHES.forEach(function(b) {
-    html += '<div style="font-size:10px;letter-spacing:3px;color:' + b.color + ';margin:14px 0 2px">' + b.label + '</div>';
-    SKILLS.forEach(function(n) { if (n.branch === b.id) html += skillRowHtml(n); });
-  });
-  html += '<button onclick="respecSkills()" style="width:100%;margin-top:16px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a2a3a;background:transparent;color:#fff">' +
+    '<div style="font-size:12px;letter-spacing:2px;color:' + (avail > 0 ? '#e8a030' : '#6c6c80') + '">' + avail + ' SKILL POINT' + (avail !== 1 ? 'S' : '') + ' TO SPEND</div>' +
+    '<div style="display:flex;gap:16px;justify-content:center;margin:10px 0 2px">' +
+      SKILL_BRANCHES.map(function(b) {
+        return '<div style="font-size:9px;letter-spacing:2px;color:' + b.color + '">&#9679;&nbsp;' + b.label + '</div>';
+      }).join('') +
+    '</div>' +
+    renderSkillTreeSvg() +
+    skillDetailHtml() +
+    '<button onclick="respecSkills()" style="width:100%;margin-top:12px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a2a3a;background:transparent;color:#fff">' +
     (respecRemain > 0 ? 'RESPEC READY IN ' + formatRemainTime(respecRemain) : '&#x21BA; RESPEC &middot; REFUND ALL POINTS &middot; 24H COOLDOWN') + '</button>';
-  document.getElementById('level-modal-content').innerHTML = html;
 }
 
 function openSkillTree() {
+  selectedSkillId = null;
   renderSkillTree();
   document.getElementById('level-overlay').classList.add('open');
   document.getElementById('level-modal').classList.add('open');
