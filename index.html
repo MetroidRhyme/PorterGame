@@ -704,7 +704,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.3.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.3.1</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -3229,9 +3229,14 @@ function finishDraw() {
   updateHUD();
 }
 
-// One-tap onboarding shortcut: paint a small starter zone (the player's hex
-// plus its six neighbours — a 7-cell flower) centred on the current position,
-// so a new player can start delivering without first learning to draw a zone.
+// One-tap onboarding shortcut: paint a small starter zone centred on the current
+// position so a new player can start delivering without first learning to draw a
+// zone. Radius is deliberately 3 (a 37-hex disc, ~180 m across): the order spawner
+// enforces a 2-hex gap between orders (canPlaceOrder), so anything smaller starves
+// out pickups — a radius-1 flower (diameter 2) can hold only a single order and
+// would spawn a drop with NOTHING to pick up. Radius 3 reliably yields a couple of
+// drops and several pickups close to the player.
+var STARTER_ZONE_RADIUS = 3;
 function startHereZone() {
   if (!state.userPos) { showToast('Waiting for GPS lock…'); return; }
   // CELL_LNG_DEG is normally locked at first GPS lock (onGpsLocked); re-lock here
@@ -3242,10 +3247,12 @@ function startHereZone() {
     localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
   }
   var center = latLngToHex(state.userPos.lat, state.userPos.lng);
-  var cells  = [{ q: center.q, r: center.r }];
-  HEX_NEIGHBORS.forEach(function(d) {
-    cells.push({ q: center.q + d[0], r: center.r + d[1] });
-  });
+  var R = STARTER_ZONE_RADIUS, cells = [];
+  for (var dq = -R; dq <= R; dq++) {
+    for (var dr = -R; dr <= R; dr++) {
+      if (hexDist(0, 0, dq, dr) <= R) cells.push({ q: center.q + dq, r: center.r + dr });
+    }
+  }
   var color = ZONE_COLORS[state.zones.length % ZONE_COLORS.length];
   var z = { id: 'zone_' + Date.now(), name: 'Home', color: color, cells: cells, active: true };
   state.zones.push(z);
