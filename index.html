@@ -680,7 +680,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.0.2</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.0.3</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -5008,8 +5008,11 @@ function renderOrderMarkers() {
     }
   }
 
-  var _cb = document.getElementById('cap-bar');
-  if (_cb) _cb.classList.toggle('hidden', inViewMode || !document.getElementById('hud-bottom').classList.contains('collapsed'));
+  // updateCapBar() applies the same hide logic as the old classList.toggle did,
+  // but ALSO repositions the bar above the bottom HUD (style.bottom). The bare
+  // toggle left the bar at its CSS default bottom:0, so the bottom-most child —
+  // the weight icon — rendered behind/clipped into the bottom menu.
+  updateCapBar();
   renderGridCanvas();
 }
 
