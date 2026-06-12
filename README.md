@@ -39,36 +39,41 @@ The game surfaces what you can do right now:
 
 Your **player level** is derived from your total score on a rising curve (level 1 ≈ 150 pts; level 50 ≈ 31k pts), capping at level 50. The score display shows your current level and the points remaining to the next one — tap it to open the full upgrade track.
 
-Carry capacity starts at 3 units and grows by 1 at levels 10, 20, 30, 40, and 50 (max **8 units**). Higher levels also unlock and upgrade your drone.
+Carry capacity starts at 3 units and grows by 1 at levels 10, 20, 30, 40, and 50 (max **8 units**). Higher levels also unlock the grapple hook, three drones, depots, and porter-bots.
 
 | Level | Unlock |
 |-------|--------|
+| 5  | **Grapple hook** — pull any-size package to you from up to 2 hexes (15 min cooldown) |
 | 10 | Carry capacity +1 (4 u) · **Storage depot** unlocked (10 u storage) |
-| 15 | **Drone** unlocked — light packages, 10-hex range, 3 h cooldown |
+| 15 | **Light drone** — light packages, 10-hex range, 1 h cooldown |
 | 20 | Carry capacity +1 (5 u) · +1 storage depot |
-| 25 | Drone upgrade — standard & lighter, 20-hex range, 2 h cooldown |
+| 25 | **Medium drone** — standard & lighter, 20-hex range, 2 h cooldown |
 | 30 | Carry capacity +1 (6 u) · +1 storage depot · **Porter-bot** unlocked |
-| 35 | Drone upgrade — all weights, 30-hex range, 1 h cooldown |
+| 35 | **Heavy drone** — all weights, 30-hex range, 3 h cooldown |
 | 40 | Carry capacity +1 (7 u) · +1 storage depot · +1 porter-bot |
-| 45 | Second drone slot (both share a 1 h cooldown) |
 | 50 | Carry capacity +1 (8 u) · +1 storage depot · +1 porter-bot · max level |
+
+---
+
+## Grapple hook
+
+Unlocked at level 5. When charged, a 🪝 button sits beside the action button, and a dotted purple line and reticle mark the closest package within **2 hexes**. Tap to fire the hook and reel the package straight into your inventory — any weight works, as long as you have free carry space. After use the button greys out and visibly refills over its **15-minute cooldown**.
 
 ---
 
 ## Drones
 
-Once unlocked at level 15, a drone can deliver a package for you without walking it to the drop — useful for far or awkward destinations. You can launch one from a nearby package (**Drone Lift**) or from something you're already carrying (the **Drone** button in your inventory).
+Three independent drones unlock as you level (15 / 25 / 35), each with its own cooldown ring shown on the capacity bar. A drone delivers a package for you without walking it to the drop — useful for far or awkward destinations. You can launch one from a nearby package (**Drone Lift**) or from something you're already carrying (the **Drone** button in your inventory); the game automatically uses the lightest ready drone that can carry and reach the package.
 
-- Drone deliveries are worth **half** the package's points (the level bonus below does **not** apply).
+- Drone deliveries are worth **half** the package's points (the drop level bonus does **not** apply).
 - The destination drop must be within the drone's hex **range**, and the package must be within the drone's **weight tier**.
-- Each use puts the drone on **cooldown**; level 45 adds a second drone so you can have two in flight.
+- Each drone recharges independently, so heavier drones stay available while a lighter one cools down.
 
-| Player level | Carries | Range | Cooldown |
-|--------------|---------|-------|----------|
-| 15 | Light | 10 hex | 3 h |
-| 25 | Standard & lighter | 20 hex | 2 h |
-| 35 | All weights | 30 hex | 1 h |
-| 45 | (adds a second drone, shared 1 h cooldown) | | |
+| Player level | Drone | Carries | Range | Cooldown |
+|--------------|-------|---------|-------|----------|
+| 15 | Light  | Light only | 10 hex | 1 h |
+| 25 | Medium | Standard & lighter | 20 hex | 2 h |
+| 35 | Heavy  | All weights | 30 hex | 3 h |
 
 Drones in flight are saved, so they keep traveling — and complete — even if you close the game.
 
@@ -95,7 +100,7 @@ Idle bots rest inside a depot; tap any depot to see how many are stationed there
 Drops are the lettered delivery points that orders are routed to. Each is auto-named (e.g. "Alice Chen") and **levels up** as points are delivered to it, on the same curve as player level.
 
 - A drop's level grants a **delivery bonus**: walked deliveries to it earn an extra **+1% per drop level**.
-- After a delivery, a drop waits ~5 minutes, then spawns fresh packages around itself.
+- After a delivery, a drop waits ~15 minutes, then spawns fresh packages around itself.
 - Drops are **permanent**: they keep their level, points, and contributors even after their zone is deleted (they simply go **dormant** until a zone covers them again).
 
 Tap a drop to open its panel, see its level and progress, and use level-gated upgrades:
@@ -136,7 +141,7 @@ The **menu** holds:
 
 - **Follow** — keep the map centered on you as you walk.
 - **Paint** — choose a zone, then paint cells onto it as you move.
-- **Refresh** — clear current packages (including carried ones) and generate new ones. You must be standing at a drop, and it has a 1-minute cooldown. Your drops are kept.
+- **Refresh** — clear current packages (including carried ones) and generate new ones. You must be standing at a drop, and it has a 1-minute cooldown. Your drops, depot-stored packages, and packages in bot transit are kept.
 - **Settings** — open the settings drawer.
 
 ---
@@ -157,7 +162,7 @@ The **menu** holds:
 - **Reduced motion** — all animated cues, panel/modal transitions, and the marker glide honor the OS `prefers-reduced-motion` setting and fall back to a static UI.
 - **Hex grid** — flat-top axial coordinates (q, r). Cell size is ~20 m (~0.00018°) latitude; longitude is corrected for the player's latitude on first GPS lock.
 - **Proximity** — pickup and delivery both require being within 30 m (`PROXIMITY_M`).
-- **Spawning** — packages spawn in distance bands around each drop, with a minimum of one drop per active zone. After a delivery a drop re-spawns packages on a ~5-minute delay.
+- **Spawning** — packages spawn in distance bands around each drop, with a minimum of one drop per active zone. After a delivery a drop re-spawns packages on a ~15-minute delay.
 - **Auto-refresh** — if a zone is too small to fit new packages and drops, the game schedules a 30-second retry rather than silently failing.
 - **Drop persistence** — drops are permanent: they keep their level, points, and contributors even after their zone is deleted (they go dormant). To keep saves bounded, never-used auto-generated drops (no deliveries, points, or contributors) whose zone is gone are pruned on load.
 - **Share/sync codes** — code exists for sharing zones, drops, and bulk drop stats via text codes, but those Settings sections are currently disabled in the UI; only save-file export/import is exposed.
