@@ -47,7 +47,7 @@ All node costs sum to exactly **50 points**, so a max-level player can eventuall
 | **AIRFRAME** | Light Drone (3) → Extended Rotors (1) → Careful Courier (1) / Quick Charge (2) · Light Drone → Medium Drone (4) → Heavy Drone (5) |
 | **NETWORK** | Depot I (2) → Tall Shelves (1) · Depot I → Depot II (2) → Depots III–V (2/1/1) · Depot II → Porter-Bot I (2) → Cargo Rack (1) / Bot II (2) → Bot III (2) |
 
-**Respec** — a button at the bottom of the tree refunds all spent points, on a 24-hour cooldown. Depots already placed keep working (you just can't place new ones beyond your allocation), and excess idle bots are retired.
+**Respec** — a button at the bottom of the tree refunds all spent points, on a 24-hour cooldown. Depots already placed keep working (you just can't place new ones beyond your allocation), and bots beyond your allocation are retired as soon as they aren't carrying anything.
 
 Saves from v1 are migrated automatically: you get points equal to your level and re-pick your build.
 

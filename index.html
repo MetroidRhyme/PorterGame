@@ -680,7 +680,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.0.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.0.2</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1008,8 +1008,7 @@ const DEPOT_CAPACITY = 10;
 
 // Porter-bots: autonomous couriers that relay depot-stored packages toward
 // the depot closest to each package's destination. Up to three unlocked via
-// skill nodes. BOT_TEST_DEFAULT extra bots are granted regardless for testing.
-const BOT_TEST_DEFAULT   = 2;                 // TODO: set to 0 before shipping
+// skill nodes — the skill tree is the only source of bots.
 const BOT_CAPACITY       = 3;                 // base max weight a bot carries (CARGO RACK node adds 2)
 const BOT_RECHARGE_MS     = 15 * 60 * 1000;   // rest after each delivery trip
 const BOT_SPEED_MPS       = 1;                // drone ≈ 4 m/s; bot is 1/4 of that
@@ -1096,7 +1095,7 @@ function respecSkills() {
     showToast('Respec ready in ' + formatRemainTime(RESPEC_COOLDOWN_MS - elapsed));
     return;
   }
-  if (!confirm('Refund all spent skill points? Placed depots keep working but new ones can\'t be placed beyond your allocation, and excess idle bots are retired. This ability has a 24-hour cooldown.')) return;
+  if (!confirm('Refund all spent skill points? Placed depots keep working but new ones can\'t be placed beyond your allocation, and excess bots are retired once they finish carrying. This ability has a 24-hour cooldown.')) return;
   state.skills = [];
   state.respecLastUsed = Date.now();
   localStorage.setItem('porter_respec_last_used', state.respecLastUsed);
@@ -4216,7 +4215,7 @@ var _botAnimInterval = null;
 
 function saveBots() { localStorage.setItem('porter_bots', JSON.stringify(state.bots)); }
 function getMaxBots() {
-  return BOT_TEST_DEFAULT + ['bot1', 'bot2', 'bot3'].filter(hasSkill).length;
+  return ['bot1', 'bot2', 'bot3'].filter(hasSkill).length;
 }
 function getBotCapacity() { return BOT_CAPACITY + (hasSkill('bot_cap') ? 2 : 0); }
 function botIdle(b)    { return !b.trip && (b.rechargeUntil || 0) <= Date.now(); }
@@ -4234,11 +4233,15 @@ function closestDepotTo(loc) {
 function reconcileBots() {
   if (!Array.isArray(state.bots)) state.bots = [];
   var changed = false;
-  // Respec can shrink the bot allowance: retire idle excess bots (in-flight
-  // bots finish their trip first and get trimmed on a later pass).
+  // Respec or migration can leave more bots than the skill allowance covers.
+  // Retire any excess bot that isn't actually carrying packages — idle ones
+  // first, then bots merely driving to a pickup (their reservations are
+  // released). A bot mid-delivery finishes and gets trimmed on a later pass.
   while (state.bots.length > getMaxBots()) {
     var trimIdx = state.bots.findIndex(function(b) { return !b.trip; });
+    if (trimIdx === -1) trimIdx = state.bots.findIndex(function(b) { return botPayloadCount(b) === 0; });
     if (trimIdx === -1) break;
+    releaseBotReservations(state.bots[trimIdx]);
     removeBotMarker(state.bots[trimIdx].id);
     state.bots.splice(trimIdx, 1);
     changed = true;
