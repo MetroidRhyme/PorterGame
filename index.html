@@ -661,6 +661,16 @@
     .status-right { flex-shrink:0; width:52px; text-align:right; }
     .status-value { font-size:11px; color:#e0d8c8; letter-spacing:1px; }
     .status-sub-note { font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-top:2px; }
+    #daily-goal { margin-bottom:8px; }
+    .dg-row { display:flex; align-items:center; gap:8px; }
+    .dg-icon { font-size:13px; line-height:1; flex-shrink:0; }
+    .dg-main { flex:1; min-width:0; }
+    .dg-label { font-size:10px; letter-spacing:1px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+    .dg-track { height:5px; background:rgba(255,255,255,0.12); border-radius:3px; overflow:hidden; }
+    .dg-fill { height:100%; background:#e8a030; border-radius:3px; transition:width 0.3s; }
+    .dg-fill.done { background:#6aaa6a; }
+    .dg-prog { flex-shrink:0; min-width:46px; text-align:right; font-size:9px; letter-spacing:1px; color:#e8a030; }
+    .dg-prog.done { color:#6aaa6a; }
     #drone-cd { display:flex; flex-direction:column; align-items:center; gap:2px; }
     #drone-cd.locked { display:none; }
     #drone-cd-ring { position:relative; width:24px; height:24px; }
@@ -694,7 +704,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.1.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.2.0</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -797,6 +807,7 @@
   <div id="collapsible-hud">
     <div id="mission-status">STANDBY</div>
     <div id="cap-status"></div>
+    <div id="daily-goal"></div>
     <div id="drone-status"></div>
     <div id="mission-detail">Acquiring GPS lock…</div>
     <div id="mission-distance"></div>
@@ -973,6 +984,9 @@ const state = {
   skills:          safeParse('porter_skills', []),
   // Delivery log / collection: item-type name → lifetime delivered count.
   collection:      safeParse('porter_collection', {}),
+  // Daily goal (no streaks): { date, goalId, progress, done }. Rolls over at
+  // local midnight; see ensureDailyGoal().
+  dailyGoal:       safeParse('porter_daily_goal', null),
 };
 
 const PROXIMITY_M        = 30;
@@ -1202,6 +1216,93 @@ const COLLECTION_TUTORIAL = {
     'per-item counts, and your progress toward all <b>' + PACKAGE_ITEMS.length + '</b>.<br><br>' +
     'Deliver every type to <b>complete the set</b> — on foot or by drone, it all counts.'
 };
+
+// ── DAILY GOAL ──────────────────────────────────────────────
+// A gentle, guilt-free daily hook: one small goal that rotates each day and
+// pays a flat point bonus when met. Deliberately NO streak — missing a day
+// costs nothing. The goal for a given day is picked deterministically from the
+// local day number, so it rotates predictably (no repeats day-to-day) and every
+// goal is always achievable. `prog` returns how much a single delivery event
+// (its packages + the points it awarded) contributes toward the target.
+const DAILY_GOALS = [
+  { id: 'pkg3',   label: 'Deliver 3 packages',           target: 3,   reward: 250, unit: 'pkg',
+    prog: function(pkgs) { return pkgs.length; } },
+  { id: 'heavy',  label: 'Deliver a heavy package',      target: 1,   reward: 300, unit: 'pkg',
+    prog: function(pkgs) { return pkgs.filter(function(p) { return p.weight === 3; }).length; } },
+  { id: 'pkg5',   label: 'Deliver 5 packages',           target: 5,   reward: 400, unit: 'pkg',
+    prog: function(pkgs) { return pkgs.length; } },
+  { id: 'std2',   label: 'Deliver 2 standard+ packages', target: 2,   reward: 275, unit: 'pkg',
+    prog: function(pkgs) { return pkgs.filter(function(p) { return p.weight >= 2; }).length; } },
+  { id: 'pts300', label: 'Earn 300 delivery points',     target: 300, reward: 300, unit: 'pts',
+    prog: function(pkgs, pts) { return pts; } },
+  { id: 'pkg4',   label: 'Deliver 4 packages',           target: 4,   reward: 325, unit: 'pkg',
+    prog: function(pkgs) { return pkgs.length; } },
+];
+
+// Local-calendar day number (not UTC), so the goal rolls over at the player's
+// own midnight and the rotation index lines up with their local date.
+function localDayNumber() {
+  var d = new Date();
+  return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000);
+}
+function todayKey() {
+  var d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+function saveDailyGoal() {
+  localStorage.setItem('porter_daily_goal', JSON.stringify(state.dailyGoal));
+}
+// Returns today's goal record, regenerating it on a new local day.
+function ensureDailyGoal() {
+  var key = todayKey();
+  if (!state.dailyGoal || state.dailyGoal.date !== key) {
+    var def = DAILY_GOALS[localDayNumber() % DAILY_GOALS.length];
+    state.dailyGoal = { date: key, goalId: def.id, progress: 0, done: false };
+    saveDailyGoal();
+  }
+  return state.dailyGoal;
+}
+function currentGoalDef() {
+  var dg = ensureDailyGoal();
+  return DAILY_GOALS.find(function(g) { return g.id === dg.goalId; }) || DAILY_GOALS[0];
+}
+// Apply a completed delivery toward today's goal. `pkgs` is the list of packages
+// just delivered (each needs .weight) and `pts` the points it awarded. Returns
+// { reward, lvlUp } if this call just completed the goal, else null.
+function recordGoalProgress(pkgs, pts) {
+  var dg = ensureDailyGoal();
+  if (dg.done) return null;
+  var def = currentGoalDef();
+  var inc = def.prog(pkgs, pts) || 0;
+  if (inc <= 0) return null;
+  dg.progress += inc;
+  if (dg.progress < def.target) { saveDailyGoal(); return null; }
+  dg.progress = def.target;
+  dg.done = true;
+  var before = getPlayerLevel();
+  state.score += def.reward;
+  localStorage.setItem('porter_score', state.score);
+  saveDailyGoal();
+  var after = getPlayerLevel();
+  return { reward: def.reward, lvlUp: after > before ? after : 0 };
+}
+function dailyGoalHTML() {
+  var dg  = ensureDailyGoal();
+  var def = currentGoalDef();
+  var pct = Math.min(100, Math.round(dg.progress / def.target * 100));
+  var prog = dg.done ? '✓ +' + def.reward + ' pts'
+                     : dg.progress + ' / ' + def.target + (def.unit === 'pts' ? ' pts' : '');
+  return '<div class="dg-row">' +
+    '<span class="dg-icon">🎯</span>' +
+    '<div class="dg-main">' +
+      '<div class="dg-label">DAILY · ' + def.label + '</div>' +
+      '<div class="dg-track"><div class="dg-fill' + (dg.done ? ' done' : '') + '" style="width:' + pct + '%"></div></div>' +
+    '</div>' +
+    '<div class="dg-prog' + (dg.done ? ' done' : '') + '">' + prog + '</div>' +
+  '</div>';
+}
 
 const DROP_UPGRADES = [
   { level: 5,  text: 'Rename drop' },
@@ -1474,7 +1575,7 @@ function completeGrapple(pkgId) {
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
-function launchDrone(startLat, startLng, dest, halfPts, item) {
+function launchDrone(startLat, startLng, dest, halfPts, item, weight) {
   var destLat = dest.loc.lat, destLng = dest.loc.lng;
   var dlat = (destLat - startLat) * 111111;
   var dlng = (destLng - startLng) * 111111 * Math.cos(startLat * Math.PI / 180);
@@ -1490,7 +1591,7 @@ function launchDrone(startLat, startLng, dest, halfPts, item) {
     { color: '#3080c0', weight: 1.5, opacity: 0.75, dashArray: '4 8', lineCap: 'round', interactive: false }
   ).addTo(map);
   activeDroneMarkers.push({
-    marker: mk, line: ln, destId: dest.id, halfPts: halfPts, item: item || null,
+    marker: mk, line: ln, destId: dest.id, halfPts: halfPts, item: item || null, weight: weight || null,
     startLat: startLat, startLng: startLng,
     destLat: destLat, destLng: destLng,
     startTime: Date.now(), durationMs: durationMs, iconPx: sz
@@ -1547,11 +1648,13 @@ function completeDroneDelivery(drone) {
   var newItem = recordDelivery(drone.item, 1);
   localStorage.setItem('porter_score', state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
+  var goalResult = recordGoalProgress([{ weight: drone.weight, item: drone.item }], drone.halfPts);
   if (dest) { dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS; spawnPackagesForDrop(dest); }
   saveGameState();
   var msg = '🚁 Drone delivered! +' + drone.halfPts + ' pts';
   if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel() + ' (+1 SP)';
   if (newItem) msg += ' \xB7 ✨ New collection item!';
+  if (goalResult) msg += ' \xB7 🎯 Daily goal! +' + goalResult.reward;
   showToast(msg, 4000);
   // Safety net: if a drone somehow logs the player's first-ever delivery,
   // still introduce the collection (deliveries normally come on foot first).
@@ -2024,7 +2127,7 @@ function saveGameState() {
 function saveDronesInFlight() {
   localStorage.setItem('porter_drones_in_flight', JSON.stringify(
     activeDroneMarkers.map(function(d) {
-      return { destId: d.destId, halfPts: d.halfPts, item: d.item || null,
+      return { destId: d.destId, halfPts: d.halfPts, item: d.item || null, weight: d.weight || null,
                startLat: d.startLat, startLng: d.startLng,
                destLat: d.destLat, destLng: d.destLng,
                startTime: d.startTime, durationMs: d.durationMs };
@@ -2048,7 +2151,7 @@ function restoreDronesInFlight() {
         { color: '#3080c0', weight: 1.5, opacity: 0.75, dashArray: '4 8', lineCap: 'round', interactive: false }
       ).addTo(map);
       activeDroneMarkers.push({
-        marker: mk, line: ln, destId: d.destId, halfPts: d.halfPts, item: d.item || null,
+        marker: mk, line: ln, destId: d.destId, halfPts: d.halfPts, item: d.item || null, weight: d.weight || null,
         startLat: d.startLat, startLng: d.startLng,
         destLat: d.destLat, destLng: d.destLng,
         startTime: d.startTime, durationMs: d.durationMs, iconPx: sz
@@ -2457,6 +2560,7 @@ async function exportData() {
     seenTutorials:   state.seenTutorials,
     skills:          state.skills,
     collection:      state.collection,
+    dailyGoal:       state.dailyGoal,
     dronesInFlight: JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]'),
     cellLngDeg:     CELL_LNG_DEG,
     gridOffsetLat:  gridOffsetLat,
@@ -2525,6 +2629,8 @@ function importData(input) {
         .filter(function(id) { return !!skillById(id); });
       state.collection = (data.collection && typeof data.collection === 'object') ? data.collection : {};
       localStorage.setItem('porter_collection', JSON.stringify(state.collection));
+      state.dailyGoal = (data.dailyGoal && typeof data.dailyGoal === 'object') ? data.dailyGoal : null;
+      localStorage.setItem('porter_daily_goal', JSON.stringify(state.dailyGoal));
       localStorage.setItem('porter_drone_light_last_used',  state.droneLightLastUsed);
       localStorage.setItem('porter_drone_medium_last_used', state.droneMediumLastUsed);
       localStorage.setItem('porter_drone_heavy_last_used',  state.droneHeavyLastUsed);
@@ -2577,7 +2683,7 @@ function resetProfile() {
    'porter_grid_lat','porter_grid_lng','porter_depots','porter_bots',
    'porter_drone_light_last_used','porter_drone_medium_last_used','porter_drone_heavy_last_used',
    'porter_grapple_last_used','porter_seen_tutorials','porter_refresh_last_used','porter_drones_in_flight',
-   'porter_skills','porter_respec_last_used','porter_collection']
+   'porter_skills','porter_respec_last_used','porter_collection','porter_daily_goal']
     .forEach(function(k) { localStorage.removeItem(k); });
   activeDroneMarkers.forEach(function(d) { map.removeLayer(d.marker); map.removeLayer(d.line); });
   activeDroneMarkers = [];
@@ -2594,6 +2700,7 @@ function resetProfile() {
   state.droneLightLastUsed = 0; state.droneMediumLastUsed = 0; state.droneHeavyLastUsed = 0;
   state.grappleLastUsed = 0; state.respecLastUsed = 0; state.seenTutorials = []; state.skills = [];
   state.collection = {};
+  state.dailyGoal = null;
   if (state.userPos) {
     CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
     localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
@@ -3565,6 +3672,7 @@ function attemptDeliver() {
   var lvlUp = getPlayerLevel() > plvlBefore ? getPlayerLevel() : 0;
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
+  var goalResult = recordGoalProgress(pkgs, pts);
   vibrate(lvlUp ? [50, 30, 50, 30, 100] : [80, 40, 120]);
   dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS;
   spawnPackagesForDrop(dest);
@@ -3574,8 +3682,14 @@ function attemptDeliver() {
   // lingers up to 3500ms on a level-up): introduce the collection on the very
   // first delivery, otherwise flag any newly discovered item types.
   setTimeout(function() {
-    if (maybeShowCollectionTutorial()) return;
-    if (newItems.length) showToast('✨ New collection item: ' + newItems.join(', '), 4000);
+    var shownTut = maybeShowCollectionTutorial();
+    // One toast slot — prioritise the daily-goal payoff over a discovery note.
+    if (goalResult) {
+      showToast('🎯 Daily goal complete! +' + goalResult.reward + ' pts' +
+                (goalResult.lvlUp ? ' · LEVEL ' + goalResult.lvlUp : ''), 4500);
+    } else if (!shownTut && newItems.length) {
+      showToast('✨ New collection item: ' + newItems.join(', '), 4000);
+    }
   }, 3600);
   renderOrderMarkers(); updateHUD();
 }
@@ -3604,7 +3718,7 @@ function attemptDroneLift() {
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
   markDroneUsed(d);
   saveGameState();
-  launchDrone(pkg.pickupLoc.lat, pkg.pickupLoc.lng, dest, halfPts, pkg.item);
+  launchDrone(pkg.pickupLoc.lat, pkg.pickupLoc.lng, dest, halfPts, pkg.item, pkg.weight);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -3623,7 +3737,7 @@ function droneDeliverCarried(pkgId) {
   markDroneUsed(d);
   saveGameState();
   var startPos = state.userPos || pkg.pickupLoc;
-  launchDrone(startPos.lat, startPos.lng, dest, halfPts, pkg.item);
+  launchDrone(startPos.lat, startPos.lng, dest, halfPts, pkg.item, pkg.weight);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -5196,6 +5310,7 @@ function updateHUD() {
   if (_grBtn) { _grBtn.classList.add('hidden'); _grBtn.disabled = true; _grBtn.onclick = null; }
   document.getElementById('inventory').style.display = 'none';
   document.getElementById('cap-status').style.display = 'none';
+  document.getElementById('daily-goal').style.display = 'none';
   updateFollowBtn();
   updatePaintBtn();
   updateDepotMenu();
@@ -5265,6 +5380,8 @@ function updateHUD() {
       '</div>';
     capStatusEl.style.display = 'block';
   }
+  var dgEl = document.getElementById('daily-goal');
+  if (dgEl) { dgEl.innerHTML = dailyGoalHTML(); dgEl.style.display = 'block'; }
   updateDroneStatus();
 
   var carrying  = state.carrying.length;
