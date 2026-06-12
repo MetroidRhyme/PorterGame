@@ -1835,6 +1835,9 @@ function onLocationUpdate(pos) {
     if (pk !== lastPaintHexKey) { lastPaintHexKey = pk; paintHex(ph.q, ph.r); }
   }
   if (orderRenderSig() !== _lastRenderSig) renderOrderMarkers();
+  else if (state.carrying.length || (!inViewMode() && getGrappleStatus().available)) {
+    scheduleGridRedraw();   // carried/grapple lines start at the player — repaint canvas only
+  }
   updateHUD();
 }
 
@@ -2719,9 +2722,16 @@ function scheduleGridRedraw() {
   requestAnimationFrame(function() { _gridRedrawPending = false; renderGridCanvas(); });
 }
 
+// True from zoomstart to zoomend. While a zoom gesture/animation is running the
+// canvas is still CSS-transformed from its pre-zoom position, so drawing fresh
+// layer points into it would land misplaced for the rest of the gesture.
+// renderGridCanvas no-ops during this window; the zoomend/moveend
+// scheduleGridRedraw (a rAF, so it fires after the flag clears) repaints.
+var _zoomInProgress = false;
 
 function renderGridCanvas() {
   if (!gridRenderer || !gridRenderer._ctx || !gridRenderer._bounds) return;
+  if (_zoomInProgress) return;
   drawCtx = gridRenderer._ctx;   // already DPR-scaled and translated into layer-point space by L.canvas
   var _b = gridRenderer._bounds, _sz = _b.getSize();
   drawCtx.clearRect(_b.min.x, _b.min.y, _sz.x, _sz.y);
@@ -2857,9 +2867,16 @@ function drawConnectionLines() {
 
 map.on('move zoom', scheduleGridRender);
 map.on('moveend zoomend viewreset', scheduleGridRedraw);
-map.on('zoomstart', function() { var el = userMarker && userMarker.getElement(); if (el) el.classList.add('no-smooth'); });
+map.on('zoomstart', function() {
+  _zoomInProgress = true;
+  var el = userMarker && userMarker.getElement(); if (el) el.classList.add('no-smooth');
+});
 map.on('zoomend',   function() { requestAnimationFrame(function() { var el = userMarker && userMarker.getElement(); if (el) el.classList.remove('no-smooth'); }); });
 map.on('zoomend',  renderOrderMarkers);
+// Registered after the renderOrderMarkers hook on purpose: its synchronous
+// renderGridCanvas call still sees _zoomInProgress and skips the misplaced
+// draw; the rAF redraw scheduled above repaints once the flag is down.
+map.on('zoomend moveend', function() { _zoomInProgress = false; });
 map.on('zoomend', function() {
   if (state.following && state.userPos && !inViewMode()) {
     map.panTo(adjustLatLngForMenus([state.userPos.lat, state.userPos.lng]), { animate: false });
@@ -3255,16 +3272,16 @@ function nearestDeliverable() {
 
 // Signature of everything that affects the rendered order markers. Used to
 // skip the full marker rebuild on GPS ticks where nothing visible changed.
-// Position only matters while carrying (carried-package lines start at the
-// user); otherwise walking just changes which order is highlighted next.
+// Deliberately position-free: lines anchored to the live position (carried
+// packages, grapple target) are repainted via the cheap canvas-only
+// scheduleGridRedraw in onLocationUpdate instead of rebuilding every marker.
 function orderRenderSig() {
-  var p = state.userPos;
-  var posKey = (p && state.carrying.length)
-    ? Math.round(p.lat * 1e5) + ',' + Math.round(p.lng * 1e5)
-    : 'static';
   var pick = nearestPickable();
   var del  = nearestDeliverable();
-  return [posKey, pick ? pick.id : '-', del ? del.id : '-',
+  var gr   = (state.userPos && !inViewMode() && getGrappleStatus().available) ? nearestGrappable() : null;
+  var over = overweightInRange().map(function(p) { return p.id; }).join(',');
+  var depR = state.depots.map(function(d) { return depotInRange(d) ? 1 : 0; }).join('');
+  return [pick ? pick.id : '-', del ? del.id : '-', gr ? gr.id : '-', over, depR,
           state.packages.length, state.destinations.length,
           state.carrying.length, state.zones.length].join('|');
 }
@@ -4524,10 +4541,15 @@ var _destScaleMarkers   = [];
 var _simpleScaleMarkers = [];
 var _destBaseCellPx     = 0;
 var _destHexHalfH       = 0;
+var _lastMarkerScale    = 1;
 function rescaleMarkers() {
   if (!_destBaseCellPx) return;
   var s = getCellPixelWidth() / _destBaseCellPx;
   if (!(s > 0)) return;
+  // Pure pans don't change the cell size; skip the per-marker DOM writes so
+  // panning doesn't pay a style-recalc on every frame.
+  if (s === _lastMarkerScale) return;
+  _lastMarkerScale = s;
   var destOrigin   = '50% ' + _destHexHalfH + 'px';
   var simpleOrigin = '50% 50%';
   var i, el, c;
@@ -4570,6 +4592,7 @@ function renderOrderMarkers() {
   var destHexPx   = Math.max(2, Math.round(getCellPixelWidth() * 2));
   _destBaseCellPx = getCellPixelWidth();
   _destHexHalfH   = Math.round(destHexPx * SQ3 / 2) / 2;
+  _lastMarkerScale = 1;   // fresh icons are built at the current cell size
   if (userMarker && iconPx !== _userIconPx) {
     userMarker.setIcon(makeIcon('#1a3050', '🧍', Math.round(iconPx * 1.3), 'user-marker'));
     _userIconPx = iconPx;
