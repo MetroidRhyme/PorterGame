@@ -490,6 +490,20 @@
     }
     #level-modal.open { display: block; animation: modal-in-centered 0.22s ease-out; }
 
+    /* ── COLLECTION / DELIVERY LOG ── */
+    .coll-prog-track { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 10px 0 6px; }
+    .coll-prog-fill  { height: 100%; background: #e8a030; border-radius: 3px; transition: width 0.3s; }
+    .coll-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .coll-cell {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px; padding: 9px 11px; min-height: 46px;
+      display: flex; flex-direction: column; justify-content: center; gap: 3px;
+    }
+    .coll-cell.found { border-color: rgba(232,160,48,0.4); background: rgba(232,160,48,0.07); }
+    .coll-name  { font-size: 11px; letter-spacing: 0.5px; color: #e0d8c8; line-height: 1.3; }
+    .coll-cell:not(.found) .coll-name { color: rgba(255,255,255,0.22); font-style: italic; }
+    .coll-count { font-size: 9px; letter-spacing: 1px; color: #e8a030; }
+
     /* ── ABILITY TUTORIAL ── */
     #tutorial-overlay {
       display: none; position: fixed; inset: 0; z-index: 6200; background: rgba(0,0,0,0.72);
@@ -680,7 +694,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.0.3</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.1.0</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -729,6 +743,12 @@
       placeholder="ENTER NAME…" autocomplete="off" autocorrect="off" spellcheck="false"
       oninput="savePlayerName(this.value)">
     <div class="s-hint">Your name is shown on drops you've contributed to.</div>
+  </div>
+
+  <div class="s-section">
+    <div class="s-section-label">COLLECTION</div>
+    <button class="s-btn s-btn-dim" onclick="openCollection()">VIEW DELIVERY LOG</button>
+    <div class="s-hint">Every item type you've delivered, Pok&eacute;dex-style.</div>
   </div>
 
   <div class="s-section" style="display:none">
@@ -951,6 +971,8 @@ const state = {
   respecLastUsed:  parseInt(localStorage.getItem('porter_respec_last_used') || '0'),
   seenTutorials:   safeParse('porter_seen_tutorials', []),
   skills:          safeParse('porter_skills', []),
+  // Delivery log / collection: item-type name → lifetime delivered count.
+  collection:      safeParse('porter_collection', {}),
 };
 
 const PROXIMITY_M        = 30;
@@ -1440,7 +1462,7 @@ function completeGrapple(pkgId) {
   checkRefresh(); renderOrderMarkers(); updateHUD();
 }
 
-function launchDrone(startLat, startLng, dest, halfPts) {
+function launchDrone(startLat, startLng, dest, halfPts, item) {
   var destLat = dest.loc.lat, destLng = dest.loc.lng;
   var dlat = (destLat - startLat) * 111111;
   var dlng = (destLng - startLng) * 111111 * Math.cos(startLat * Math.PI / 180);
@@ -1456,7 +1478,7 @@ function launchDrone(startLat, startLng, dest, halfPts) {
     { color: '#3080c0', weight: 1.5, opacity: 0.75, dashArray: '4 8', lineCap: 'round', interactive: false }
   ).addTo(map);
   activeDroneMarkers.push({
-    marker: mk, line: ln, destId: dest.id, halfPts: halfPts,
+    marker: mk, line: ln, destId: dest.id, halfPts: halfPts, item: item || null,
     startLat: startLat, startLng: startLng,
     destLat: destLat, destLng: destLng,
     startTime: Date.now(), durationMs: durationMs, iconPx: sz
@@ -1510,12 +1532,14 @@ function completeDroneDelivery(drone) {
   var plvlBefore = getPlayerLevel();
   state.score += drone.halfPts;
   state.deliveries += 1;
+  var newItem = recordDelivery(drone.item, 1);
   localStorage.setItem('porter_score', state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
   if (dest) { dest.nextSpawnAfter = Date.now() + SPAWN_DELAY_MS; spawnPackagesForDrop(dest); }
   saveGameState();
   var msg = '🚁 Drone delivered! +' + drone.halfPts + ' pts';
   if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel() + ' (+1 SP)';
+  if (newItem) msg += ' \xB7 ✨ New collection item!';
   showToast(msg, 4000);
   renderOrderMarkers(); updateHUD();
 }
@@ -1633,6 +1657,19 @@ function makePackageOrder(pickupLoc, dest, weight) {
     weight: weight, picked: false,
     item: PACKAGE_ITEMS[Math.floor(Math.random() * PACKAGE_ITEMS.length)]
   };
+}
+
+// Delivery log / collection — tally each delivered item type for the Pokédex-
+// style COLLECTION panel. Returns true when this is the FIRST delivery of that
+// item type (0 → 1) so callers can celebrate the discovery. Drones launched
+// before this feature shipped have no `item`, so guard against falsy names.
+function recordDelivery(item, n) {
+  if (!item) return false;
+  if (!state.collection) state.collection = {};
+  var wasNew = !(state.collection[item] > 0);
+  state.collection[item] = (state.collection[item] || 0) + (n || 1);
+  localStorage.setItem('porter_collection', JSON.stringify(state.collection));
+  return wasNew;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1972,7 +2009,7 @@ function saveGameState() {
 function saveDronesInFlight() {
   localStorage.setItem('porter_drones_in_flight', JSON.stringify(
     activeDroneMarkers.map(function(d) {
-      return { destId: d.destId, halfPts: d.halfPts,
+      return { destId: d.destId, halfPts: d.halfPts, item: d.item || null,
                startLat: d.startLat, startLng: d.startLng,
                destLat: d.destLat, destLng: d.destLng,
                startTime: d.startTime, durationMs: d.durationMs };
@@ -1996,7 +2033,7 @@ function restoreDronesInFlight() {
         { color: '#3080c0', weight: 1.5, opacity: 0.75, dashArray: '4 8', lineCap: 'round', interactive: false }
       ).addTo(map);
       activeDroneMarkers.push({
-        marker: mk, line: ln, destId: d.destId, halfPts: d.halfPts,
+        marker: mk, line: ln, destId: d.destId, halfPts: d.halfPts, item: d.item || null,
         startLat: d.startLat, startLng: d.startLng,
         destLat: d.destLat, destLng: d.destLng,
         startTime: d.startTime, durationMs: d.durationMs, iconPx: sz
@@ -2404,6 +2441,7 @@ async function exportData() {
     respecLastUsed:  state.respecLastUsed,
     seenTutorials:   state.seenTutorials,
     skills:          state.skills,
+    collection:      state.collection,
     dronesInFlight: JSON.parse(localStorage.getItem('porter_drones_in_flight') || '[]'),
     cellLngDeg:     CELL_LNG_DEG,
     gridOffsetLat:  gridOffsetLat,
@@ -2470,6 +2508,8 @@ function importData(input) {
       // Drop unknown node ids so a save from a newer version can't corrupt the tree.
       state.skills = (Array.isArray(data.skills) ? data.skills : [])
         .filter(function(id) { return !!skillById(id); });
+      state.collection = (data.collection && typeof data.collection === 'object') ? data.collection : {};
+      localStorage.setItem('porter_collection', JSON.stringify(state.collection));
       localStorage.setItem('porter_drone_light_last_used',  state.droneLightLastUsed);
       localStorage.setItem('porter_drone_medium_last_used', state.droneMediumLastUsed);
       localStorage.setItem('porter_drone_heavy_last_used',  state.droneHeavyLastUsed);
@@ -2522,7 +2562,7 @@ function resetProfile() {
    'porter_grid_lat','porter_grid_lng','porter_depots','porter_bots',
    'porter_drone_light_last_used','porter_drone_medium_last_used','porter_drone_heavy_last_used',
    'porter_grapple_last_used','porter_seen_tutorials','porter_refresh_last_used','porter_drones_in_flight',
-   'porter_skills','porter_respec_last_used']
+   'porter_skills','porter_respec_last_used','porter_collection']
     .forEach(function(k) { localStorage.removeItem(k); });
   activeDroneMarkers.forEach(function(d) { map.removeLayer(d.marker); map.removeLayer(d.line); });
   activeDroneMarkers = [];
@@ -2538,6 +2578,7 @@ function resetProfile() {
   clearBotMarkers(); state.bots = [];
   state.droneLightLastUsed = 0; state.droneMediumLastUsed = 0; state.droneHeavyLastUsed = 0;
   state.grappleLastUsed = 0; state.respecLastUsed = 0; state.seenTutorials = []; state.skills = [];
+  state.collection = {};
   if (state.userPos) {
     CELL_LNG_DEG = CELL_LAT_DEG / Math.cos(state.userPos.lat * Math.PI / 180);
     localStorage.setItem('porter_cell_lng', CELL_LNG_DEG);
@@ -3504,6 +3545,8 @@ function attemptDeliver() {
   var plvlBefore = getPlayerLevel();
   state.score      += pts;
   state.deliveries += pkgs.length;
+  var newItems = [];
+  pkgs.forEach(function(p) { if (recordDelivery(p.item, 1)) newItems.push(p.item); });
   var lvlUp = getPlayerLevel() > plvlBefore ? getPlayerLevel() : 0;
   localStorage.setItem('porter_score',      state.score);
   localStorage.setItem('porter_deliveries', state.deliveries);
@@ -3512,6 +3555,12 @@ function attemptDeliver() {
   spawnPackagesForDrop(dest);
   saveGameState();
   showCompletion(pts, pkgs.length, destDisplayName(dest), lvlUp, level, bonusPts);
+  // Delay the discovery toast so it surfaces as the completion overlay fades.
+  if (newItems.length) {
+    setTimeout(function() {
+      showToast('✨ New collection item: ' + newItems.join(', '), 4000);
+    }, 2800);
+  }
   renderOrderMarkers(); updateHUD();
 }
 
@@ -3539,7 +3588,7 @@ function attemptDroneLift() {
   state.packages = state.packages.filter(function(p) { return p.id !== pkg.id; });
   markDroneUsed(d);
   saveGameState();
-  launchDrone(pkg.pickupLoc.lat, pkg.pickupLoc.lng, dest, halfPts);
+  launchDrone(pkg.pickupLoc.lat, pkg.pickupLoc.lng, dest, halfPts, pkg.item);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -3558,7 +3607,7 @@ function droneDeliverCarried(pkgId) {
   markDroneUsed(d);
   saveGameState();
   var startPos = state.userPos || pkg.pickupLoc;
-  launchDrone(startPos.lat, startPos.lng, dest, halfPts);
+  launchDrone(startPos.lat, startPos.lng, dest, halfPts, pkg.item);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -4503,6 +4552,47 @@ function handleDepotDeletionForBots(depotId) {
 function closeLevelBreakdown() {
   document.getElementById('level-overlay').classList.remove('open');
   document.getElementById('level-modal').classList.remove('open');
+}
+
+// COLLECTION / delivery log — Pokédex-style grid of every item type. Rendered
+// into the shared level-modal (closed via closeLevelBreakdown). Layers above the
+// settings drawer (z 6001 > 4001), so it opens cleanly on top of SETTINGS.
+function openCollection() {
+  document.getElementById('level-modal-content').innerHTML = collectionHTML();
+  document.getElementById('level-overlay').classList.add('open');
+  document.getElementById('level-modal').classList.add('open');
+}
+
+function collectionHTML() {
+  var coll  = state.collection || {};
+  var total = PACKAGE_ITEMS.length;
+  var found = 0, delivered = 0;
+  PACKAGE_ITEMS.forEach(function(name) {
+    var c = coll[name] || 0;
+    if (c > 0) found++;
+    delivered += c;
+  });
+  var pct = Math.round(found / total * 100);
+  var cells = PACKAGE_ITEMS.map(function(name) {
+    var c = coll[name] || 0;
+    if (c > 0) {
+      return '<div class="coll-cell found">' +
+               '<div class="coll-name">' + esc(name) + '</div>' +
+               '<div class="coll-count">' + c + ' delivered</div>' +
+             '</div>';
+    }
+    return '<div class="coll-cell"><div class="coll-name">??? Undiscovered</div></div>';
+  }).join('');
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+           '<div style="font-size:10px;letter-spacing:4px;color:#fff">COLLECTION</div>' +
+           '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+         '</div>' +
+         '<div style="font-size:12px;color:#fff;letter-spacing:2px">' + found + ' / ' + total + ' ITEM TYPES' +
+           (found === total ? ' &nbsp;&middot;&nbsp; <span style="color:#e8a030">COMPLETE!</span>' : '') +
+         '</div>' +
+         '<div class="coll-prog-track"><div class="coll-prog-fill" style="width:' + pct + '%"></div></div>' +
+         '<div style="font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px">' + delivered + ' total deliveries logged</div>' +
+         '<div class="coll-grid">' + cells + '</div>';
 }
 
 // ── ABILITY TUTORIALS ──────────────────────────────────────

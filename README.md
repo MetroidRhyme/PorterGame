@@ -111,6 +111,14 @@ Tap a drop to open its panel, see its level and progress, and use level-gated up
 
 ---
 
+## Collection
+
+Every package carries one of **24 item types** (Birthday Cake, Vintage Records, Fragile Glassware…). Delivering them fills a Pokédex-style **collection**: tap **⋮ → SETTINGS → COLLECTION → VIEW DELIVERY LOG** to see how many types you've discovered, your total deliveries logged, and a per-item delivered count. Undiscovered types show as `???` until you deliver one.
+
+The first time you deliver a new item type — on foot or by drone — the game flags the discovery, so there's always one more box to fill. Collection progress is tracked per item across walked and drone deliveries alike, and is included in save-file export/import.
+
+---
+
 ## Zones
 
 Zones are made of hex grid cells (~20 m circumradius, ~1,040 m² each). You can define multiple named zones in different colors; packages and drops only spawn in **active** zones. For zones with fewer total hexes the order count scales more generously per hex to keep play density reasonable.
@@ -148,6 +156,7 @@ The **menu** holds:
 
 - **Zones** — add, edit, toggle, merge, or delete zones; adjust grid alignment.
 - **Profile** — set your display name (shown on drops you've contributed to).
+- **Collection** — open your delivery log: every item type, with discovered count and per-item totals.
 - **Data** — export a full save backup (`.json`), import a backup, or reset all data.
 
 ---
