@@ -1369,7 +1369,7 @@ function launchDrone(startLat, startLng, dest, halfPts) {
     marker: mk, line: ln, destId: dest.id, halfPts: halfPts,
     startLat: startLat, startLng: startLng,
     destLat: destLat, destLng: destLng,
-    startTime: Date.now(), durationMs: durationMs
+    startTime: Date.now(), durationMs: durationMs, iconPx: sz
   });
   saveDronesInFlight();
   if (!_droneAnimInterval) {
@@ -1911,7 +1911,7 @@ function restoreDronesInFlight() {
         marker: mk, line: ln, destId: d.destId, halfPts: d.halfPts,
         startLat: d.startLat, startLng: d.startLng,
         destLat: d.destLat, destLng: d.destLng,
-        startTime: d.startTime, durationMs: d.durationMs
+        startTime: d.startTime, durationMs: d.durationMs, iconPx: sz
       });
     }
   });
@@ -4279,18 +4279,21 @@ function botTick() {
 
 // ── BOT VISUALS ─────────────────────────────────────────────
 function startBotAnim() { if (!_botAnimInterval) _botAnimInterval = setInterval(animateBots, 50); }
+function makeBotIcon(sz) {
+  var ip = Math.round(sz * 0.62);
+  var botImg = '<img src="bot.png" width="' + ip + '" height="' + ip + '" style="filter:brightness(0) invert(1);display:block">';
+  return makeIcon('#14323a', botImg, sz);
+}
 function ensureBotMarker(bot, lat, lng) {
   if (botRuntime[bot.id]) return botRuntime[bot.id];
   var sz = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
-  var ip = Math.round(sz * 0.62);
-  var botImg = '<img src="bot.png" width="' + ip + '" height="' + ip + '" style="filter:brightness(0) invert(1);display:block">';
-  var mk = L.marker([lat, lng], { icon: makeIcon('#14323a', botImg, sz), zIndexOffset: 850 }).addTo(map);
+  var mk = L.marker([lat, lng], { icon: makeBotIcon(sz), zIndexOffset: 850 }).addTo(map);
   var ln = L.polyline([[lat, lng], [bot.trip.toLat, bot.trip.toLng]],
     { color: '#2fae9b', weight: 1.5, opacity: 0.7, dashArray: '2 7', lineCap: 'round', interactive: false }
   ).addTo(map);
   var n = botPayloadCount(bot);
   mk.bindTooltip('PORTER-BOT' + (n ? ' · ' + n + ' pkg' : '') + (bot.trip.phase === 'toPickup' ? ' · to pickup' : ' · to depot'));
-  botRuntime[bot.id] = { marker: mk, line: ln };
+  botRuntime[bot.id] = { marker: mk, line: ln, iconPx: sz };
   return botRuntime[bot.id];
 }
 function removeBotMarker(id) {
@@ -4597,6 +4600,18 @@ function renderOrderMarkers() {
     userMarker.setIcon(makeIcon('#1a3050', '🧍', Math.round(iconPx * 1.3), 'user-marker'));
     _userIconPx = iconPx;
   }
+
+  // In-flight drone/bot markers live outside the marker rebuild below; resize
+  // their icons here (runs on every zoomend) so they stay in step with the
+  // hex grid instead of keeping their spawn-time pixel size.
+  var flightPx = Math.max(20, Math.round(getCellPixelWidth() * 0.95));
+  activeDroneMarkers.forEach(function(fd) {
+    if (fd.iconPx !== flightPx) { fd.iconPx = flightPx; fd.marker.setIcon(makeIcon('#1a3050', '🚁', flightPx)); }
+  });
+  Object.keys(botRuntime).forEach(function(bid) {
+    var rt = botRuntime[bid];
+    if (rt.iconPx !== flightPx) { rt.iconPx = flightPx; rt.marker.setIcon(makeBotIcon(flightPx)); }
+  });
 
   var activeZoneCells = new Set();
   var allZoneCells    = new Set();
