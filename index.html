@@ -694,7 +694,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.1.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.1.1</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1191,6 +1191,18 @@ const ABILITY_TUTORIALS = {
   },
 };
 
+// Shown once, after the first delivery — see maybeShowCollectionTutorial().
+const COLLECTION_TUTORIAL = {
+  icon: '📒',
+  title: 'COLLECTION',
+  body: 'Every package is one of <b>' + PACKAGE_ITEMS.length + ' item types</b> — Birthday Cake, ' +
+    'Vintage Records, Fragile Glassware, and more.<br><br>' +
+    'Each delivery is now logged in your <b>collection</b>. Open it any time from ' +
+    '<b>⋮ menu → SETTINGS → COLLECTION</b> to see which types you\'ve discovered, your ' +
+    'per-item counts, and your progress toward all <b>' + PACKAGE_ITEMS.length + '</b>.<br><br>' +
+    'Deliver every type to <b>complete the set</b> — on foot or by drone, it all counts.'
+};
+
 const DROP_UPGRADES = [
   { level: 5,  text: 'Rename drop' },
   { level: 10, text: 'Change icon' },
@@ -1541,6 +1553,9 @@ function completeDroneDelivery(drone) {
   if (getPlayerLevel() > plvlBefore) msg += ' \xB7 LEVEL UP LV ' + getPlayerLevel() + ' (+1 SP)';
   if (newItem) msg += ' \xB7 ✨ New collection item!';
   showToast(msg, 4000);
+  // Safety net: if a drone somehow logs the player's first-ever delivery,
+  // still introduce the collection (deliveries normally come on foot first).
+  maybeShowCollectionTutorial();
   renderOrderMarkers(); updateHUD();
 }
 
@@ -3555,12 +3570,13 @@ function attemptDeliver() {
   spawnPackagesForDrop(dest);
   saveGameState();
   showCompletion(pts, pkgs.length, destDisplayName(dest), lvlUp, level, bonusPts);
-  // Delay the discovery toast so it surfaces as the completion overlay fades.
-  if (newItems.length) {
-    setTimeout(function() {
-      showToast('✨ New collection item: ' + newItems.join(', '), 4000);
-    }, 2800);
-  }
+  // After the completion overlay clears (it sits above everything at z 9999 and
+  // lingers up to 3500ms on a level-up): introduce the collection on the very
+  // first delivery, otherwise flag any newly discovered item types.
+  setTimeout(function() {
+    if (maybeShowCollectionTutorial()) return;
+    if (newItems.length) showToast('✨ New collection item: ' + newItems.join(', '), 4000);
+  }, 3600);
   renderOrderMarkers(); updateHUD();
 }
 
@@ -4601,16 +4617,28 @@ function collectionHTML() {
 // reads naturally: buy → learn → keep browsing the tree.
 function showSkillTutorial(id) {
   var t = ABILITY_TUTORIALS[id];
-  if (!t || state.seenTutorials.indexOf(id) !== -1) return;
+  if (!t) return;
+  showTutorial(id, t, 'NEW ABILITY UNLOCKED');
+}
+// Generic one-shot tutorial: shows `cfg` (icon/title/body) under `badge`, then
+// records `id` in seenTutorials so it never repeats. Returns true if shown.
+function showTutorial(id, cfg, badge) {
+  if (state.seenTutorials.indexOf(id) !== -1) return false;
   state.seenTutorials.push(id);
   localStorage.setItem('porter_seen_tutorials', JSON.stringify(state.seenTutorials));
-  document.getElementById('tutorial-badge').textContent = 'NEW ABILITY UNLOCKED';
-  document.getElementById('tutorial-icon').innerHTML = t.icon || '✨';
-  document.getElementById('tutorial-title').textContent = t.title;
-  document.getElementById('tutorial-body').innerHTML = t.body;
+  document.getElementById('tutorial-badge').textContent = badge || 'NEW ABILITY UNLOCKED';
+  document.getElementById('tutorial-icon').innerHTML = cfg.icon || '✨';
+  document.getElementById('tutorial-title').textContent = cfg.title;
+  document.getElementById('tutorial-body').innerHTML = cfg.body;
   document.getElementById('tutorial-overlay').classList.add('open');
   document.getElementById('tutorial-modal').classList.add('open');
   vibrate(40);
+  return true;
+}
+// Introduce the collection log after the player's very first completed delivery
+// (walked or drone). Dedup via seenTutorials keeps it to a single showing.
+function maybeShowCollectionTutorial() {
+  return showTutorial('collection_intro', COLLECTION_TUTORIAL, 'COLLECTION UNLOCKED');
 }
 function dismissTutorial() {
   document.getElementById('tutorial-overlay').classList.remove('open');

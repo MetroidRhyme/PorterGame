@@ -115,7 +115,7 @@ Tap a drop to open its panel, see its level and progress, and use level-gated up
 
 Every package carries one of **24 item types** (Birthday Cake, Vintage Records, Fragile Glassware…). Delivering them fills a Pokédex-style **collection**: tap **⋮ → SETTINGS → COLLECTION → VIEW DELIVERY LOG** to see how many types you've discovered, your total deliveries logged, and a per-item delivered count. Undiscovered types show as `???` until you deliver one.
 
-The first time you deliver a new item type — on foot or by drone — the game flags the discovery, so there's always one more box to fill. Collection progress is tracked per item across walked and drone deliveries alike, and is included in save-file export/import.
+A one-time pop-up introduces the collection right after your **first delivery**. From then on, the first time you deliver a new item type — on foot or by drone — the game flags the discovery, so there's always one more box to fill. Collection progress is tracked per item across walked and drone deliveries alike, and is included in save-file export/import.
 
 ---
 
