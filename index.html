@@ -680,7 +680,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v1.6.6</span></div>
+    <div id="game-title">PORTER<span id="game-version">v1.6.7</span></div>
     <div id="score-display" onclick="showPlayerLevelBreakdown()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -2800,7 +2800,9 @@ function drawConnectionLines() {
   drawCtx.lineWidth = 1.5;
   dash(4, 8);
   (state.packages || []).forEach(function(p) {
-    if (p.id === grapplingPkgId || p.stored) return;
+    // onBot: the package rides a porter-bot, which draws its own trip line —
+    // p.picked is true so it would otherwise draw a carried line from the player.
+    if (p.id === grapplingPkgId || p.stored || p.onBot) return;
     if (!visDestIds.has(p.destId)) return;
     if (viewingDropId && p.destId === viewingDropId && !p.picked) return;
     if (p.id === selectedPkgId) return;
@@ -3691,10 +3693,15 @@ function exitDepotView() {
 }
 
 function openDropPanel(destId) {
-  viewingDropId = null;
-  preDropView   = null;
   var dest = state.destinations.find(function(d) { return d.id === destId; });
   if (!dest) return;
+  // Opening the panel exits any view/selection mode; re-render so dimmed and
+  // highlighted markers don't linger behind (and after) the panel.
+  var wasViewing = !!(viewingDropId || viewingDepotId || selectedPkgId);
+  viewingDropId  = null; preDropView  = null;
+  viewingDepotId = null; preDepotView = null;
+  if (selectedPkgId) { selectedPkgId = null; hideOrderInfo(); preSelView = null; }
+  if (wasViewing) renderOrderMarkers();
   dropPanelDestId = destId;
 
   var level      = dest.level || 0;
@@ -3940,6 +3947,13 @@ var depotPanelId = null;
 function openDepotPanel(depotId) {
   var depot = state.depots.find(function(d) { return d.id === depotId; });
   if (!depot) return;
+  // Same as openDropPanel: exit any view/selection mode so dim/highlight
+  // states don't linger behind the panel.
+  var wasViewing = !!(viewingDropId || viewingDepotId || selectedPkgId);
+  viewingDropId  = null; preDropView  = null;
+  viewingDepotId = null; preDepotView = null;
+  if (selectedPkgId) { selectedPkgId = null; hideOrderInfo(); preSelView = null; }
+  if (wasViewing) renderOrderMarkers();
   depotPanelId = depotId;
   renderDepotPanel(depot);
   document.getElementById('depot-overlay').classList.add('open');
@@ -4502,8 +4516,9 @@ function closeConfirmModal() {
 
 function executeRefresh() {
   closeConfirmModal();
-  // Keep depot-stored packages — depots are permanent like drops.
-  state.packages = state.packages.filter(function(p) { return p.stored; });
+  // Keep depot-stored packages (depots are permanent like drops) and packages
+  // currently riding a porter-bot between depots.
+  state.packages = state.packages.filter(function(p) { return p.stored || p.onBot; });
   state.carrying = [];
   state.refreshLastUsed = Date.now();
   localStorage.setItem('porter_refresh_last_used', state.refreshLastUsed);
@@ -4658,7 +4673,8 @@ function renderOrderMarkers() {
     (function(pid, latlng, destLoc, pkg, destObj, marker) {
       marker.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
-        if (viewingDropId) { exitDropView(); return; }
+        if (viewingDropId)  { exitDropView();  return; }
+        if (viewingDepotId) { exitDepotView(); return; }
         var selecting = selectedPkgId !== pid;
         selectedPkgId = selecting ? pid : null;
         renderOrderMarkers();
@@ -4760,7 +4776,7 @@ function renderOrderMarkers() {
   }
 
   var _cb = document.getElementById('cap-bar');
-  if (_cb) _cb.classList.toggle('hidden', !!(selectedPkgId || viewingDropId) || !document.getElementById('hud-bottom').classList.contains('collapsed'));
+  if (_cb) _cb.classList.toggle('hidden', inViewMode || !document.getElementById('hud-bottom').classList.contains('collapsed'));
   renderGridCanvas();
 }
 
@@ -5013,7 +5029,7 @@ function updateCapBar() {
   var bar = document.getElementById('cap-bar');
   if (!bar) return;
   var hudOpen = !document.getElementById('hud-bottom').classList.contains('collapsed');
-  var hide = !!(selectedPkgId || viewingDropId) || hudOpen;
+  var hide = inViewMode() || hudOpen;
   bar.classList.toggle('hidden', hide);
   updateDroneCd();
   if (hide) return;
