@@ -35,45 +35,43 @@ The game surfaces what you can do right now:
 
 ---
 
-## Levels & upgrades
+## Levels & the skill tree
 
-Your **player level** is derived from your total score on a rising curve (level 1 ≈ 150 pts; level 50 ≈ 31k pts), capping at level 50. The score display shows your current level and the points remaining to the next one — tap it to open the full upgrade track.
+Your **player level** is derived from your total score on a rising curve (level 1 ≈ 150 pts; level 50 ≈ 31k pts), capping at level 50. **Every level earns one skill point.** Tap the level display (top left) to open the **skill tree** and spend them; an amber `SP` badge shows when you have unspent points.
 
-Carry capacity starts at 3 units and grows by 1 at levels 10, 20, 30, 40, and 50 (max **8 units**). Higher levels also unlock the grapple hook, three drones, depots, and porter-bots.
+All node costs sum to exactly **50 points**, so a max-level player can eventually own the whole tree — the build order is the choice. There are no minimum-level gates: cost and in-branch prerequisites are the only limits, so saving early points to rush a drone is a legitimate strategy.
 
-| Level | Unlock |
-|-------|--------|
-| 5  | **Grapple hook** — pull any-size package to you from up to 2 hexes (15 min cooldown) |
-| 10 | Carry capacity +1 (4 u) · **Storage depot** unlocked (10 u storage) |
-| 15 | **Light drone** — light packages, 10-hex range, 1 h cooldown |
-| 20 | Carry capacity +1 (5 u) · +1 storage depot |
-| 25 | **Medium drone** — standard & lighter, 20-hex range, 2 h cooldown |
-| 30 | Carry capacity +1 (6 u) · +1 storage depot · **Porter-bot** unlocked |
-| 35 | **Heavy drone** — all weights, 30-hex range, 3 h cooldown |
-| 40 | Carry capacity +1 (7 u) · +1 storage depot · +1 porter-bot |
-| 50 | Carry capacity +1 (8 u) · +1 storage depot · +1 porter-bot · max level |
+| Branch | Nodes (cost) |
+|--------|--------------|
+| **PORTER** | Grapple Hook (2) → Long Throw +1 hex (1), Fast Reel −33% cooldown (1) · Carry +1 ×5 chain (2/2/3/3/4, up to 8 u) |
+| **AIRFRAME** | Light Drone (3) → Extended Rotors +25% range (1), Careful Courier 60% pay (1), Medium Drone (4) → Quick Charge −25% cooldowns (2), Heavy Drone (5) |
+| **NETWORK** | Depots I–V (2/2/2/1/1) · Tall Shelves +5 capacity (1) · Porter-Bots I–III (2/2/2, needs Depot II) · Cargo Rack +2 bot capacity (1) |
+
+**Respec** — a button at the bottom of the tree refunds all spent points, on a 24-hour cooldown. Depots already placed keep working (you just can't place new ones beyond your allocation), and excess idle bots are retired.
+
+Saves from v1 are migrated automatically: you get points equal to your level and re-pick your build.
 
 ---
 
 ## Grapple hook
 
-Unlocked at level 5. When charged, a 🪝 button sits beside the action button, and a dotted purple line and reticle mark the closest package within **2 hexes**. Tap to fire the hook and reel the package straight into your inventory — any weight works, as long as you have free carry space. After use the button greys out and visibly refills over its **15-minute cooldown**.
+A 2-point PORTER skill. When charged, a 🪝 button sits beside the action button, and a dotted purple line and reticle mark the closest package within **2 hexes** (3 with Long Throw). Tap to fire the hook and reel the package straight into your inventory — any weight works, as long as you have free carry space. After use the button greys out and visibly refills over its **15-minute cooldown** (10 with Fast Reel).
 
 ---
 
 ## Drones
 
-Three independent drones unlock as you level (15 / 25 / 35), each with its own cooldown ring shown on the capacity bar. A drone delivers a package for you without walking it to the drop — useful for far or awkward destinations. You can launch one from a nearby package (**Drone Lift**) or from something you're already carrying (the **Drone** button in your inventory); the game automatically uses the lightest ready drone that can carry and reach the package.
+Three independent drones are bought as AIRFRAME skills (Light → Medium → Heavy), each with its own cooldown ring shown on the capacity bar. A drone delivers a package for you without walking it to the drop — useful for far or awkward destinations. You can launch one from a nearby package (**Drone Lift**) or from something you're already carrying (the **Drone** button in your inventory); the game automatically uses the lightest ready drone that can carry and reach the package.
 
-- Drone deliveries are worth **half** the package's points (the drop level bonus does **not** apply).
-- The destination drop must be within the drone's hex **range**, and the package must be within the drone's **weight tier**.
-- Each drone recharges independently, so heavier drones stay available while a lighter one cools down.
+- Drone deliveries are worth **half** the package's points — 60% with the Careful Courier skill (the drop level bonus does **not** apply).
+- The destination drop must be within the drone's hex **range** (+25% with Extended Rotors), and the package must be within the drone's **weight tier**.
+- Each drone recharges independently (cooldowns −25% with Quick Charge), so heavier drones stay available while a lighter one cools down.
 
-| Player level | Drone | Carries | Range | Cooldown |
-|--------------|-------|---------|-------|----------|
-| 15 | Light  | Light only | 10 hex | 1 h |
-| 25 | Medium | Standard & lighter | 20 hex | 2 h |
-| 35 | Heavy  | All weights | 30 hex | 3 h |
+| Drone | Cost | Carries | Base range | Base cooldown |
+|-------|------|---------|------------|---------------|
+| Light  | 3 SP | Light only | 10 hex | 1 h |
+| Medium | 4 SP | Standard & lighter | 20 hex | 2 h |
+| Heavy  | 5 SP | All weights | 30 hex | 3 h |
 
 Drones in flight are saved, so they keep traveling — and complete — even if you close the game.
 
@@ -81,15 +79,15 @@ Drones in flight are saved, so they keep traveling — and complete — even if 
 
 ## Depots
 
-Storage depots are physical stash points you place on the map. The first unlocks at level 10; you get one more at each subsequent 10-level milestone (20, 30, 40, 50), for a maximum of five.
+Storage depots are physical stash points you place on the map. Up to five are bought as NETWORK skills, and the Tall Shelves skill raises each depot's storage from 10 to 15 weight units.
 
-To place one, tap **⋮ → PLACE DEPOT** and confirm at your current location. Walk within range and tap its hex icon to open the **transfer menu** — move packages between your inventory and the depot's storage (10 weight units per depot).
+To place one, tap **⋮ → PLACE DEPOT** and confirm at your current location. Walk within range and tap its hex icon to open the **transfer menu** — move packages between your inventory and the depot's storage.
 
 Depots appear on the map as hex icons, matching the same style as drops. A **green border** indicates you're within range.
 
 ### Porter-bots
 
-Porter-bots unlock at level 30 (one more at 40 and 50). An idle bot automatically shuttles packages from any depot to whichever other depot is closer to each package's destination — no input needed. Each bot carries up to **3 weight units** at a time.
+Up to three porter-bots are bought as NETWORK skills (Porter-Bot I needs Depot II — bots only matter once packages can move *between* depots). An idle bot automatically shuttles packages from any depot to whichever other depot is closer to each package's destination — no input needed. Each bot carries up to **3 weight units** at a time (5 with Cargo Rack).
 
 Idle bots rest inside a depot; tap any depot to see how many are stationed there.
 
@@ -133,7 +131,7 @@ You can paint your entire accessible area, or place just a handful of hexes in s
 | Control | Action |
 |---------|--------|
 | ⋮ (top right) | Open the menu (Follow · Paint · Refresh · Settings) |
-| Level / score (top left) | Tap to view your upgrade track |
+| Level / score (top left) | Tap to open the skill tree |
 | Pull handle (bottom) | Collapse/expand the HUD panel |
 | Action button | Context-sensitive: pick up, deliver, finish a zone, or open settings |
 
