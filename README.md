@@ -121,7 +121,7 @@ A one-time pop-up introduces the collection right after your **first delivery**.
 
 ## Daily goal
 
-A single small goal rotates each day, shown in the HUD with a 🎯 icon and a progress bar. Examples: *deliver 3 packages*, *deliver a heavy package*, *deliver 2 standard-or-heavier packages*, *earn 300 delivery points*. Completing it pays a flat point bonus (250–400 pts).
+Daily objectives **unlock at player level 5** (a one-time pop-up introduces them when you get there), so new players learn the core loop first. After that, a single small goal rotates each day, shown in the HUD with a 🎯 icon and a progress bar. Examples: *deliver 3 packages*, *deliver a heavy package*, *deliver 2 standard-or-heavier packages*, *earn 300 delivery points*. Completing it pays a flat point bonus (250–400 pts).
 
 It's deliberately **gentle** — there is **no streak** and **no penalty** for missing a day, so the habit never turns into a chore. The goal is chosen deterministically from the local calendar day (so it rotates predictably with no day-to-day repeats), resets at your local midnight, and every goal is always achievable. Both walked and drone deliveries count toward it.
 

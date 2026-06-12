@@ -704,7 +704,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.2.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.2.1</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1217,6 +1217,19 @@ const COLLECTION_TUTORIAL = {
     'Deliver every type to <b>complete the set</b> — on foot or by drone, it all counts.'
 };
 
+// Shown once, when the player hits DAILY_GOAL_UNLOCK_LEVEL — see
+// maybeShowDailyGoalTutorial().
+const DAILY_GOAL_TUTORIAL = {
+  icon: '🎯',
+  title: 'DAILY OBJECTIVES',
+  body: 'You\'ve unlocked <b>daily objectives</b> — one small goal that changes every day.<br><br>' +
+    'Today\'s goal shows in your <b>HUD</b> with a progress bar (e.g. <i>deliver 3 packages</i> or ' +
+    '<i>deliver a heavy package</i>). Finish it for a <b>bonus of 250–400 points</b>. Both walked ' +
+    'and drone deliveries count.<br><br>' +
+    'There\'s <b>no streak and no penalty</b> — skip a day with zero guilt. A fresh goal rolls in at ' +
+    'your local midnight.'
+};
+
 // ── DAILY GOAL ──────────────────────────────────────────────
 // A gentle, guilt-free daily hook: one small goal that rotates each day and
 // pays a flat point bonus when met. Deliberately NO streak — missing a day
@@ -1224,6 +1237,9 @@ const COLLECTION_TUTORIAL = {
 // local day number, so it rotates predictably (no repeats day-to-day) and every
 // goal is always achievable. `prog` returns how much a single delivery event
 // (its packages + the points it awarded) contributes toward the target.
+// Daily objectives stay hidden until the player reaches this level, so new
+// players learn the core loop first.
+const DAILY_GOAL_UNLOCK_LEVEL = 5;
 const DAILY_GOALS = [
   { id: 'pkg3',   label: 'Deliver 3 packages',           target: 3,   reward: 250, unit: 'pkg',
     prog: function(pkgs) { return pkgs.length; } },
@@ -1272,6 +1288,7 @@ function currentGoalDef() {
 // just delivered (each needs .weight) and `pts` the points it awarded. Returns
 // { reward, lvlUp } if this call just completed the goal, else null.
 function recordGoalProgress(pkgs, pts) {
+  if (getPlayerLevel() < DAILY_GOAL_UNLOCK_LEVEL) return null;
   var dg = ensureDailyGoal();
   if (dg.done) return null;
   var def = currentGoalDef();
@@ -1656,9 +1673,10 @@ function completeDroneDelivery(drone) {
   if (newItem) msg += ' \xB7 ✨ New collection item!';
   if (goalResult) msg += ' \xB7 🎯 Daily goal! +' + goalResult.reward;
   showToast(msg, 4000);
-  // Safety net: if a drone somehow logs the player's first-ever delivery,
-  // still introduce the collection (deliveries normally come on foot first).
-  maybeShowCollectionTutorial();
+  // Surface any newly unlocked tutorial (collection on first delivery, daily
+  // objectives at the unlock level). Single modal: first match wins, the other
+  // stays pending for a later delivery.
+  maybeShowCollectionTutorial() || maybeShowDailyGoalTutorial();
   renderOrderMarkers(); updateHUD();
 }
 
@@ -3682,7 +3700,9 @@ function attemptDeliver() {
   // lingers up to 3500ms on a level-up): introduce the collection on the very
   // first delivery, otherwise flag any newly discovered item types.
   setTimeout(function() {
-    var shownTut = maybeShowCollectionTutorial();
+    // Single tutorial modal — if both would fire, the daily-goal one waits for
+    // the next delivery (dedup keeps it pending).
+    var shownTut = maybeShowCollectionTutorial() || maybeShowDailyGoalTutorial();
     // One toast slot — prioritise the daily-goal payoff over a discovery note.
     if (goalResult) {
       showToast('🎯 Daily goal complete! +' + goalResult.reward + ' pts' +
@@ -4754,6 +4774,11 @@ function showTutorial(id, cfg, badge) {
 function maybeShowCollectionTutorial() {
   return showTutorial('collection_intro', COLLECTION_TUTORIAL, 'COLLECTION UNLOCKED');
 }
+// Introduce daily objectives the first time the player is at the unlock level.
+function maybeShowDailyGoalTutorial() {
+  if (getPlayerLevel() < DAILY_GOAL_UNLOCK_LEVEL) return false;
+  return showTutorial('daily_goal_intro', DAILY_GOAL_TUTORIAL, 'DAILY OBJECTIVES UNLOCKED');
+}
 function dismissTutorial() {
   document.getElementById('tutorial-overlay').classList.remove('open');
   document.getElementById('tutorial-modal').classList.remove('open');
@@ -5381,7 +5406,13 @@ function updateHUD() {
     capStatusEl.style.display = 'block';
   }
   var dgEl = document.getElementById('daily-goal');
-  if (dgEl) { dgEl.innerHTML = dailyGoalHTML(); dgEl.style.display = 'block'; }
+  if (dgEl) {
+    if (getPlayerLevel() >= DAILY_GOAL_UNLOCK_LEVEL) {
+      dgEl.innerHTML = dailyGoalHTML(); dgEl.style.display = 'block';
+    } else {
+      dgEl.style.display = 'none';
+    }
+  }
   updateDroneStatus();
 
   var carrying  = state.carrying.length;
