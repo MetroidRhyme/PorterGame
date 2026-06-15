@@ -704,7 +704,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.3.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.3.2</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -1048,6 +1048,7 @@ const DEPOT_CAPACITY = 10;
 const BOT_CAPACITY       = 3;                 // base max weight a bot carries (CARGO RACK node adds 2)
 const BOT_RECHARGE_MS     = 15 * 60 * 1000;   // rest after each delivery trip
 const BOT_SPEED_MPS       = 1;                // drone ≈ 4 m/s; bot is 1/4 of that
+const BOT_DISPATCH_GAP_MS = 5000;             // stagger departures so two bots heading the same way don't overlap into one
 
 // ── SKILL TREE ──────────────────────────────────────────────
 // Each level grants one skill point (points earned = player level). Nodes are
@@ -1979,7 +1980,7 @@ function makeIcon(bg, emoji, size, className) {
 // `size` is the full width (left vertex → right vertex) of the flat-top hex
 // the structure fills. The black background is clipped to the hex outline so
 // the marker reads as the whole cell being filled by that structure.
-function makeDestIcon(bg, letter, size, level, borderColor, glow) {
+function makeDestIcon(bg, letter, size, level, borderColor, glow, lvlAbove) {
   var w   = size;
   var h   = Math.round(size * SQ3 / 2);   // flat-top hex height = √3/2 · width
   var fs  = Math.round(h * 0.46);
@@ -1989,21 +1990,24 @@ function makeDestIcon(bg, letter, size, level, borderColor, glow) {
   // Flat-top hexagon: top/bottom edges horizontal, points left & right.
   var clip = 'clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
   var shadow = glow ? 'filter:drop-shadow(0 0 7px rgba(48,128,192,0.9))' : '';
+  // The level badge is absolutely positioned just outside the hex (below by
+  // default, above when `lvlAbove` — used when a depot sits under the drop so
+  // the badge stays visible). Keeping it out of normal flow leaves the wrapper
+  // exactly `h` tall, so iconAnchor and the zoom-scale transformOrigin (both at
+  // the hex centre, h/2) stay correct regardless of badge side.
+  var badgePos = lvlAbove ? 'bottom:100%;margin-bottom:1px' : 'top:100%;margin-top:1px';
   var lvlHtml = level > 0
-    ? '<div style="font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;margin-top:1px;letter-spacing:1px">LV' + level + '</div>'
+    ? '<div style="position:absolute;left:0;right:0;' + badgePos + ';font-size:' + lfs + 'px;color:#000;font-family:\'Courier New\',monospace;font-weight:bold;text-align:center;letter-spacing:1px">LV' + level + '</div>'
     : '';
-  var totalH = level > 0 ? h + lfs + 3 : h;
   return L.divIcon({
-    html: '<div style="display:flex;flex-direction:column;align-items:center;width:' + w + 'px">' +
-      '<div style="position:relative;width:' + w + 'px;height:' + h + 'px;' + shadow + '">' +
+    html: '<div style="position:relative;width:' + w + 'px;height:' + h + 'px;' + shadow + '">' +
         '<div style="position:absolute;inset:0;background:' + bdrCol + ';' + clip + '"></div>' +
         '<div style="position:absolute;inset:' + bdrW + 'px;background:' + bg + ';' + clip +
           ';display:flex;align-items:center;justify-content:center;font-size:' + fs +
           'px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
-      '</div>' +
-      lvlHtml +
+        lvlHtml +
     '</div>',
-    iconSize: [w, totalH], iconAnchor: [w / 2, h / 2], className: ''
+    iconSize: [w, h], iconAnchor: [w / 2, h / 2], className: ''
   });
 }
 
@@ -4453,6 +4457,7 @@ function deleteDepotConfirm(depotId) {
 
 var botRuntime     = {};    // botId -> { marker, line }  (in-flight visuals only)
 var _botAnimInterval = null;
+var _lastBotDispatchAt = 0;  // ts of the most recent departure; gates BOT_DISPATCH_GAP_MS staggering
 
 function saveBots() { localStorage.setItem('porter_bots', JSON.stringify(state.bots)); }
 function getMaxBots() {
@@ -4603,6 +4608,10 @@ function dispatchBots() {
 
   Object.keys(groups).forEach(function(key) {
     if (!avail.length) return;
+    // Stagger departures: at most one bot leaves per BOT_DISPATCH_GAP_MS window.
+    // Time doesn't advance within this synchronous loop, so once one bot is
+    // dispatched the gap check blocks the rest until a later botTick.
+    if (Date.now() - _lastBotDispatchAt < BOT_DISPATCH_GAP_MS) return;
     var g = groups[key];
     var source = state.depots.find(function(d) { return d.id === g.source; });
     var target = state.depots.find(function(d) { return d.id === g.target; });
@@ -4629,6 +4638,7 @@ function dispatchBots() {
     if (!taken.length) return;
     taken.forEach(function(p) { p.botId = bot.id; p.transitTarget = target.id; });
     startBotTrip(bot, source, target);
+    _lastBotDispatchAt = Date.now();
     avail.shift();
     dispatched = true;
   });
@@ -5250,6 +5260,12 @@ function renderOrderMarkers() {
     if (_vd) depotStoredPkgs(_vd).forEach(function(p) { depotViewDestIds.add(p.destId); });
   }
 
+  // Container-pixel centres of every depot hex — used to flip a drop's level
+  // badge above the hex when it would otherwise be obscured by a depot below.
+  var depotPts = state.depots.map(function(dp) { return map.latLngToContainerPoint([dp.loc.lat, dp.loc.lng]); });
+  var _hexH    = Math.round(destHexPx * SQ3 / 2);
+  var _badgeH  = Math.round(destHexPx * 0.26) + 2;
+
   state.destinations.filter(function(d) { return visibleDestIds.has(d.id); }).forEach(function(d) {
     var orphaned = isDropOrphaned(d);
     var n      = orphaned ? 0 : state.carrying.filter(function(id) {
@@ -5261,8 +5277,22 @@ function renderOrderMarkers() {
     var isDepotViewDest = depotViewDestIds.has(d.id);
     var highlightBorder = (d.id === selectedDestId || d.id === viewingDropId || isDepotViewDest) ? '#ffd060' : null;
     var isFocusedDest = (selectedPkgId && d.id === selectedDestId) || (viewingDropId && d.id === viewingDropId) || isDepotViewDest;
+    var level = orphaned ? 0 : (d.level || 0);
+    // Flip the level badge above the drop if its default spot (just below the
+    // hex) would land on a depot, so the number stays readable.
+    var lvlAbove = false;
+    if (level > 0 && depotPts.length) {
+      var dpt = map.latLngToContainerPoint([d.loc.lat, d.loc.lng]);
+      var halfW = destHexPx / 2, halfH = _hexH / 2;
+      var bL = dpt.x - halfW * 0.7, bR = dpt.x + halfW * 0.7;       // badge box, below the hex
+      var bT = dpt.y + halfH,       bB = dpt.y + halfH + _badgeH;
+      lvlAbove = depotPts.some(function(pt) {
+        return bL < pt.x + halfW && bR > pt.x - halfW &&
+               bT < pt.y + halfH && bB > pt.y - halfH;
+      });
+    }
     var m = L.marker([d.loc.lat, d.loc.lng], {
-      icon: makeDestIcon(destBg, d.icon || d.label, destHexPx, orphaned ? 0 : (d.level || 0), highlightBorder, isNext),
+      icon: makeDestIcon(destBg, d.icon || d.label, destHexPx, level, highlightBorder, isNext, lvlAbove),
       pane: isFocusedDest ? 'highlightMarkerPane' : 'markerPane'
     }).addTo(map);
     if (selectedPkgId && d.id !== selectedDestId) m.setOpacity(0.5);
