@@ -32,7 +32,8 @@
       --inset: rgba(0,0,0,0.05);
       --text: #1c1c24;
       --text-cream: #2b2620;
-      --text-dim: rgba(20,20,30,0.5);
+      /* No grey secondary text in light mode — dim/label text is full black. */
+      --text-dim: #000000;
       --line: rgba(0,0,0,0.12);
       --btn-border: #cdcabf;
       --btn-border-active: #b0ad9f;
@@ -106,7 +107,7 @@
     #paint-picker.open { display: block; }
     .paint-zone-opt {
       display: block; width: 100%; padding: 12px 16px; text-align: left;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
       background: transparent; border: none;
       border-bottom: 1px solid var(--line); cursor: pointer;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -163,7 +164,7 @@
     .s-zone-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .s-zone-toggle {
       flex: 1; padding: 10px 14px; border-radius: 4px; text-align: left;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
       cursor: pointer; border: 1px solid; background: var(--inset);
       touch-action: manipulation; min-height: 44px;
       -webkit-tap-highlight-color: transparent;
@@ -267,7 +268,7 @@
       position: fixed; bottom: max(28px, env(safe-area-inset-bottom));
       left: 50%; transform: translateX(-50%);
       pointer-events: all; padding: 14px 40px; border-radius: 4px;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
       background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; cursor: pointer;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
@@ -276,7 +277,7 @@
     .s-btn {
       display: block; width: 100%; margin-top: 8px; padding: 14px;
       border-radius: 4px; font-family: 'Courier New', monospace;
-      font-size: 11px; letter-spacing: 3px; cursor: pointer;
+      font-size: 12px; letter-spacing: 3px; cursor: pointer;
       touch-action: manipulation; min-height: 48px; text-align: center;
       -webkit-tap-highlight-color: transparent;
     }
@@ -286,7 +287,7 @@
     .s-btn-dim:active    { color: var(--text); border-color: var(--btn-border-active); }
     .s-btn-danger { background: transparent; color: #c04040; border: 1px solid #602020; }
     .s-btn-danger:active { color: #e05050; border-color: #802020; }
-    .s-hint { font-size: 10px; color: var(--text); letter-spacing: 1px; margin-top: 6px; line-height: 1.6; }
+    .s-hint { font-size: 12px; color: var(--text); letter-spacing: 1px; margin-top: 6px; line-height: 1.6; }
 
     /* ── BOTTOM HUD ── */
     #hud-bottom {
@@ -330,7 +331,7 @@
     .inv-label { font-size: 13px; color: var(--text-cream); letter-spacing: 1px; }
     .inv-sub   { font-size: 10px; color: var(--text); letter-spacing: 2px; }
     .inv-abandon {
-      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
       padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
       background: transparent; color: #c04040; border: 1px solid #502020;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -338,7 +339,7 @@
     }
     .inv-abandon:active { color: #e05050; border-color: #802020; background: rgba(60,10,10,0.4); }
     .inv-drone {
-      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
       padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
       background: transparent; color: #e8a030; border: 1px solid #4a3000;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -478,14 +479,14 @@
     }
     #confirm-modal .cm-cancel {
       flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
       background: transparent; color: var(--text); border: 1px solid var(--btn-border);
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     #confirm-modal .cm-cancel:active { color: var(--text); border-color: var(--btn-border-active); }
     #confirm-modal .cm-confirm {
       flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
       background: rgba(60,10,10,0.4); color: #c04040; border: 1px solid #602020;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
@@ -584,7 +585,7 @@
     #move-banner-text { font-size: 11px; letter-spacing: 2px; color: #5ab05a; text-align: center; }
     #move-banner-cancel {
       padding: 10px 28px; border-radius: 4px; cursor: pointer; touch-action: manipulation;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
       background: transparent; border: 1px solid #602020; color: #c04040;
       -webkit-tap-highlight-color: transparent;
     }
@@ -612,7 +613,7 @@
     }
     .depot-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
     .depot-empty {
-      font-size: 11px; letter-spacing: 1px; color: #44445a; text-align: center;
+      font-size: 11px; letter-spacing: 1px; color: var(--text-dim); text-align: center;
       padding: 12px 0;
     }
     .depot-divider {
@@ -625,7 +626,7 @@
     .move-btn-wrap .move-tooltip {
       display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
       transform: translateX(-50%); background: #1a1a2a; border: 1px solid var(--btn-border);
-      border-radius: 4px; padding: 6px 10px; font-size: 10px; letter-spacing: 1px;
+      border-radius: 4px; padding: 6px 10px; font-size: 12px; letter-spacing: 1px;
       color: var(--text); white-space: nowrap; pointer-events: none; z-index: 10;
     }
     .move-btn-wrap:hover .move-tooltip,
@@ -661,14 +662,14 @@
     .ob-nav { display: flex; gap: 10px; margin-top: 4px; }
     .ob-back {
       flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
       background: transparent; color: var(--text); border: 1px solid var(--btn-border);
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .ob-back:active { color: var(--text); border-color: var(--btn-border-active); }
     .ob-next {
       flex: 2; padding: 14px; border-radius: 4px; cursor: pointer;
-      font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+      font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
       background: #0a1020; color: #5ab05a; border: 1px solid #1e3020;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
@@ -735,7 +736,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.4.0</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.4.1</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -2295,7 +2296,7 @@ function openMergeModal(sourceId) {
   if (!source) return;
   var others  = state.zones.filter(function(z) { return z.id !== sourceId; });
   var btnStyle = 'width:100%;padding:13px 14px;border-radius:4px;text-align:left;' +
-    'font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;' +
+    'font-family:\'Courier New\',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;' +
     'touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin-bottom:8px;';
   var listHtml = others.length
     ? others.map(function(z) {
@@ -2434,7 +2435,7 @@ function closeShareModal() {
 }
 
 var _mBtn = 'width:100%;padding:13px 14px;border-radius:4px;text-align:center;' +
-  'font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;' +
+  'font-family:\'Courier New\',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;' +
   'touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
 
 function showShareText(title, hint, code) {
@@ -4113,7 +4114,7 @@ function openDropPanel(destId) {
     : Math.round((totalPts - prevNeeded) / (nextNeeded - prevNeeded) * 100));
   var pkgsWaiting = state.packages.filter(function(p) { return p.destId === destId && !p.picked; }).length;
 
-  var btnStyle = 'padding:13px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid';
+  var btnStyle = 'padding:13px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid';
 
   var renameSt = getRenameStatus(dest);
   var renameHtml;
@@ -4121,7 +4122,7 @@ function openDropPanel(destId) {
     renameHtml = '<button onclick="renameDropPrompt(\'' + destId + '\')" style="width:100%;margin-bottom:8px;' + btnStyle + ' #2a2a1a;background:rgba(30,30,10,0.4);color:#c0a030">&#x270E; RENAME DROP</button>';
   } else {
     renameHtml = '<div class="move-btn-wrap" onclick="showMoveTip(this)" style="margin-bottom:8px">' +
-      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">&#x270E; RENAME DROP</button>' +
+      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:var(--text-dim);cursor:default;pointer-events:none">&#x270E; RENAME DROP</button>' +
       '<div class="move-tooltip">' + esc(renameSt.tip) + '</div>' +
       '</div>';
   }
@@ -4132,7 +4133,7 @@ function openDropPanel(destId) {
     iconHtml = '<button onclick="changeIconPrompt(\'' + destId + '\')" style="width:100%;margin-bottom:8px;' + btnStyle + ' #2a1a2a;background:rgba(30,10,30,0.4);color:#a060c0">&#x2605; CHANGE ICON</button>';
   } else {
     iconHtml = '<div class="move-btn-wrap" onclick="showMoveTip(this)" style="margin-bottom:8px">' +
-      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">&#x2605; CHANGE ICON</button>' +
+      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:var(--text-dim);cursor:default;pointer-events:none">&#x2605; CHANGE ICON</button>' +
       '<div class="move-tooltip">' + esc(iconSt.tip) + '</div>' +
       '</div>';
   }
@@ -4143,7 +4144,7 @@ function openDropPanel(destId) {
     moveHtml = '<button onclick="startMoveMode(\'' + destId + '\')" style="width:100%;margin-bottom:8px;' + btnStyle + ' #1a3a2a;background:rgba(10,30,20,0.4);color:#5ab05a">&#x2316; RELOCATE DROP</button>';
   } else {
     moveHtml = '<div class="move-btn-wrap" onclick="showMoveTip(this)" style="margin-bottom:8px">' +
-      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">&#x2316; RELOCATE DROP</button>' +
+      '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:var(--text-dim);cursor:default;pointer-events:none">&#x2316; RELOCATE DROP</button>' +
       '<div class="move-tooltip">' + esc(moveSt.tip) + '</div>' +
       '</div>';
   }
@@ -4179,7 +4180,7 @@ function openDropPanel(destId) {
     ((!dest.ownerId || dest.ownerId === state.userId)
       ? '<button onclick="deleteDropConfirm()" style="width:100%;' + btnStyle + ' #602020;background:rgba(60,10,10,0.4);color:#c04040">DELETE DROP</button>'
       : '<div class="move-btn-wrap" onclick="showMoveTip(this)">' +
-          '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:#444;cursor:default;pointer-events:none">DELETE DROP</button>' +
+          '<button style="width:100%;' + btnStyle + ' #1e1e2a;background:rgba(10,10,20,0.4);color:var(--text-dim);cursor:default;pointer-events:none">DELETE DROP</button>' +
           '<div class="move-tooltip">Owner only</div>' +
         '</div>');
 
@@ -4899,8 +4900,8 @@ function _levelBreakdownRows(upgrades, currentLevel) {
   return upgrades.map(function(u) {
     var done = currentLevel >= u.level;
     return '<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">' +
-      '<div style="font-size:12px;color:' + (done ? '#e8a030' : '#6c6c80') + ';font-weight:bold;min-width:32px;text-align:right;letter-spacing:1px">LV' + u.level + '</div>' +
-      '<div style="font-size:11px;letter-spacing:1px;color:' + (done ? 'var(--text-cream)' : '#9a9ab0') + ';flex:1">' + u.text + '</div>' +
+      '<div style="font-size:12px;color:' + (done ? '#e8a030' : 'var(--text-dim)') + ';font-weight:bold;min-width:32px;text-align:right;letter-spacing:1px">LV' + u.level + '</div>' +
+      '<div style="font-size:11px;letter-spacing:1px;color:' + (done ? 'var(--text-cream)' : 'var(--text-dim)') + ';flex:1">' + u.text + '</div>' +
       (done ? '<div style="color:#5ab05a;font-size:13px">&#x2713;</div>' : '') +
     '</div>';
   }).join('');
@@ -5006,7 +5007,7 @@ function renderSkillTreeSvg() {
 function skillDetailHtml() {
   var card = '<div style="position:sticky;bottom:0;background:#11111c;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:10px;box-shadow:0 -6px 18px rgba(0,0,0,0.45)">';
   if (!selectedSkillId) {
-    return card + '<div style="font-size:10px;color:#6c6c80;letter-spacing:1px;text-align:center;padding:8px 0">TAP A SKILL TO INSPECT IT</div></div>';
+    return card + '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;text-align:center;padding:8px 0">TAP A SKILL TO INSPECT IT</div></div>';
   }
   var n = skillById(selectedSkillId), b = skillBranchOf(n), st = skillState(n);
   var action;
@@ -5015,16 +5016,16 @@ function skillDetailHtml() {
   } else if (st === 'buyable') {
     action = '<button onclick="buySkill(\'' + n.id + '\')" style="width:100%;font-family:\'Courier New\',monospace;font-size:12px;font-weight:bold;letter-spacing:3px;padding:13px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;background:#0a1020;color:#5ab05a;border:1px solid #1e3020">UNLOCK &middot; ' + n.cost + ' SP</button>';
   } else if (st === 'locked') {
-    action = '<div style="text-align:center;color:#6c6c80;font-size:10px;letter-spacing:2px;padding:10px 0">&#x1F512; REQUIRES ' + esc(skillById(n.req).name) + '</div>';
+    action = '<div style="text-align:center;color:var(--text-dim);font-size:10px;letter-spacing:2px;padding:10px 0">&#x1F512; REQUIRES ' + esc(skillById(n.req).name) + '</div>';
   } else {
-    action = '<div style="text-align:center;color:#6c6c80;font-size:10px;letter-spacing:2px;padding:10px 0">COSTS ' + n.cost + ' SP &middot; NEED ' + (n.cost - skillPointsAvailable()) + ' MORE</div>';
+    action = '<div style="text-align:center;color:var(--text-dim);font-size:10px;letter-spacing:2px;padding:10px 0">COSTS ' + n.cost + ' SP &middot; NEED ' + (n.cost - skillPointsAvailable()) + ' MORE</div>';
   }
   return card +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
       '<div style="font-size:11px;letter-spacing:2px;color:var(--text-cream)">' + esc(n.name) + '</div>' +
       '<div style="font-size:9px;letter-spacing:2px;color:' + b.color + ';flex-shrink:0">' + b.label + '</div>' +
     '</div>' +
-    '<div style="font-size:11px;color:#9a9ab0;line-height:1.5;margin:6px 0 10px">' + esc(n.desc) + '</div>' +
+    '<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin:6px 0 10px">' + esc(n.desc) + '</div>' +
     action + '</div>';
 }
 
@@ -5045,7 +5046,7 @@ function renderSkillTree() {
       '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:var(--text);font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
     '</div>' +
     '<div style="font-size:12px;color:var(--text);letter-spacing:2px;margin-bottom:4px">LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
-    '<div style="font-size:12px;letter-spacing:2px;color:' + (avail > 0 ? '#e8a030' : '#6c6c80') + '">' + avail + ' SKILL POINT' + (avail !== 1 ? 'S' : '') + ' TO SPEND</div>' +
+    '<div style="font-size:12px;letter-spacing:2px;color:' + (avail > 0 ? '#e8a030' : 'var(--text-dim)') + '">' + avail + ' SKILL POINT' + (avail !== 1 ? 'S' : '') + ' TO SPEND</div>' +
     '<div style="display:flex;gap:16px;justify-content:center;margin:10px 0 2px">' +
       SKILL_BRANCHES.map(function(b) {
         return '<div style="font-size:9px;letter-spacing:2px;color:' + b.color + '">&#9679;&nbsp;' + b.label + '</div>';
@@ -5077,7 +5078,7 @@ function showDropLevelBreakdown(destId) {
       '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:var(--text);font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
     '</div>' +
     '<div style="font-size:12px;color:var(--text);letter-spacing:2px;margin-bottom:6px">DROP ' + esc(dest.label) + ' &nbsp;&middot;&nbsp; LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
-    '<div style="font-size:10px;color:#444;letter-spacing:1px;margin-bottom:12px">Each level: +1% delivery bonus</div>' +
+    '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:12px">Each level: +1% delivery bonus</div>' +
     _levelBreakdownRows(DROP_UPGRADES, level);
   document.getElementById('level-overlay').classList.add('open');
   document.getElementById('level-modal').classList.add('open');
