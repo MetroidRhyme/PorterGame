@@ -736,7 +736,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.4.1</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.4.2</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -3745,8 +3745,8 @@ function scheduleDropSpawn(dest) {
   _spawnTimers[dest.id] = setTimeout(function() {
     delete _spawnTimers[dest.id];
     dest.nextSpawnAfter = 0;
-    saveGameState();
     spawnPackagesForDrop(dest);
+    saveGameState();
     renderOrderMarkers(); updateHUD();
   }, delay);
 }
@@ -5874,6 +5874,19 @@ function onReturnFromAway() {
   if (state.bots.some(function(b) { return !!b.trip; })) startBotAnim();
   botTick();                                        // dispatch freshly-available bots
   updateHUD(); updateDroneStatus(); updateCapBar();
+  // Package spawn timers face the same throttling problem — reconcile them too.
+  var now = Date.now(), spawnChanged = false;
+  state.destinations.forEach(function(dest) {
+    if (!dest.nextSpawnAfter) return;
+    if (now >= dest.nextSpawnAfter) {
+      if (_spawnTimers[dest.id]) { clearTimeout(_spawnTimers[dest.id]); delete _spawnTimers[dest.id]; }
+      spawnPackagesForDrop(dest);
+      spawnChanged = true;
+    } else if (!_spawnTimers[dest.id]) {
+      scheduleDropSpawn(dest);
+    }
+  });
+  if (spawnChanged) { saveGameState(); renderOrderMarkers(); updateHUD(); }
 }
 document.addEventListener('visibilitychange', onReturnFromAway);
 window.addEventListener('pageshow', onReturnFromAway);
