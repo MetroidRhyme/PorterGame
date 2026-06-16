@@ -6,10 +6,41 @@
   <title>PORTER</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
-    :root { --hud-top-h: 70px; }
+    /* Theme tokens. Dark is the default; .light-mode on <body> overrides them.
+       Only neutral surfaces/text/lines are tokenized — accent colors (amber,
+       green, blue, red, violet) stay literal since they read well on both. */
+    :root {
+      --hud-top-h: 70px;
+      --bg: #0a0a0f;
+      --surface: #0d0d14;
+      --hud-bg: rgba(10,10,15,0.9);
+      --popover-bg: rgba(13,13,20,0.97);
+      --inset: rgba(0,0,0,0.35);
+      --text: #fff;
+      --text-cream: #e0d8c8;
+      --text-dim: rgba(255,255,255,0.4);
+      --line: rgba(255,255,255,0.08);
+      --btn-border: #2a2a3a;
+      --btn-border-active: #4a4a5a;
+      --handle: #2e2e3e;
+    }
+    body.light-mode {
+      --bg: #ece9e1;
+      --surface: #ffffff;
+      --hud-bg: rgba(247,245,239,0.92);
+      --popover-bg: rgba(250,248,243,0.98);
+      --inset: rgba(0,0,0,0.05);
+      --text: #1c1c24;
+      --text-cream: #2b2620;
+      --text-dim: rgba(20,20,30,0.5);
+      --line: rgba(0,0,0,0.12);
+      --btn-border: #cdcabf;
+      --btn-border-active: #b0ad9f;
+      --handle: #cdcabf;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #0a0a0f; color: #e0d8c8;
+      background: var(--bg); color: var(--text-cream);
       font-family: 'Courier New', monospace;
       height: 100dvh; overflow: hidden;
     }
@@ -22,32 +53,32 @@
     /* ── TOP HUD ── */
     #hud-top {
       position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
-      background: rgba(10,10,15,0.88);
+      background: var(--hud-bg);
       backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid var(--line);
       padding: max(12px, env(safe-area-inset-top)) 16px 12px;
       display: flex; justify-content: space-between; align-items: center; gap: 12px;
     }
     #hud-top-left { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 0; }
     #game-title { display: flex; flex-direction: column; font-size: 18px; font-weight: bold; letter-spacing: 6px; color: #e8a030; white-space: nowrap; flex-shrink: 0; padding-top: 3px; }
-    #game-version { font-size: 9px; font-weight: normal; letter-spacing: 2px; color: #fff; margin-top: 1px; }
+    #game-version { font-size: 9px; font-weight: normal; letter-spacing: 2px; color: var(--text); margin-top: 1px; }
     #score-display { text-align: left; flex-shrink: 0; }
     #score-display .value { font-size: 22px; color: #e8a030; }
-    #top-lvl-bar-wrap { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,0.06); }
+    #top-lvl-bar-wrap { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--line); }
     #top-lvl-bar { height: 3px; background: #e8a030; transition: width 0.4s; }
 
     #top-menu-btn {
       font-size: 20px; line-height: 1; padding: 10px 14px; border-radius: 4px;
-      background: transparent; color: #fff; border: 1px solid #2a2a3a; cursor: pointer;
+      background: transparent; color: var(--text); border: 1px solid var(--btn-border); cursor: pointer;
       touch-action: manipulation; min-height: 44px; min-width: 44px; flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
     }
-    #top-menu-btn:active { color: #fff; border-color: #4a4a5a; }
+    #top-menu-btn:active { color: var(--text); border-color: var(--btn-border-active); }
     #paint-btn.active { color: #e8a030; }
 
     #top-menu {
       position: fixed; top: var(--hud-top-h); right: 12px; z-index: 2500;
-      background: rgba(13,13,20,0.97); border: 1px solid rgba(255,255,255,0.1);
+      background: var(--popover-bg); border: 1px solid var(--line);
       border-radius: 6px; min-width: 180px; display: none;
       max-height: 60vh; overflow-y: auto;
       backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -56,19 +87,19 @@
     .top-menu-item {
       display: block; width: 100%; padding: 14px 18px; text-align: left;
       font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
-      background: transparent; border: none; color: #fff;
-      border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+      background: transparent; border: none; color: var(--text);
+      border-bottom: 1px solid var(--line); cursor: pointer;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent; box-sizing: border-box;
     }
     .top-menu-item:last-child { border-bottom: none; }
-    .top-menu-item:active { background: rgba(40,40,60,0.8); color: #fff; }
+    .top-menu-item:active { background: rgba(40,40,60,0.8); color: var(--text); }
     #follow-btn.active { color: #5ab05a; }
 
     #paint-picker-backdrop { display: none; position: fixed; inset: 0; z-index: 1997; }
     #paint-picker-backdrop.open { display: block; }
     #paint-picker {
       position: fixed; top: var(--hud-top-h); right: 12px; z-index: 1998;
-      background: rgba(13,13,20,0.97); border: 1px solid rgba(255,255,255,0.08);
+      background: var(--popover-bg); border: 1px solid var(--line);
       border-radius: 6px; min-width: 200px; max-height: 50vh; overflow-y: auto;
       display: none;
     }
@@ -77,7 +108,7 @@
       display: block; width: 100%; padding: 12px 16px; text-align: left;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
       background: transparent; border: none;
-      border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+      border-bottom: 1px solid var(--line); cursor: pointer;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .paint-zone-opt:last-child { border-bottom: none; }
@@ -99,7 +130,7 @@
     #settings-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
     #settings-drawer {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 4001;
-      background: #0d0d14; border-top: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface); border-top: 1px solid var(--line);
       border-radius: 18px 18px 0 0; max-height: 82vh; overflow-y: auto;
       padding-bottom: max(24px, env(safe-area-inset-bottom));
       transform: translateY(100%);
@@ -112,48 +143,48 @@
     }
     .s-handle::before {
       content: ''; display: block; width: 44px; height: 4px;
-      background: #2e2e3e; border-radius: 2px;
+      background: var(--handle); border-radius: 2px;
     }
     .s-header {
       display: flex; justify-content: space-between; align-items: center;
       padding: 4px 20px 14px;
     }
-    .s-title { font-size: 10px; letter-spacing: 4px; color: #fff; }
+    .s-title { font-size: 10px; letter-spacing: 4px; color: var(--text); }
     .s-close {
-      font-family: 'Courier New', monospace; font-size: 14px; color: #fff;
+      font-family: 'Courier New', monospace; font-size: 14px; color: var(--text);
       background: transparent; border: none; cursor: pointer; padding: 8px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
-    .s-close:active { color: #fff; }
+    .s-close:active { color: var(--text); }
 
-    .s-section { padding: 0 20px 16px; border-top: 1px solid rgba(255,255,255,0.05); }
-    .s-section-label { font-size: 10px; letter-spacing: 3px; color: #fff; padding: 14px 0 10px; }
+    .s-section { padding: 0 20px 16px; border-top: 1px solid var(--line); }
+    .s-section-label { font-size: 10px; letter-spacing: 3px; color: var(--text); padding: 14px 0 10px; }
 
     .s-zone-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .s-zone-toggle {
       flex: 1; padding: 10px 14px; border-radius: 4px; text-align: left;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
-      cursor: pointer; border: 1px solid; background: rgba(0,0,0,0.3);
+      cursor: pointer; border: 1px solid; background: var(--inset);
       touch-action: manipulation; min-height: 44px;
       -webkit-tap-highlight-color: transparent;
     }
     .s-zone-edit {
-      font-size: 14px; color: #fff; background: transparent;
-      border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
+      font-size: 14px; color: var(--text); background: transparent;
+      border: 1px solid var(--btn-border); border-radius: 4px; cursor: pointer;
       padding: 10px 12px; min-height: 44px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-edit:active { color: #5ab05a; border-color: #1e4020; }
     .s-zone-del {
-      font-size: 14px; color: #fff; background: transparent;
-      border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
+      font-size: 14px; color: var(--text); background: transparent;
+      border: 1px solid var(--btn-border); border-radius: 4px; cursor: pointer;
       padding: 10px 12px; min-height: 44px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .s-zone-del:active { color: #c04040; border-color: #602020; }
     .s-zone-merge {
-      font-size: 14px; color: #fff; background: transparent;
-      border: 1px solid #2a2a3a; border-radius: 4px; cursor: pointer;
+      font-size: 14px; color: var(--text); background: transparent;
+      border: 1px solid var(--btn-border); border-radius: 4px; cursor: pointer;
       padding: 10px 12px; min-height: 44px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
@@ -166,7 +197,7 @@
     }
     #merge-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     #merge-modal {
-      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      background: var(--surface); border: 1px solid var(--line);
       border-radius: 10px; padding: 24px 20px 18px; width: min(340px, calc(100vw - 40px));
       display: flex; flex-direction: column; gap: 10px; max-height: 80vh; overflow-y: auto;
       animation: modal-in 0.22s ease-out;
@@ -178,7 +209,7 @@
     }
     #share-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     #share-modal {
-      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      background: var(--surface); border: 1px solid var(--line);
       border-radius: 10px; padding: 24px 20px 18px; width: min(360px, calc(100vw - 40px));
       display: flex; flex-direction: column; gap: 10px; max-height: 84vh; overflow-y: auto;
       animation: modal-in 0.22s ease-out;
@@ -187,19 +218,19 @@
       width: 100%; box-sizing: border-box; resize: none;
       font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.5;
       letter-spacing: 0.5px; word-break: break-all;
-      background: rgba(0,0,0,0.4); color: #e0d8c8;
-      border: 1px solid #2a2a3a; border-radius: 6px; padding: 12px; outline: none;
+      background: var(--inset); color: var(--text-cream);
+      border: 1px solid var(--btn-border); border-radius: 6px; padding: 12px; outline: none;
     }
     .share-textarea:focus { border-color: #4a4a6a; }
 
-    .s-empty { font-size: 12px; color: #fff; letter-spacing: 1px; padding: 6px 0 4px; }
+    .s-empty { font-size: 12px; color: var(--text); letter-spacing: 1px; padding: 6px 0 4px; }
     .s-name-input {
       width: 100%; padding: 10px 14px; border-radius: 4px; margin-bottom: 8px;
       font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 2px;
-      background: rgba(0,0,0,0.3); color: #e0d8c8;
-      border: 1px solid #2a2a3a; outline: none; box-sizing: border-box;
+      background: var(--inset); color: var(--text-cream);
+      border: 1px solid var(--btn-border); outline: none; box-sizing: border-box;
     }
-    .s-name-input::placeholder { color: #3a3a4a; }
+    .s-name-input::placeholder { color: var(--text-dim); }
     .s-name-input:focus { border-color: #4a4a6a; }
 
     /* ── ZONE ADJUST ── */
@@ -210,8 +241,8 @@
     #adjust-overlay.open { display: block; }
     #adjust-banner {
       position: fixed; top: 0; left: 0; right: 0; z-index: 3001;
-      background: rgba(10,10,15,0.9); backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: var(--hud-bg); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
       padding: max(14px, env(safe-area-inset-top)) 16px 14px;
       text-align: center; font-size: 10px; letter-spacing: 4px; color: #e8a030;
       pointer-events: all;
@@ -224,8 +255,8 @@
       pointer-events: all;
     }
     .adj-btn {
-      font-size: 22px; background: rgba(10,10,15,0.88); color: #fff;
-      border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+      font-size: 22px; background: var(--hud-bg); color: var(--text);
+      border: 1px solid var(--line); border-radius: 6px;
       cursor: pointer; touch-action: manipulation;
       display: flex; align-items: center; justify-content: center;
       -webkit-tap-highlight-color: transparent;
@@ -251,18 +282,18 @@
     }
     .s-btn-green  { background: #0a1020; color: #5ab05a; border: 1px solid #1e3020; }
     .s-btn-green:active  { background: #0e1828; }
-    .s-btn-dim    { background: transparent; color: #fff; border: 1px solid #2a2a3a; }
-    .s-btn-dim:active    { color: #fff; border-color: #4a4a5a; }
+    .s-btn-dim    { background: transparent; color: var(--text); border: 1px solid var(--btn-border); }
+    .s-btn-dim:active    { color: var(--text); border-color: var(--btn-border-active); }
     .s-btn-danger { background: transparent; color: #c04040; border: 1px solid #602020; }
     .s-btn-danger:active { color: #e05050; border-color: #802020; }
-    .s-hint { font-size: 10px; color: #fff; letter-spacing: 1px; margin-top: 6px; line-height: 1.6; }
+    .s-hint { font-size: 10px; color: var(--text); letter-spacing: 1px; margin-top: 6px; line-height: 1.6; }
 
     /* ── BOTTOM HUD ── */
     #hud-bottom {
       position: fixed; bottom: 0; left: 0; right: 0; z-index: 2000;
-      background: rgba(10,10,15,0.92);
+      background: var(--hud-bg);
       backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid var(--line);
       border-radius: 18px 18px 0 0;
       padding-bottom: max(18px, env(safe-area-inset-bottom));
     }
@@ -274,9 +305,9 @@
     }
     #hud-collapse-btn::before {
       content: ''; display: block; width: 44px; height: 4px;
-      background: #2e2e3e; border-radius: 2px; transition: background 0.15s;
+      background: var(--handle); border-radius: 2px; transition: background 0.15s;
     }
-    #hud-collapse-btn:active::before { background: #4a4a5a; }
+    #hud-collapse-btn:active::before { background: var(--btn-border-active); }
 
     #collapsible-hud {
       overflow: hidden; max-height: 800px; opacity: 1; padding: 0 16px;
@@ -284,20 +315,20 @@
     }
     #hud-bottom.collapsed #collapsible-hud { max-height: 0; opacity: 0; }
 
-    #mission-status   { font-size: 10px; letter-spacing: 3px; color: #fff; margin-bottom: 4px; }
-    #drone-status     { font-size: 10px; letter-spacing: 2px; color: #fff; margin-bottom: 6px; display: none; }
-    #mission-detail   { font-size: 14px; color: #c8b8a0; line-height: 1.5; }
+    #mission-status   { font-size: 10px; letter-spacing: 3px; color: var(--text); margin-bottom: 4px; }
+    #drone-status     { font-size: 10px; letter-spacing: 2px; color: var(--text); margin-bottom: 6px; display: none; }
+    #mission-detail   { font-size: 14px; color: var(--text-cream); line-height: 1.5; }
     #mission-distance { font-size: 11px; color: #6ab06a; margin-top: 5px; min-height: 16px; }
 
     #inventory { display: none; margin-top: 10px; }
     .inv-grid { display:grid; grid-template-columns:1fr auto auto; width:100%; }
-    .ig-cell { padding:9px 0; border-top:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; }
+    .ig-cell { padding:9px 0; border-top:1px solid var(--line); display:flex; align-items:center; }
     .ig-info  { flex-direction:column; align-items:flex-start; gap:3px; min-width:0; padding-right:8px; }
     .ig-drone, .ig-action { justify-content:center; padding-left:8px; }
     .ig-hdr   { border-top:none; padding:4px 0 8px; opacity:0.45; }
     .inv-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-    .inv-label { font-size: 13px; color: #e0d8c8; letter-spacing: 1px; }
-    .inv-sub   { font-size: 10px; color: #fff; letter-spacing: 2px; }
+    .inv-label { font-size: 13px; color: var(--text-cream); letter-spacing: 1px; }
+    .inv-sub   { font-size: 10px; color: var(--text); letter-spacing: 2px; }
     .inv-abandon {
       font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
       padding: 8px 12px; border-radius: 3px; cursor: pointer; min-height: 38px;
@@ -317,7 +348,7 @@
 
     #secondary-btn {
       display: none; width: 100%; margin-top: 10px; padding: 14px;
-      background: transparent; color: #fff; border: 1px solid #2a2a3a; border-radius: 4px;
+      background: transparent; color: var(--text); border: 1px solid var(--btn-border); border-radius: 4px;
       font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 3px;
       cursor: pointer; touch-action: manipulation; min-height: 48px;
       -webkit-tap-highlight-color: transparent;
@@ -325,8 +356,8 @@
     #secondary-btn:active { color: #c04040; border-color: #602020; }
 
     #action-row { display: flex; align-items: stretch; gap: 10px; margin: 10px 16px 0; }
-    #map-attribution { font-size: 8px; color: rgba(255,255,255,0.25); text-align: right; padding: 3px 10px max(4px, env(safe-area-inset-bottom)) 0; letter-spacing: 0.5px; }
-    #map-attribution a { color: rgba(255,255,255,0.35); text-decoration: none; }
+    #map-attribution { font-size: 8px; color: var(--text-dim); text-align: right; padding: 3px 10px max(4px, env(safe-area-inset-bottom)) 0; letter-spacing: 0.5px; }
+    #map-attribution a { color: var(--text-dim); text-decoration: none; }
     #grapple-btn {
       position: relative; overflow: hidden;
       flex: 0 0 auto; width: 58px; min-height: 58px; padding: 0;
@@ -420,7 +451,7 @@
     }
     .completion-label { font-size: 14px; letter-spacing: 8px; color: #3080c0; }
     .completion-pts   { font-size: 56px; font-weight: bold; color: #e8a030; margin-top: 4px; }
-    .completion-sub   { font-size: 11px; letter-spacing: 3px; color: #fff; margin-top: 6px; }
+    .completion-sub   { font-size: 11px; letter-spacing: 3px; color: var(--text); margin-top: 6px; }
 
 
     /* ── CONFIRM MODAL ── */
@@ -430,7 +461,7 @@
     }
     #confirm-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     #confirm-modal {
-      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      background: var(--surface); border: 1px solid var(--line);
       border-radius: 10px; padding: 28px 24px 20px; width: min(320px, calc(100vw - 48px));
       display: flex; flex-direction: column; gap: 12px;
       animation: modal-in 0.22s ease-out;
@@ -439,7 +470,7 @@
       font-size: 11px; letter-spacing: 4px; color: #c04040; text-align: center;
     }
     #confirm-modal .cm-body {
-      font-size: 13px; color: #fff; text-align: center; line-height: 1.6;
+      font-size: 13px; color: var(--text); text-align: center; line-height: 1.6;
       letter-spacing: 1px;
     }
     #confirm-modal .cm-btns {
@@ -448,10 +479,10 @@
     #confirm-modal .cm-cancel {
       flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
-      background: transparent; color: #fff; border: 1px solid #2a2a3a;
+      background: transparent; color: var(--text); border: 1px solid var(--btn-border);
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
-    #confirm-modal .cm-cancel:active { color: #fff; border-color: #4a4a5a; }
+    #confirm-modal .cm-cancel:active { color: var(--text); border-color: var(--btn-border-active); }
     #confirm-modal .cm-confirm {
       flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
@@ -468,7 +499,7 @@
     #drop-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
     #drop-panel {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 5001;
-      background: #0d0d14; border-top: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface); border-top: 1px solid var(--line);
       border-radius: 18px 18px 0 0;
       padding: 20px 20px max(20px, env(safe-area-inset-bottom));
       transform: translateY(100%);
@@ -484,24 +515,24 @@
     #level-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
     #level-modal {
       position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-      z-index: 6001; background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      z-index: 6001; background: var(--surface); border: 1px solid var(--line);
       border-radius: 10px; padding: 20px; width: min(390px, calc(100vw - 24px));
       max-height: 86vh; overflow-y: auto; display: none;
     }
     #level-modal.open { display: block; animation: modal-in-centered 0.22s ease-out; }
 
     /* ── COLLECTION / DELIVERY LOG ── */
-    .coll-prog-track { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 10px 0 6px; }
+    .coll-prog-track { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 10px 0 6px; }
     .coll-prog-fill  { height: 100%; background: #e8a030; border-radius: 3px; transition: width 0.3s; }
     .coll-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
     .coll-cell {
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      background: var(--line); border: 1px solid var(--line);
       border-radius: 8px; padding: 9px 11px; min-height: 46px;
       display: flex; flex-direction: column; justify-content: center; gap: 3px;
     }
     .coll-cell.found { border-color: rgba(232,160,48,0.4); background: rgba(232,160,48,0.07); }
-    .coll-name  { font-size: 11px; letter-spacing: 0.5px; color: #e0d8c8; line-height: 1.3; }
-    .coll-cell:not(.found) .coll-name { color: rgba(255,255,255,0.22); font-style: italic; }
+    .coll-name  { font-size: 11px; letter-spacing: 0.5px; color: var(--text-cream); line-height: 1.3; }
+    .coll-cell:not(.found) .coll-name { color: var(--text-dim); font-style: italic; }
     .coll-count { font-size: 9px; letter-spacing: 1px; color: #e8a030; }
 
     /* ── ABILITY TUTORIAL ── */
@@ -512,7 +543,7 @@
     #tutorial-modal {
       position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
       z-index: 6201; display: none; text-align: center;
-      background: #0d0d14; border: 1px solid #3a2a55; border-radius: 12px;
+      background: var(--surface); border: 1px solid #3a2a55; border-radius: 12px;
       padding: 24px 22px; width: min(330px, calc(100vw - 40px));
       max-height: 86vh; overflow-y: auto;
       box-shadow: 0 0 40px 4px rgba(160,110,255,0.25);
@@ -529,10 +560,10 @@
       margin-bottom: 12px;
     }
     #tutorial-body {
-      font-size: 13px; line-height: 1.6; color: #c8b8a0; text-align: left;
+      font-size: 13px; line-height: 1.6; color: var(--text-cream); text-align: left;
       margin-bottom: 20px;
     }
-    #tutorial-body b { color: #e0d8c8; }
+    #tutorial-body b { color: var(--text-cream); }
     #tutorial-ok {
       width: 100%; padding: 14px; border-radius: 6px; cursor: pointer;
       background: #2a1c40; color: #c89bff; border: 1px solid #6a4ab0;
@@ -565,7 +596,7 @@
     #depot-overlay.open { display: block; animation: backdrop-in 0.2s ease-out; }
     #depot-panel {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 5001;
-      background: #0d0d14; border-top: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface); border-top: 1px solid var(--line);
       border-radius: 18px 18px 0 0;
       padding: 20px 20px max(20px, env(safe-area-inset-bottom));
       transform: translateY(100%);
@@ -573,11 +604,11 @@
       max-height: 86vh; overflow-y: auto;
     }
     #depot-panel.open { transform: translateY(0); }
-    .depot-section-hdr { font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.5); margin: 4px 0 6px; }
+    .depot-section-hdr { font-size: 9px; letter-spacing: 2px; color: var(--text-dim); margin: 4px 0 6px; }
     .depot-list { display: flex; flex-direction: column; }
     .depot-row {
       display: flex; align-items: center; gap: 10px;
-      padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 8px 0; border-top: 1px solid var(--line);
     }
     .depot-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
     .depot-empty {
@@ -593,9 +624,9 @@
     .move-btn-wrap { position: relative; width: 100%; }
     .move-btn-wrap .move-tooltip {
       display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
-      transform: translateX(-50%); background: #1a1a2a; border: 1px solid #2a2a3a;
+      transform: translateX(-50%); background: #1a1a2a; border: 1px solid var(--btn-border);
       border-radius: 4px; padding: 6px 10px; font-size: 10px; letter-spacing: 1px;
-      color: #fff; white-space: nowrap; pointer-events: none; z-index: 10;
+      color: var(--text); white-space: nowrap; pointer-events: none; z-index: 10;
     }
     .move-btn-wrap:hover .move-tooltip,
     .move-btn-wrap.tip-open .move-tooltip { display: block; }
@@ -608,7 +639,7 @@
     }
     #onboarding-overlay.open { display: flex; animation: backdrop-in 0.2s ease-out; }
     .ob-card {
-      background: #0d0d14; border: 1px solid rgba(255,255,255,0.1);
+      background: var(--surface); border: 1px solid var(--line);
       border-radius: 12px; padding: 32px 24px 24px;
       width: min(360px, 100%); display: flex; flex-direction: column; gap: 20px;
       animation: modal-in 0.22s ease-out;
@@ -616,14 +647,14 @@
     .ob-dots { display: flex; justify-content: center; gap: 8px; }
     .ob-dot {
       width: 6px; height: 6px; border-radius: 50%;
-      background: #2a2a3a; transition: background 0.2s;
+      background: var(--btn-border); transition: background 0.2s;
     }
     .ob-dot.active { background: #e8a030; }
     .ob-title { font-size: 11px; letter-spacing: 5px; color: #e8a030; text-align: center; }
-    .ob-body { font-size: 13px; color: #fff; line-height: 1.7; letter-spacing: 0.5px; text-align: center; }
+    .ob-body { font-size: 13px; color: var(--text); line-height: 1.7; letter-spacing: 0.5px; text-align: center; }
     .ob-bullets { list-style: none; display: flex; flex-direction: column; gap: 10px; }
     .ob-bullets li {
-      font-size: 12px; color: #fff; line-height: 1.5; letter-spacing: 0.5px;
+      font-size: 12px; color: var(--text); line-height: 1.5; letter-spacing: 0.5px;
       padding-left: 18px; position: relative;
     }
     .ob-bullets li::before { content: '·'; position: absolute; left: 0; color: #e8a030; font-size: 18px; line-height: 1.1; }
@@ -631,10 +662,10 @@
     .ob-back {
       flex: 1; padding: 14px; border-radius: 4px; cursor: pointer;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
-      background: transparent; color: #fff; border: 1px solid #2a2a3a;
+      background: transparent; color: var(--text); border: 1px solid var(--btn-border);
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
-    .ob-back:active { color: #fff; border-color: #4a4a5a; }
+    .ob-back:active { color: var(--text); border-color: var(--btn-border-active); }
     .ob-next {
       flex: 2; padding: 14px; border-radius: 4px; cursor: pointer;
       font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
@@ -643,30 +674,30 @@
     }
     .ob-next:active { background: #0e1828; }
 
-    #cap-progress { font-size: 9px; color: #fff; letter-spacing: 1px; text-align: left; margin-top: 2px; }
+    #cap-progress { font-size: 9px; color: var(--text); letter-spacing: 1px; text-align: left; margin-top: 2px; }
     #cap-bar { position:fixed; right:8px; bottom:0; z-index:1500; display:flex; flex-direction:column; align-items:center; gap:5px; pointer-events:none; transition:opacity 0.2s; }
     #cap-bar.hidden { opacity:0; }
-    #cap-bar-sections { display:flex; flex-direction:column-reverse; gap:1px; background:rgba(30,30,45,0.85); border:1px solid rgba(255,255,255,0.18); border-radius:4px; overflow:hidden; padding:1px; }
-    .cap-seg { width:10px; height:26px; border-radius:1px; background:rgba(255,255,255,0.06); }
+    #cap-bar-sections { display:flex; flex-direction:column-reverse; gap:1px; background:rgba(30,30,45,0.85); border:1px solid var(--line); border-radius:4px; overflow:hidden; padding:1px; }
+    .cap-seg { width:10px; height:26px; border-radius:1px; background:var(--line); }
     .cap-seg.filled { background:#e8a030; }
     #cap-bar-label { font-size:9px; font-family:'Courier New',monospace; color:rgba(0,0,0,0.65); letter-spacing:0.5px; white-space:nowrap; }
     #cap-status { display:none; margin-bottom:4px; }
     #drone-status { margin-bottom:8px; }
     .status-row { display:flex; align-items:center; gap:8px; }
     .status-icon-cell { width:16px; height:16px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-    .status-bar-track { flex:1; height:5px; background:rgba(255,255,255,0.12); border-radius:3px; overflow:hidden; }
-    .status-bar-segs { flex:1; display:flex; gap:1px; height:7px; box-sizing:border-box; background:rgba(25,25,40,0.75); border-radius:3px; border:1px solid rgba(255,255,255,0.15); overflow:hidden; }
+    .status-bar-track { flex:1; height:5px; background:var(--line); border-radius:3px; overflow:hidden; }
+    .status-bar-segs { flex:1; display:flex; gap:1px; height:7px; box-sizing:border-box; background:rgba(25,25,40,0.75); border-radius:3px; border:1px solid var(--line); overflow:hidden; }
     .status-bar-seg { flex:1; height:100%; }
     .status-bar-fill { height:100%; background:#e8a030; border-radius:3px; }
     .status-right { flex-shrink:0; width:52px; text-align:right; }
-    .status-value { font-size:11px; color:#e0d8c8; letter-spacing:1px; }
-    .status-sub-note { font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-top:2px; }
+    .status-value { font-size:11px; color:var(--text-cream); letter-spacing:1px; }
+    .status-sub-note { font-size:9px; color:var(--text-dim); letter-spacing:1px; margin-top:2px; }
     #daily-goal { margin-bottom:8px; }
     .dg-row { display:flex; align-items:center; gap:8px; }
     .dg-icon { font-size:13px; line-height:1; flex-shrink:0; }
     .dg-main { flex:1; min-width:0; }
-    .dg-label { font-size:10px; letter-spacing:1px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
-    .dg-track { height:5px; background:rgba(255,255,255,0.12); border-radius:3px; overflow:hidden; }
+    .dg-label { font-size:10px; letter-spacing:1px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+    .dg-track { height:5px; background:var(--line); border-radius:3px; overflow:hidden; }
     .dg-fill { height:100%; background:#e8a030; border-radius:3px; transition:width 0.3s; }
     .dg-fill.done { background:#6aaa6a; }
     .dg-prog { flex-shrink:0; min-width:46px; text-align:right; font-size:9px; letter-spacing:1px; color:#e8a030; }
@@ -680,9 +711,9 @@
     .completion-level  { font-size: 11px; letter-spacing: 3px; color: #5ab05a; margin-top: 6px; }
     #toast {
       position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
-      background: rgba(13,13,20,0.95); border: 1px solid rgba(255,255,255,0.1);
+      background: var(--popover-bg); border: 1px solid var(--line);
       border-radius: 6px; padding: 10px 16px; font-size: 11px; letter-spacing: 1px;
-      color: #fff; z-index: 9000; pointer-events: none;
+      color: var(--text); z-index: 9000; pointer-events: none;
       max-width: calc(100vw - 48px); text-align: center;
       opacity: 0; transition: opacity 0.3s;
     }
@@ -691,9 +722,9 @@
     #order-info {
       display: none; position: fixed; z-index: 1500; pointer-events: none;
       right: 8px;
-      background: rgba(10,10,15,0.92);
+      background: var(--hud-bg);
       backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+      border: 1px solid var(--line); border-radius: 8px;
       padding: 12px 14px; min-width: 150px; max-width: 210px;
       font-family: 'Courier New', monospace;
     }
@@ -704,7 +735,7 @@
 
 <div id="hud-top">
   <div id="hud-top-left">
-    <div id="game-title">PORTER<span id="game-version">v2.3.2</span></div>
+    <div id="game-title">PORTER<span id="game-version">v2.4.0</span></div>
     <div id="score-display" onclick="openSkillTree()" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <div class="value" id="score-value">0</div>
       <div id="cap-progress"></div>
@@ -756,6 +787,12 @@
   </div>
 
   <div class="s-section">
+    <div class="s-section-label">APPEARANCE</div>
+    <button class="s-btn s-btn-dim" id="s-theme-btn" onclick="toggleLightMode()">LIGHT MODE: OFF</button>
+    <div class="s-hint">Switch between the dark and light interface theme.</div>
+  </div>
+
+  <div class="s-section">
     <div class="s-section-label">COLLECTION</div>
     <button class="s-btn s-btn-dim" onclick="openCollection()">VIEW DELIVERY LOG</button>
     <div class="s-hint">Every item type you've delivered, Pok&eacute;dex-style.</div>
@@ -793,12 +830,12 @@
     <button class="s-btn s-btn-danger" onclick="resetProfile()">RESET PROFILE</button>
   </div>
 
-  <div style="padding:14px 20px 20px;border-top:1px solid rgba(255,255,255,0.05);font-size:9px;color:rgba(255,255,255,0.25);letter-spacing:1px;text-align:center;line-height:2">
-    <a href="https://www.flaticon.com/free-icons/weight-lifting" title="weight lifting icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Weight lifting icons created by Fliqqer - Flaticon</a><br>
-    <a href="https://www.flaticon.com/free-icons/air-drone" title="air drone icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Air drone icons created by Shaharea - Flaticon</a><br>
-    <a href="https://www.flaticon.com/free-icons/helicopter" title="helicopter icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Helicopter icons created by Pixel perfect - Flaticon</a><br>
-    <a href="https://www.flaticon.com/free-icons/military-drone" title="military drone icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Military drone icons created by bsd - Flaticon</a><br>
-    <a href="https://www.flaticon.com/free-icons/robot" title="robot icons" target="_blank" style="color:rgba(255,255,255,0.35);text-decoration:none">Robot icons created by See Icons - Flaticon</a>
+  <div style="padding:14px 20px 20px;border-top:1px solid var(--line);font-size:9px;color:var(--text-dim);letter-spacing:1px;text-align:center;line-height:2">
+    <a href="https://www.flaticon.com/free-icons/weight-lifting" title="weight lifting icons" target="_blank" style="color:var(--text-dim);text-decoration:none">Weight lifting icons created by Fliqqer - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/air-drone" title="air drone icons" target="_blank" style="color:var(--text-dim);text-decoration:none">Air drone icons created by Shaharea - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/helicopter" title="helicopter icons" target="_blank" style="color:var(--text-dim);text-decoration:none">Helicopter icons created by Pixel perfect - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/military-drone" title="military drone icons" target="_blank" style="color:var(--text-dim);text-decoration:none">Military drone icons created by bsd - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/robot" title="robot icons" target="_blank" style="color:var(--text-dim);text-decoration:none">Robot icons created by See Icons - Flaticon</a>
   </div>
 </div>
 
@@ -957,6 +994,7 @@ const state = {
   score:       parseInt(localStorage.getItem('porter_score')       || '0'),
   deliveries:  parseInt(localStorage.getItem('porter_deliveries')  || '0'),
   playerName:  localStorage.getItem('porter_name') || '',
+  lightMode:   localStorage.getItem('porter_light_mode') === '1',
   phase:       'no_gps',
   following:   false,
   userPos:     null,
@@ -988,6 +1026,10 @@ const state = {
   // local midnight; see ensureDailyGoal().
   dailyGoal:       safeParse('porter_daily_goal', null),
 };
+
+// Apply the saved interface theme as early as possible (the <script> runs after
+// the body markup, so document.body exists here) to avoid a dark→light flash.
+applyTheme();
 
 const PROXIMITY_M        = 30;
 const REFRESH_COOLDOWN_MS = 60 * 1000;
@@ -1874,12 +1916,12 @@ function togglePaint() {
   var zones  = state.zones.filter(function(z) { return z.active && z.cells && z.cells.length; });
   var optsEl = document.getElementById('paint-zone-opts');
   optsEl.innerHTML =
-    '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:#fff;border-bottom:1px solid rgba(255,255,255,0.05)">SELECT ZONE TO PAINT</div>' +
+    '<div style="padding:8px 16px 4px;font-size:9px;letter-spacing:3px;color:var(--text);border-bottom:1px solid var(--line)">SELECT ZONE TO PAINT</div>' +
     zones.map(function(z) {
       return '<button class="paint-zone-opt" style="color:' + safeColor(z.color) + '" onclick="selectPaintZone(\'' + esc(z.id) + '\')">' +
         esc(z.name.toUpperCase()) + '</button>';
     }).join('');
-  if (!zones.length) optsEl.innerHTML += '<div style="padding:12px 16px;font-size:11px;letter-spacing:1px;color:#fff">No active zones</div>';
+  if (!zones.length) optsEl.innerHTML += '<div style="padding:12px 16px;font-size:11px;letter-spacing:1px;color:var(--text)">No active zones</div>';
   picker.classList.add('open');
   document.getElementById('paint-picker-backdrop').classList.add('open');
 }
@@ -1972,7 +2014,7 @@ function makeIcon(bg, emoji, size, className) {
   size = size || 48;
   var fs = Math.round(size * 0.65);
   return L.divIcon({
-    html: '<div style="background:' + bg + ';border:2px solid rgba(255,255,255,0.25);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + emoji + '</div>',
+    html: '<div style="background:' + bg + ';border:2px solid var(--text-dim);border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:0 2px 12px rgba(0,0,0,0.7)">' + emoji + '</div>',
     iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: className || ''
   });
 }
@@ -1986,7 +2028,7 @@ function makeDestIcon(bg, letter, size, level, borderColor, glow, lvlAbove) {
   var fs  = Math.round(h * 0.46);
   var lfs = Math.round(size * 0.26);
   var bdrW   = borderColor ? 3 : 2;
-  var bdrCol = borderColor || 'rgba(255,255,255,0.3)';
+  var bdrCol = borderColor || 'var(--line)';
   // Flat-top hexagon: top/bottom edges horizontal, points left & right.
   var clip = 'clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
   var shadow = glow ? 'filter:drop-shadow(0 0 7px rgba(48,128,192,0.9))' : '';
@@ -2004,7 +2046,7 @@ function makeDestIcon(bg, letter, size, level, borderColor, glow, lvlAbove) {
         '<div style="position:absolute;inset:0;background:' + bdrCol + ';' + clip + '"></div>' +
         '<div style="position:absolute;inset:' + bdrW + 'px;background:' + bg + ';' + clip +
           ';display:flex;align-items:center;justify-content:center;font-size:' + fs +
-          'px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
+          'px;font-weight:bold;color:var(--text);font-family:\'Courier New\',monospace">' + esc(letter) + '</div>' +
         lvlHtml +
     '</div>',
     iconSize: [w, h], iconAnchor: [w / 2, h / 2], className: ''
@@ -2013,7 +2055,7 @@ function makeDestIcon(bg, letter, size, level, borderColor, glow, lvlAbove) {
 
 function makePackageIcon(weight, size, isNext, tooHeavy, inRangeTooHeavy, isDropView) {
   var bg   = isNext ? '#e8a030' : (inRangeTooHeavy ? '#3a0808' : (tooHeavy ? '#2a1a1a' : '#2a1800'));
-  var bdr  = inRangeTooHeavy ? '2px solid #c04040' : (isDropView ? '2px solid #ffd060' : '2px solid rgba(255,255,255,0.25)');
+  var bdr  = inRangeTooHeavy ? '2px solid #c04040' : (isDropView ? '2px solid #ffd060' : '2px solid var(--text-dim)');
   var shd  = '0 2px 8px rgba(0,0,0,0.7)';
   var sub  = Math.round(size * 0.58);
   var fs   = Math.round(sub * 0.60);
@@ -2193,7 +2235,24 @@ function restoreDronesInFlight() {
 function openSettings() {
   document.getElementById('settings-overlay').classList.add('open');
   document.getElementById('settings-drawer').classList.add('open');
+  updateThemeButton();
   renderSettingsPanel();
+}
+
+// Theme toggle. The preference lives in its own localStorage key (not the
+// bundled save blob) so it applies before the rest of the game boots.
+function applyTheme() {
+  document.body.classList.toggle('light-mode', state.lightMode);
+  updateThemeButton();
+}
+function updateThemeButton() {
+  var btn = document.getElementById('s-theme-btn');
+  if (btn) btn.textContent = 'LIGHT MODE: ' + (state.lightMode ? 'ON' : 'OFF');
+}
+function toggleLightMode() {
+  state.lightMode = !state.lightMode;
+  localStorage.setItem('porter_light_mode', state.lightMode ? '1' : '0');
+  applyTheme();
 }
 
 function closeSettings() {
@@ -2216,7 +2275,7 @@ function renderSettingsPanel() {
       var col = safeColor(z.color);
       return '<div class="s-zone-row">' +
         '<button class="s-zone-toggle" ' +
-        'style="color:' + (z.active ? col : '#555') + ';border-color:' + (z.active ? col : '#2a2a3a') + '" ' +
+        'style="color:' + (z.active ? col : '#555') + ';border-color:' + (z.active ? col : 'var(--btn-border)') + '" ' +
         'onclick="settingsToggleZone(\'' + esc(z.id) + '\')">' + esc(z.name.toUpperCase()) + '</button>' +
         '<button class="s-zone-merge" title="Merge into another zone" onclick="openMergeModal(\'' + esc(z.id) + '\')">&#x2295;</button>' +
         '<button class="s-zone-edit" onclick="settingsEditZone(\'' + esc(z.id) + '\')">&#9998;</button>' +
@@ -2241,18 +2300,18 @@ function openMergeModal(sourceId) {
   var listHtml = others.length
     ? others.map(function(z) {
         var col = safeColor(z.color);
-        return '<button style="' + btnStyle + 'color:' + col + ';border:1px solid ' + col + ';background:rgba(0,0,0,0.3)"' +
+        return '<button style="' + btnStyle + 'color:' + col + ';border:1px solid ' + col + ';background:var(--inset)"' +
           ' onclick="confirmMergeZone(\'' + esc(sourceId) + '\',\'' + esc(z.id) + '\')">' +
           esc(z.name.toUpperCase()) + '</button>';
       }).join('')
-    : '<div style="font-size:12px;color:#fff;letter-spacing:1px">No other zones to merge into.</div>';
+    : '<div style="font-size:12px;color:var(--text);letter-spacing:1px">No other zones to merge into.</div>';
   document.getElementById('merge-modal-content').innerHTML =
     '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:12px">MERGE ZONE</div>' +
-    '<div style="font-size:12px;color:#fff;letter-spacing:1px;line-height:1.6;margin-bottom:16px">' +
-      'Select a zone to absorb <strong style="color:#e0d8c8">' + esc(source.name.toUpperCase()) + '</strong> into.' +
+    '<div style="font-size:12px;color:var(--text);letter-spacing:1px;line-height:1.6;margin-bottom:16px">' +
+      'Select a zone to absorb <strong style="color:var(--text-cream)">' + esc(source.name.toUpperCase()) + '</strong> into.' +
     '</div>' +
     listHtml +
-    '<button onclick="closeMergeModal()" style="' + btnStyle + 'color:#fff;border:1px solid #2a2a3a;background:transparent;margin-top:4px">CANCEL</button>';
+    '<button onclick="closeMergeModal()" style="' + btnStyle + 'color:var(--text);border:1px solid var(--btn-border);background:transparent;margin-top:4px">CANCEL</button>';
   document.getElementById('merge-overlay').classList.add('open');
 }
 
@@ -2381,10 +2440,10 @@ var _mBtn = 'width:100%;padding:13px 14px;border-radius:4px;text-align:center;' 
 function showShareText(title, hint, code) {
   document.getElementById('share-modal-content').innerHTML =
     '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:10px">' + esc(title) + '</div>' +
-    '<div style="font-size:11px;color:#fff;letter-spacing:1px;line-height:1.6;margin-bottom:12px">' + esc(hint) + '</div>' +
+    '<div style="font-size:11px;color:var(--text);letter-spacing:1px;line-height:1.6;margin-bottom:12px">' + esc(hint) + '</div>' +
     '<textarea class="share-textarea" id="share-code-box" rows="6" readonly onclick="this.select()">' + esc(code) + '</textarea>' +
     '<button onclick="copyShareCode()" style="' + _mBtn + 'color:#5ab05a;border:1px solid #2a3a20;background:rgba(20,40,10,0.4);margin-top:4px">&#x29C9; COPY CODE</button>' +
-    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#fff;border:1px solid #2a2a3a;background:transparent;margin-top:8px">CLOSE</button>';
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:var(--text);border:1px solid var(--btn-border);background:transparent;margin-top:8px">CLOSE</button>';
   document.getElementById('share-overlay').classList.add('open');
 }
 
@@ -2407,10 +2466,10 @@ function showSyncInput(title, hint, handlerName) {
   _syncHandler = handlerName;
   document.getElementById('share-modal-content').innerHTML =
     '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:10px">' + esc(title) + '</div>' +
-    '<div style="font-size:11px;color:#fff;letter-spacing:1px;line-height:1.6;margin-bottom:12px">' + esc(hint) + '</div>' +
+    '<div style="font-size:11px;color:var(--text);letter-spacing:1px;line-height:1.6;margin-bottom:12px">' + esc(hint) + '</div>' +
     '<textarea class="share-textarea" id="sync-code-box" rows="6" placeholder="Paste code here…" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>' +
     '<button onclick="submitSyncInput()" style="' + _mBtn + 'color:#3080c0;border:1px solid #1a2a3a;background:rgba(10,20,40,0.4);margin-top:4px">&#x2713; CONFIRM</button>' +
-    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#fff;border:1px solid #2a2a3a;background:transparent;margin-top:8px">CANCEL</button>';
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:var(--text);border:1px solid var(--btn-border);background:transparent;margin-top:8px">CANCEL</button>';
   document.getElementById('share-overlay').classList.add('open');
   setTimeout(function() { var b = document.getElementById('sync-code-box'); if (b) b.focus(); }, 50);
 }
@@ -2447,13 +2506,13 @@ function openShareZonePicker() {
   if (state.zones.length === 1) { shareZoneCode(state.zones[0].id); return; }
   document.getElementById('share-modal-content').innerHTML =
     '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:12px">SHARE ZONE</div>' +
-    '<div style="font-size:11px;color:#fff;letter-spacing:1px;line-height:1.6;margin-bottom:14px">Pick a zone to share.</div>' +
+    '<div style="font-size:11px;color:var(--text);letter-spacing:1px;line-height:1.6;margin-bottom:14px">Pick a zone to share.</div>' +
     state.zones.map(function(z) {
       var col = safeColor(z.color);
-      return '<button style="' + _mBtn + 'text-align:left;color:' + col + ';border:1px solid ' + col + ';background:rgba(0,0,0,0.3);margin-bottom:8px"' +
+      return '<button style="' + _mBtn + 'text-align:left;color:' + col + ';border:1px solid ' + col + ';background:var(--inset);margin-bottom:8px"' +
         ' onclick="shareZoneCode(\'' + esc(z.id) + '\')">' + esc(z.name.toUpperCase()) + '</button>';
     }).join('') +
-    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#fff;border:1px solid #2a2a3a;background:transparent;margin-top:4px">CANCEL</button>';
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:var(--text);border:1px solid var(--btn-border);background:transparent;margin-top:4px">CANCEL</button>';
   document.getElementById('share-overlay').classList.add('open');
 }
 
@@ -3827,12 +3886,12 @@ function openShareDropPicker() {
   if (state.destinations.length === 1) { shareDrop(state.destinations[0].id); return; }
   document.getElementById('share-modal-content').innerHTML =
     '<div style="font-size:11px;letter-spacing:4px;color:#e8a030;margin-bottom:12px">SHARE DROP</div>' +
-    '<div style="font-size:11px;color:#fff;letter-spacing:1px;line-height:1.6;margin-bottom:14px">Pick a drop to share.</div>' +
+    '<div style="font-size:11px;color:var(--text);letter-spacing:1px;line-height:1.6;margin-bottom:14px">Pick a drop to share.</div>' +
     state.destinations.map(function(d) {
       return '<button style="' + _mBtn + 'text-align:left;color:#3080c0;border:1px solid #1a2a3a;background:rgba(10,20,40,0.3);margin-bottom:8px"' +
         ' onclick="shareDrop(\'' + esc(d.id) + '\')">DROP ' + esc(d.label) + ' · ' + esc(d.name || 'UNKNOWN') + '</button>';
     }).join('') +
-    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:#fff;border:1px solid #2a2a3a;background:transparent;margin-top:4px">CANCEL</button>';
+    '<button onclick="closeShareModal()" style="' + _mBtn + 'color:var(--text);border:1px solid var(--btn-border);background:transparent;margin-top:4px">CANCEL</button>';
   document.getElementById('share-overlay').classList.add('open');
 }
 
@@ -4094,23 +4153,23 @@ function openDropPanel(destId) {
       '<div style="display:flex;align-items:center;gap:16px">' +
         '<div style="width:52px;height:52px;border-radius:50%;background:#0c1e30;border:2px solid #3080c0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;color:#fff;font-family:\'Courier New\',monospace">' + esc(dest.icon || dest.label) + '</div>' +
         '<div>' +
-          '<div style="font-size:14px;letter-spacing:3px;color:#e0d8c8">' + (dest.title ? esc(dest.title) : 'DROP ' + esc(dest.label)) + '</div>' +
-          '<div style="font-size:11px;color:#fff;letter-spacing:2px;margin-top:3px">' + esc(dest.name || 'UNKNOWN') + '</div>' +
+          '<div style="font-size:14px;letter-spacing:3px;color:var(--text-cream)">' + (dest.title ? esc(dest.title) : 'DROP ' + esc(dest.label)) + '</div>' +
+          '<div style="font-size:11px;color:var(--text);letter-spacing:2px;margin-top:3px">' + esc(dest.name || 'UNKNOWN') + '</div>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">' +
         '<button onclick="viewDropOrders(\'' + destId + '\')" style="padding:8px 14px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a3a4a;background:rgba(10,30,50,0.4);color:#5ab0e0">VIEW</button>' +
-        '<div style="font-size:10px;color:#fff;letter-spacing:1px;opacity:0.6">' + pkgsWaiting + ' PENDING ORDER' + (pkgsWaiting !== 1 ? 'S' : '') + '</div>' +
+        '<div style="font-size:10px;color:var(--text);letter-spacing:1px;opacity:0.6">' + pkgsWaiting + ' PENDING ORDER' + (pkgsWaiting !== 1 ? 'S' : '') + '</div>' +
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:24px;margin-bottom:14px">' +
-      '<div onclick="showDropLevelBreakdown(\'' + destId + '\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent"><div style="font-size:10px;color:#fff;letter-spacing:2px">LEVEL</div><div style="font-size:24px;color:#e8a030">' + level + '</div></div>' +
-      '<div onclick="showDropLevelBreakdown(\'' + destId + '\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent"><div style="font-size:10px;color:#fff;letter-spacing:2px">TOTAL PTS</div><div style="font-size:24px;color:#e8a030">' + totalPts + '</div></div>' +
-      '<div><div style="font-size:10px;color:#fff;letter-spacing:2px">BONUS</div><div style="font-size:24px;color:#5ab05a">+' + level + '%</div></div>' +
+      '<div onclick="showDropLevelBreakdown(\'' + destId + '\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent"><div style="font-size:10px;color:var(--text);letter-spacing:2px">LEVEL</div><div style="font-size:24px;color:#e8a030">' + level + '</div></div>' +
+      '<div onclick="showDropLevelBreakdown(\'' + destId + '\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent"><div style="font-size:10px;color:var(--text);letter-spacing:2px">TOTAL PTS</div><div style="font-size:24px;color:#e8a030">' + totalPts + '</div></div>' +
+      '<div><div style="font-size:10px;color:var(--text);letter-spacing:2px">BONUS</div><div style="font-size:24px;color:#5ab05a">+' + level + '%</div></div>' +
     '</div>' +
     (level < LEVEL_MAX
       ? '<div style="margin-bottom:14px">' +
-          '<div style="font-size:10px;color:#fff;letter-spacing:2px;margin-bottom:6px">LEVEL ' + (level + 1) + ' IN ' + toNext + ' PTS</div>' +
+          '<div style="font-size:10px;color:var(--text);letter-spacing:2px;margin-bottom:6px">LEVEL ' + (level + 1) + ' IN ' + toNext + ' PTS</div>' +
           '<div style="height:4px;background:#1a1a2a;border-radius:2px"><div style="height:4px;background:#e8a030;border-radius:2px;width:' + Math.max(2, pct) + '%"></div></div>' +
         '</div>'
       : '<div style="font-size:11px;color:#5ab05a;letter-spacing:3px;margin-bottom:14px">MAX LEVEL</div>') +
@@ -4324,7 +4383,7 @@ function renderDepotPanel(depot) {
     '</div>';
   }
   function emptyRow(txt) { return '<div class="depot-empty">' + txt + '</div>'; }
-  function disabledBtnStyle() { return bb + 'border:1px solid #24242e;background:transparent;color:#3a3a4a;cursor:not-allowed'; }
+  function disabledBtnStyle() { return bb + 'border:1px solid #24242e;background:transparent;color:var(--text-dim);cursor:not-allowed'; }
 
   var invRows = state.carrying.map(function(id) {
     var p = state.packages.find(function(x) { return x.id === id; });
@@ -4374,13 +4433,13 @@ function renderDepotPanel(depot) {
       '<div style="display:flex;align-items:center;gap:12px">' +
         '<div style="width:44px;height:44px;border-radius:10px;background:#1a3a2a;border:2px solid #2a6a4a;display:flex;align-items:center;justify-content:center;font-size:22px">🏬</div>' +
         '<div>' +
-          '<div style="font-size:13px;letter-spacing:3px;color:#e0d8c8">STORAGE DEPOT</div>' +
+          '<div style="font-size:13px;letter-spacing:3px;color:var(--text-cream)">STORAGE DEPOT</div>' +
           '<div style="font-size:11px;color:#5ab07a;letter-spacing:2px;margin-top:3px">' + dLoad + ' / ' + dCap + 'U STORED · ' + nStored + ' PKG' + (nStored !== 1 ? 'S' : '') + '</div>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<button onclick="viewDepotOrders(\'' + depot.id + '\')" style="padding:8px 14px;border-radius:4px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a3a4a;background:rgba(10,30,50,0.4);color:#5ab0e0">VIEW</button>' +
-        '<button onclick="closeDepotPanel()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+        '<button onclick="closeDepotPanel()" style="background:transparent;border:none;color:var(--text);font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
       '</div>' +
     '</div>' +
     notice +
@@ -4786,14 +4845,14 @@ function collectionHTML() {
     return '<div class="coll-cell"><div class="coll-name">??? Undiscovered</div></div>';
   }).join('');
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
-           '<div style="font-size:10px;letter-spacing:4px;color:#fff">COLLECTION</div>' +
-           '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+           '<div style="font-size:10px;letter-spacing:4px;color:var(--text)">COLLECTION</div>' +
+           '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:var(--text);font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
          '</div>' +
-         '<div style="font-size:12px;color:#fff;letter-spacing:2px">' + found + ' / ' + total + ' ITEM TYPES' +
+         '<div style="font-size:12px;color:var(--text);letter-spacing:2px">' + found + ' / ' + total + ' ITEM TYPES' +
            (found === total ? ' &nbsp;&middot;&nbsp; <span style="color:#e8a030">COMPLETE!</span>' : '') +
          '</div>' +
          '<div class="coll-prog-track"><div class="coll-prog-fill" style="width:' + pct + '%"></div></div>' +
-         '<div style="font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px">' + delivered + ' total deliveries logged</div>' +
+         '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px">' + delivered + ' total deliveries logged</div>' +
          '<div class="coll-grid">' + cells + '</div>';
 }
 
@@ -4839,9 +4898,9 @@ function dismissTutorial() {
 function _levelBreakdownRows(upgrades, currentLevel) {
   return upgrades.map(function(u) {
     var done = currentLevel >= u.level;
-    return '<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)">' +
+    return '<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">' +
       '<div style="font-size:12px;color:' + (done ? '#e8a030' : '#6c6c80') + ';font-weight:bold;min-width:32px;text-align:right;letter-spacing:1px">LV' + u.level + '</div>' +
-      '<div style="font-size:11px;letter-spacing:1px;color:' + (done ? '#e0d8c8' : '#9a9ab0') + ';flex:1">' + u.text + '</div>' +
+      '<div style="font-size:11px;letter-spacing:1px;color:' + (done ? 'var(--text-cream)' : '#9a9ab0') + ';flex:1">' + u.text + '</div>' +
       (done ? '<div style="color:#5ab05a;font-size:13px">&#x2713;</div>' : '') +
     '</div>';
   }).join('');
@@ -4898,7 +4957,7 @@ function skillEdgePath(p, c) {
 function skillNodeSvg(n) {
   var pos = SKILL_POS[n.id], b = skillBranchOf(n);
   var st  = skillState(n);
-  var stroke = st === 'owned' ? b.color : st === 'buyable' ? '#5ab05a' : st === 'unaffordable' ? '#3a3a4a' : '#2a2a3a';
+  var stroke = st === 'owned' ? b.color : st === 'buyable' ? '#5ab05a' : st === 'unaffordable' ? 'var(--text-dim)' : 'var(--btn-border)';
   var sw = (st === 'owned' || st === 'buyable') ? 2.5 : 1.5;
   var g = '<g onclick="selectSkill(\'' + n.id + '\')" style="cursor:pointer"' + (st === 'locked' ? ' opacity="0.4"' : '') + '>';
   if (selectedSkillId === n.id) {
@@ -4918,7 +4977,7 @@ function skillNodeSvg(n) {
     g += '<circle cx="' + bx + '" cy="' + by + '" r="8" fill="' + b.color + '"/>' +
          '<text x="' + bx + '" y="' + (by + 3.5) + '" text-anchor="middle" font-size="10" font-weight="bold" fill="#0a0a0f" style="pointer-events:none">✓</text>';
   } else {
-    g += '<circle cx="' + bx + '" cy="' + by + '" r="8" fill="#0d0d14" stroke="' + stroke + '" stroke-width="1"/>' +
+    g += '<circle cx="' + bx + '" cy="' + by + '" r="8" fill="var(--surface)" stroke="' + stroke + '" stroke-width="1"/>' +
          '<text x="' + bx + '" y="' + (by + 3) + '" text-anchor="middle" font-size="9" font-family="Courier New" fill="' +
          (st === 'buyable' ? '#5ab05a' : '#8a8aa0') + '" style="pointer-events:none">' + n.cost + '</text>';
   }
@@ -4932,7 +4991,7 @@ function renderSkillTreeSvg() {
     var parent = n.req ? SKILL_POS[n.req] : SKILL_ROOT_POS;
     var ownedEdge = hasSkill(n.id) && (!n.req || hasSkill(n.req));
     var openEdge  = !n.req || hasSkill(n.req);
-    var stroke = ownedEdge ? b.color : (openEdge ? 'rgba(255,255,255,0.35)' : '#23232f');
+    var stroke = ownedEdge ? b.color : (openEdge ? 'var(--text-dim)' : '#23232f');
     edges += '<path d="' + skillEdgePath(parent, pos) + '" fill="none" stroke="' + stroke +
       '" stroke-width="' + (ownedEdge ? 2.5 : 1.5) + '"' +
       (openEdge && !ownedEdge ? ' stroke-dasharray="4 4"' : '') + '/>';
@@ -4945,7 +5004,7 @@ function renderSkillTreeSvg() {
 }
 
 function skillDetailHtml() {
-  var card = '<div style="position:sticky;bottom:0;background:#11111c;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px 14px;margin-top:10px;box-shadow:0 -6px 18px rgba(0,0,0,0.45)">';
+  var card = '<div style="position:sticky;bottom:0;background:#11111c;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:10px;box-shadow:0 -6px 18px rgba(0,0,0,0.45)">';
   if (!selectedSkillId) {
     return card + '<div style="font-size:10px;color:#6c6c80;letter-spacing:1px;text-align:center;padding:8px 0">TAP A SKILL TO INSPECT IT</div></div>';
   }
@@ -4962,7 +5021,7 @@ function skillDetailHtml() {
   }
   return card +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
-      '<div style="font-size:11px;letter-spacing:2px;color:#e0d8c8">' + esc(n.name) + '</div>' +
+      '<div style="font-size:11px;letter-spacing:2px;color:var(--text-cream)">' + esc(n.name) + '</div>' +
       '<div style="font-size:9px;letter-spacing:2px;color:' + b.color + ';flex-shrink:0">' + b.label + '</div>' +
     '</div>' +
     '<div style="font-size:11px;color:#9a9ab0;line-height:1.5;margin:6px 0 10px">' + esc(n.desc) + '</div>' +
@@ -4982,10 +5041,10 @@ function renderSkillTree() {
   var respecRemain = Math.max(0, RESPEC_COOLDOWN_MS - (Date.now() - (state.respecLastUsed || 0)));
   document.getElementById('level-modal-content').innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
-      '<div style="font-size:10px;letter-spacing:4px;color:#fff">SKILL TREE</div>' +
-      '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+      '<div style="font-size:10px;letter-spacing:4px;color:var(--text)">SKILL TREE</div>' +
+      '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:var(--text);font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
     '</div>' +
-    '<div style="font-size:12px;color:#fff;letter-spacing:2px;margin-bottom:4px">LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
+    '<div style="font-size:12px;color:var(--text);letter-spacing:2px;margin-bottom:4px">LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
     '<div style="font-size:12px;letter-spacing:2px;color:' + (avail > 0 ? '#e8a030' : '#6c6c80') + '">' + avail + ' SKILL POINT' + (avail !== 1 ? 'S' : '') + ' TO SPEND</div>' +
     '<div style="display:flex;gap:16px;justify-content:center;margin:10px 0 2px">' +
       SKILL_BRANCHES.map(function(b) {
@@ -4994,7 +5053,7 @@ function renderSkillTree() {
     '</div>' +
     renderSkillTreeSvg() +
     skillDetailHtml() +
-    '<button onclick="respecSkills()" style="width:100%;margin-top:12px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid #2a2a3a;background:transparent;color:#fff">' +
+    '<button onclick="respecSkills()" style="width:100%;margin-top:12px;font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:2px;padding:12px;border-radius:4px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid var(--btn-border);background:transparent;color:var(--text)">' +
     (respecRemain > 0 ? 'RESPEC READY IN ' + formatRemainTime(respecRemain) : '&#x21BA; RESPEC &middot; REFUND ALL POINTS &middot; 24H COOLDOWN') + '</button>';
 }
 
@@ -5014,10 +5073,10 @@ function showDropLevelBreakdown(destId) {
   var progress = level >= LEVEL_MAX ? 'MAX LEVEL' : toNext + ' pts to LV' + (level + 1);
   document.getElementById('level-modal-content').innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
-      '<div style="font-size:10px;letter-spacing:4px;color:#fff">DROP UPGRADES</div>' +
-      '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:#fff;font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
+      '<div style="font-size:10px;letter-spacing:4px;color:var(--text)">DROP UPGRADES</div>' +
+      '<button onclick="closeLevelBreakdown()" style="background:transparent;border:none;color:var(--text);font-family:\'Courier New\',monospace;font-size:16px;cursor:pointer;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent">&#x2715;</button>' +
     '</div>' +
-    '<div style="font-size:12px;color:#fff;letter-spacing:2px;margin-bottom:6px">DROP ' + esc(dest.label) + ' &nbsp;&middot;&nbsp; LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
+    '<div style="font-size:12px;color:var(--text);letter-spacing:2px;margin-bottom:6px">DROP ' + esc(dest.label) + ' &nbsp;&middot;&nbsp; LEVEL ' + level + ' &nbsp;&middot;&nbsp; ' + progress + '</div>' +
     '<div style="font-size:10px;color:#444;letter-spacing:1px;margin-bottom:12px">Each level: +1% delivery bonus</div>' +
     _levelBreakdownRows(DROP_UPGRADES, level);
   document.getElementById('level-overlay').classList.add('open');
@@ -5359,13 +5418,13 @@ function showOrderInfo(pkg, dest) {
     hexes = Math.round(hexDist(ph.q, ph.r, dh.q, dh.r));
   }
   el.innerHTML =
-    '<div style="font-size:9px;letter-spacing:2px;color:rgba(255,255,255,0.5);margin-bottom:6px">ORDER</div>' +
-    '<div style="font-size:13px;color:#e0d8c8;line-height:1.4;margin-bottom:4px">' + label + '</div>' +
+    '<div style="font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px">ORDER</div>' +
+    '<div style="font-size:13px;color:var(--text-cream);line-height:1.4;margin-bottom:4px">' + label + '</div>' +
     '<div style="font-size:11px;color:#e8a030;letter-spacing:1px;margin-bottom:4px">→ ' + esc(destDisplayName(dest)) + '</div>' +
-    (hexes != null ? '<div style="font-size:10px;color:rgba(255,255,255,0.6);letter-spacing:1px;margin-bottom:4px">' + hexes + ' hex to drop</div>' : '') +
-    '<div style="font-size:11px;color:#fff">' + pkg.pts + ' pts</div>' +
+    (hexes != null ? '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px">' + hexes + ' hex to drop</div>' : '') +
+    '<div style="font-size:11px;color:var(--text)">' + pkg.pts + ' pts</div>' +
     (inRange ? '<div style="font-size:10px;color:#c04040;margin-top:6px;letter-spacing:1px">CAN\'T PICK UP · TOO HEAVY</div>'
-             : (pkg.weight > rem ? '<div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:6px">too heavy</div>' : ''));
+             : (pkg.weight > rem ? '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">too heavy</div>' : ''));
   var topH = (document.getElementById('hud-top') || {}).offsetHeight || 0;
   el.style.top = (topH + 8) + 'px';
   el.classList.remove('left');
@@ -5480,7 +5539,7 @@ function updateHUD() {
   if (capStatusEl) {
     var _segs = '';
     for (var _i = 0; _i < cap; _i++) {
-      _segs += '<div class="status-bar-seg" style="background:' + (_i < load ? '#e8a030' : 'rgba(255,255,255,0.07)') + '"></div>';
+      _segs += '<div class="status-bar-seg" style="background:' + (_i < load ? '#e8a030' : 'var(--line)') + '"></div>';
     }
     capStatusEl.innerHTML =
       '<div class="status-row">' +
